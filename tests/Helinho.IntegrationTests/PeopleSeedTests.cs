@@ -84,10 +84,12 @@ public class PeopleSeedTests(PostgresFixture postgres)
         var adminSouth = await db.Users.SingleAsync(u => u.Email == "admin.sul@helinho.example", ct);
         Assert.Equal(south.Id, adminSouth.UnitId);
 
+        // Pressupõe que nenhum outro teste cria e-mails @helinho.example no banco compartilhado.
         Assert.Equal(13, await db.Users.CountAsync(u => u.Email!.EndsWith("@helinho.example"), ct));
         var expectedEmails = Enumerable.Range(1, 10).Select(n => $"aluno{n:00}@helinho.example").ToArray();
         var studentEmails = await (from s in db.Students.IgnoreQueryFilters()
                                    join u in db.Users on s.UserId equals u.Id
+                                   where u.Email!.EndsWith("@helinho.example")
                                    select u.Email!).ToListAsync(ct);
         Assert.Equal(expectedEmails, studentEmails.Order().ToArray());
         Assert.Equal(
