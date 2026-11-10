@@ -13,6 +13,7 @@ public static class InfrastructureExtensions
         services.AddSingleton<IEmailSender, FakeEmailSender>();
         services.AddSingleton<IPushSender, FakePushSender>();
         services.AddScoped<ICurrentUser, AnonymousCurrentUser>();
+        services.AddSingleton<IApiSessionValidator, RejectAllSessionValidator>();
         services.AddScoped<DatabaseSeeder>();
         return services;
     }
