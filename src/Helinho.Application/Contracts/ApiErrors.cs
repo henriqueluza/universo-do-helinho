@@ -12,6 +12,7 @@ public static class ApiErrors
     public const string NotImplemented = "not_implemented";
     public const string InvalidQuizType = "invalid_quiz_type";
     public const string NoQuestions = "no_questions";
+    public const string InvalidInventory = "invalid_inventory";
 
     public static ErrorResponse CreateInvalidCredentials() => new(InvalidCredentials, "Credencial inválida.");
 
@@ -25,4 +26,7 @@ public static class ApiErrors
         new(InvalidQuizType, "quiz_type obrigatório: ambiental, conhecimento, esportivo, cultural ou diversidade.");
 
     public static ErrorResponse CreateNoQuestions() => new(NoQuestions, "Sem perguntas disponíveis para este quiz.");
+
+    public static ErrorResponse CreateInvalidInventory() => new(
+        InvalidInventory, "Seleção inválida: no máximo um item por type (cabelo, pele, roupa, rosto, acessorio), com id e name.");
 }
