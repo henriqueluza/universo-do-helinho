@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Helinho.Application/Helinho.Application.csproj" />
+    <Project Path="src/Helinho.Domain/Helinho.Domain.csproj" />
+    <Project Path="src/Helinho.Infrastructure/Helinho.Infrastructure.csproj" />
+    <Project Path="src/Helinho.Web/Helinho.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Helinho.ArchitectureTests/Helinho.ArchitectureTests.csproj" />
+    <Project Path="tests/Helinho.IntegrationTests/Helinho.IntegrationTests.csproj" />
+    <Project Path="tests/Helinho.UnitTests/Helinho.UnitTests.csproj" />
+  </Folder>
+</Solution>

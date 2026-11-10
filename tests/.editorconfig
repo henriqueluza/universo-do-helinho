@@ -1,0 +1,4 @@
+[*.cs]
+# Nomes de teste descritivos com underscore; coleções xUnit terminam em "Collection".
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1711.severity = none

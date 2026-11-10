@@ -39,8 +39,14 @@ jobs:
         run: |
           cp -R .agents/skills /tmp/committed && ./scripts/sync-agents-mirror.sh
           diff -r /tmp/committed .agents/skills || { echo "::error::.agents/skills desatualizado. Rode scripts/sync-agents-mirror.sh"; exit 1; }
-      # TODO (por projeto): adicione aqui lint, typecheck e testes da stack.
-      # O snippet pronto está na seção 9 do guia da stack:
-      # .claude/skills/engineering-standards/references/stacks/<stack>.md
-      - name: Aviso — lint e testes ainda nao configurados
-        run: echo "::warning::validate.yml ainda nao roda lint nem testes. Edite este arquivo (ver secao 9 do guia da stack)."
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet restore
+      - run: dotnet format --verify-no-changes --no-restore
+      - run: dotnet build --no-restore -warnaserror
+      - run: dotnet test --no-build
+      - name: Pacotes vulneráveis
+        run: |
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee vulnerable.txt
+          ! grep -q "has the following vulnerable packages" vulnerable.txt
