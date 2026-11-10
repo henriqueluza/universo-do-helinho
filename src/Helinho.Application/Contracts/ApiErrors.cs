@@ -13,6 +13,7 @@ public static class ApiErrors
     public const string InvalidQuizType = "invalid_quiz_type";
     public const string NoQuestions = "no_questions";
     public const string InvalidInventory = "invalid_inventory";
+    public const string InvalidPushToken = "invalid_push_token";
 
     public static ErrorResponse CreateInvalidCredentials() => new(InvalidCredentials, "Credencial inválida.");
 
@@ -29,4 +30,7 @@ public static class ApiErrors
 
     public static ErrorResponse CreateInvalidInventory() => new(
         InvalidInventory, "Seleção inválida: no máximo um item por type (cabelo, pele, roupa, rosto, acessorio), com id e name.");
+
+    public static ErrorResponse CreateInvalidPushToken() => new(
+        InvalidPushToken, "token obrigatório (até 512 caracteres) e platform android ou ios.");
 }
