@@ -129,6 +129,8 @@ Precisa aceitar o tipo de quiz como parâmetro. Tocar num personagem do mapa abr
  "time\_limit": 30  
 }
 
+PROPOSTA, pendente de aceite da contratante: `time_limit` é fixo em 30 segundos. `total` = min(10, perguntas disponíveis para o tipo e a faixa do aluno). Erros: 400 `invalid_quiz_type` e 404 `no_questions` (ver P4 em `propostas-contrato-api.md`).
+
 #### POST /quiz/{question\_id}/answer
 
 Envia:  
