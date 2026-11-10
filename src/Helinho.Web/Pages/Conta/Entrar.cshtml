@@ -1,0 +1,30 @@
+@page
+@model Helinho.Web.Pages.Conta.EntrarModel
+@{
+    ViewData["Title"] = "Entrar";
+    Layout = "_Bare";
+}
+<div class="card-panel auth-card">
+    <h1 class="page-title">Entrar</h1>
+    <form method="post" novalidate>
+        @if (!ModelState.IsValid)
+        {
+            <div class="alert alert-danger" role="alert" tabindex="-1" id="resumo-erros">
+                @foreach (var e in ModelState.Values.SelectMany(v => v.Errors))
+                {
+                    <div>@e.ErrorMessage</div>
+                }
+            </div>
+        }
+        <div class="mb-3">
+            <label class="form-label" asp-for="Input.UserName">Usuário ou e-mail <span class="muted">(obrigatório)</span></label>
+            <input class="form-control" asp-for="Input.UserName" autocomplete="username" autofocus />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" asp-for="Input.Password">Senha <span class="muted">(obrigatório)</span></label>
+            <input class="form-control" asp-for="Input.Password" autocomplete="current-password" />
+        </div>
+        <input type="hidden" asp-for="ReturnUrl" />
+        <button class="btn btn-primary w-100" type="submit">Entrar</button>
+    </form>
+</div>
