@@ -31,3 +31,6 @@
 **/*.png
 **/*.jpg
 **/*.ico
+
+# Migrações do EF Core (geradas por `dotnet ef migrations add`)
+**/Migrations/*.cs
