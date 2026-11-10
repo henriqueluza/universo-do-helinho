@@ -1,4 +1,6 @@
+using Helinho.Application.Abstractions;
 using Helinho.Application.Contracts;
+using Helinho.Application.Quizzes;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Helinho.Web.Api.User;
@@ -7,9 +9,12 @@ public static class UserEndpoints
 {
     public static RouteGroupBuilder MapUserEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/user/stats", () => ApiResults.NotImplemented())
+        api.MapGet("/user/stats", async (IAppDbContext db, ICurrentStudent current, CancellationToken ct) =>
+                await GetUserStats.HandleAsync(db, current, ct) is { } stats
+                    ? Results.Ok(stats)
+                    : Results.Json(ApiErrors.CreateForbidden(), statusCode: StatusCodes.Status403Forbidden))
             .Produces<UserStatsResponse>()
-            .Produces<ErrorResponse>(StatusCodes.Status501NotImplemented);
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
         api.MapGet("/user/badges", ([FromQuery] int? page) => ApiResults.NotImplemented())
             .Produces<BadgesResponse>()
             .Produces<ErrorResponse>(StatusCodes.Status501NotImplemented);
