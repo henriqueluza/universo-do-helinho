@@ -1,5 +1,6 @@
 using Helinho.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace Helinho.Application.Abstractions;
 
@@ -33,6 +34,8 @@ public interface IAppDbContext
     DbSet<ApiSession> ApiSessions { get; }
 
     DbSet<PushToken> PushTokens { get; }
+
+    DatabaseFacade Database { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -109,7 +109,32 @@ public class QuizAnswerTests(PostgresFixture postgres)
         Assert.Equal(10, await XpAsync(web, ana));
         await using var scope = web.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Assert.Equal(1, await db.QuizAnswers.CountAsync(a => a.QuestionId == Guid.Parse(qid), Ct));
+        Assert.Equal(1, await db.QuizAnswers.CountAsync(
+            a => a.QuestionId == Guid.Parse(qid) && db.QuizSessions.Any(s => s.Id == a.SessionId && s.StudentId == ana), Ct));
+    }
+
+    [Fact]
+    public async Task Respostas_simultaneas_do_mesmo_aluno_em_sessoes_diferentes_somam_o_xp_exato()
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        var web = factory.WithTestSessions();
+        var ana = await SeedStudentAsync(web);
+        await AddQuestionsAsync(web, QuizType.Conhecimento, 3);
+        await AddQuestionsAsync(web, QuizType.Diversidade, 3);
+        using var client = web.CreateStudentClient(ana);
+
+        for (var round = 0; round < 3; round++)
+        {
+            var a = await CurrentIdAsync(client, "conhecimento");
+            var b = await CurrentIdAsync(client, "diversidade");
+            using var gate = new Barrier(2);
+            var results = await Task.WhenAll(
+                Task.Run(() => { gate.SignalAndWait(Ct); return PostAsync(client, a, "b"); }, Ct),
+                Task.Run(() => { gate.SignalAndWait(Ct); return PostAsync(client, b, "b"); }, Ct));
+            Assert.All(results, r => Assert.Equal(HttpStatusCode.OK, r.Status));
+        }
+
+        Assert.Equal(60, await XpAsync(web, ana));
     }
 
     [Fact]

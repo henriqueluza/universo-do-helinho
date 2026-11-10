@@ -95,7 +95,6 @@ public static class AnswerQuiz
         var hasNext = answeredCount + 1 < session.Total;
 
         db.QuizAnswers.Add(new QuizAnswer(session.Id, qid, chosen.Key, isCorrect, xpGained, now));
-        student.AddXp(xpGained);
         if (!hasNext)
         {
             session.Complete(now);
@@ -103,13 +102,28 @@ public static class AnswerQuiz
 
         await AdvanceQuestsAsync(db, studentId, question.QuizType, now, cancellationToken);
 
+        int xp;
         try
         {
+            // Resposta, missões e XP numa transação; o XP é incremento atômico no banco (sem ler-modificar-gravar),
+            // para que respostas simultâneas do mesmo aluno em sessões diferentes não percam XP.
+            await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
+            if (xpGained > 0)
+            {
+                // ignora-filtro: escopo do aluno do token (Id).
+                await db.Students.IgnoreQueryFilters().Where(s => s.Id == studentId)
+                    .ExecuteUpdateAsync(u => u.SetProperty(s => s.Xp, s => s.Xp + xpGained), cancellationToken);
+            }
+
+            // ignora-filtro: escopo do aluno do token (Id); lê o XP já atualizado na transação.
+            xp = await db.Students.IgnoreQueryFilters().AsNoTracking()
+                .Where(s => s.Id == studentId).Select(s => s.Xp).SingleAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
         }
         catch (DbUpdateException)
         {
-            // Requisição concorrente da mesma resposta: a outra venceu o índice único; nada foi gravado aqui.
+            // Requisição concorrente da mesma resposta: a outra venceu o índice único; a transação foi desfeita.
             var winner = await FindAnswerAsync(db, studentId, qid, session.Id, cancellationToken);
             if (winner is null)
             {
@@ -119,7 +133,7 @@ public static class AnswerQuiz
             return await ReplayAsync(db, studentId, question, winner, cancellationToken);
         }
 
-        return Ok(question, isCorrect, xpGained, streak, student.Xp, hasNext);
+        return Ok(question, isCorrect, xpGained, streak, xp, hasNext);
     }
 
     /// <summary>Resposta já gravada para a pergunta: na sessão aberta ou, se ela já fechou, na mais recente do aluno.</summary>
