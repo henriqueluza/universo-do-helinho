@@ -1,11 +1,55 @@
+using Helinho.Application.Abstractions;
+using Helinho.Domain;
+using Helinho.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace Helinho.Infrastructure.Persistence;
 
-/// <summary>Contexto único do sistema. Partial: a Issue 1b acrescenta as entidades em arquivo próprio.</summary>
-public partial class AppDbContext(DbContextOptions<AppDbContext> options)
-    : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>(options)
+/// <summary>Contexto único do sistema: Identity + entidades do domínio.</summary>
+public partial class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser currentUser)
+    : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>(options), IAppDbContext
 {
+    // Propriedades do contexto: o EF as transforma em parâmetros do filtro global.
+    private bool SeesAllUnits => currentUser.IsInRole(RoleNames.Master);
+
+    private Guid? CurrentUnitId => currentUser.UnitId;
+
+    public DbSet<Unit> Units => Set<Unit>();
+
+    public DbSet<Student> Students => Set<Student>();
+
+    public DbSet<Question> Questions => Set<Question>();
+
+    public DbSet<QuestionOption> QuestionOptions => Set<QuestionOption>();
+
+    public DbSet<QuizSession> QuizSessions => Set<QuizSession>();
+
+    public DbSet<QuizAnswer> QuizAnswers => Set<QuizAnswer>();
+
+    public DbSet<LiveEvent> LiveEvents => Set<LiveEvent>();
+
+    public DbSet<DailyQuest> DailyQuests => Set<DailyQuest>();
+
+    public DbSet<QuestProgress> QuestProgress => Set<QuestProgress>();
+
+    public DbSet<Badge> Badges => Set<Badge>();
+
+    public DbSet<StudentBadge> StudentBadges => Set<StudentBadge>();
+
+    public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
+
+    public DbSet<ApiSession> ApiSessions => Set<ApiSession>();
+
+    public DbSet<PushToken> PushTokens => Set<PushToken>();
+
+    protected override void OnModelCreating(ModelBuilder builder)
+    {
+        base.OnModelCreating(builder);
+        builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        // T1: administrador só enxerga a própria unidade; master enxerga todas; anônimo não enxerga nenhuma.
+        builder.Entity<Student>().HasQueryFilter(s => SeesAllUnits || s.UnitId == CurrentUnitId);
+    }
 }
