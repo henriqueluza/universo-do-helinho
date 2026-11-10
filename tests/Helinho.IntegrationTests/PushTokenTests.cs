@@ -1,12 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Helinho.Application.Abstractions;
 using Helinho.Domain.Entities;
 using Helinho.Infrastructure.Persistence;
 using Helinho.UnitTests;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Helinho.IntegrationTests;
 
@@ -113,6 +116,26 @@ public class PushTokenTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Registrar_nao_envia_push_e_nao_escreve_o_token_no_log()
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        var logs = new CapturingLoggerProvider();
+        var sender = new RecordingPushSender();
+        var web = factory.WithTestSessions().WithWebHostBuilder(b => b
+            .ConfigureLogging(l => l.AddProvider(logs))
+            .ConfigureServices(s => s.AddSingleton<IPushSender>(sender)));
+        var (studentId, _) = await SeedStudentAsync(web);
+        using var client = web.CreateStudentClient(studentId);
+        var token = "segredo-" + Guid.NewGuid().ToString("N");
+
+        var response = await client.PostAsJsonAsync("/api/devices/push-token", new { token, platform = "android" }, Ct);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(0, sender.Calls);
+        Assert.DoesNotContain(logs.Lines, l => l.Contains(token, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Sem_token_responde_401_e_aluno_inexistente_403()
     {
         await using var factory = new HelinhoWebFactory(postgres);
@@ -150,5 +173,53 @@ public class PushTokenTests(PostgresFixture postgres)
         db.Students.Add(student);
         await db.SaveChangesAsync(Ct);
         return (student.Id, user.Id);
+    }
+
+    private sealed class RecordingPushSender : IPushSender
+    {
+        public int Calls { get; private set; }
+
+        public Task SendAsync(string deviceToken, string title, string body, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class CapturingLoggerProvider : ILoggerProvider
+    {
+        private readonly List<string> _lines = [];
+
+        public IReadOnlyList<string> Lines
+        {
+            get
+            {
+                lock (_lines)
+                {
+                    return [.. _lines];
+                }
+            }
+        }
+
+        public ILogger CreateLogger(string categoryName) => new Capture(_lines);
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class Capture(List<string> lines) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            {
+                lock (lines)
+                {
+                    lines.Add(formatter(state, exception) + exception);
+                }
+            }
+        }
     }
 }
