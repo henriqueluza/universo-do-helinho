@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace Helinho.IntegrationTests;
 
@@ -27,15 +28,59 @@ public class LoginTests(PostgresFixture postgres)
         public DateTimeOffset UtcNow { get; set; } = now;
     }
 
+    private sealed class CapturingLoggerProvider : ILoggerProvider, ILogger
+    {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _lines = new();
+
+        public IReadOnlyCollection<string> Lines => _lines;
+
+        public ILogger CreateLogger(string categoryName) => this;
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            _lines.Enqueue(formatter(state, exception) + exception);
+            if (state is IEnumerable<KeyValuePair<string, object?>> pairs)
+            {
+                foreach (var pair in pairs)
+                {
+                    _lines.Enqueue($"{pair.Key}={pair.Value}");
+                }
+            }
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
     private sealed record Account(string Enrollment, string UserName, string Email, Guid UserId, Guid StudentId);
 
-    private async Task<(WebApplicationFactory<Program> Factory, FakeClock Clock)> CreateFactoryAsync(int rateLimit = 1000)
+    private async Task<(WebApplicationFactory<Program> Factory, FakeClock Clock)> CreateFactoryAsync(
+        int rateLimit = 1000, ILoggerProvider? logs = null, string? tokenLifetime = null)
     {
         var clock = new FakeClock(DateTimeOffset.UtcNow);
         var factory = new HelinhoWebFactory(postgres).WithWebHostBuilder(b =>
         {
             b.UseSetting("Api:Auth:LoginRateLimit", rateLimit.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            b.ConfigureServices(s => s.Replace(ServiceDescriptor.Singleton<IClock>(clock)));
+            if (tokenLifetime is not null)
+            {
+                b.UseSetting("Api:Auth:TokenLifetime", tokenLifetime);
+            }
+
+            b.ConfigureServices(s =>
+            {
+                s.Replace(ServiceDescriptor.Singleton<IClock>(clock));
+                if (logs is not null)
+                {
+                    s.AddSingleton(logs);
+                }
+            });
         });
         await using var scope = factory.Services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().RunAsync(Ct);
@@ -277,5 +322,47 @@ public class LoginTests(PostgresFixture postgres)
         }
 
         Assert.Equal(HttpStatusCode.TooManyRequests, (await LoginAsync(client, "x", "y")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Validade_do_token_e_configuravel_por_options()
+    {
+        var (factory, clock) = await CreateFactoryAsync(tokenLifetime: "00:30:00");
+        await using var _f = factory;
+        var account = await CreateUserAsync(factory.Services, RoleNames.Student);
+        using var client = factory.CreateClient();
+
+        var body = await (await LoginAsync(client, account.Enrollment, Password)).Content.ReadFromJsonAsync<JsonElement>(Ct);
+
+        var lifetime = DateTimeOffset.Parse(body.GetProperty("expires_at").GetString()!, System.Globalization.CultureInfo.InvariantCulture) - clock.UtcNow;
+        Assert.InRange(lifetime, TimeSpan.FromMinutes(30) - TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(30));
+    }
+
+    [Fact]
+    public async Task Token_e_senha_nunca_aparecem_em_log()
+    {
+        var logs = new CapturingLoggerProvider();
+        var (factory, clock) = await CreateFactoryAsync(logs: logs);
+        await using var _f = factory;
+        var student = await CreateUserAsync(factory.Services, RoleNames.Student);
+        var pending = await CreateUserAsync(factory.Services, RoleNames.Student, approved: false, password: "Pendente-Sintetica-2");
+        using var client = factory.CreateClient();
+
+        var ok = await LoginAsync(client, student.Enrollment, Password);
+        var token = (await ok.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("token").GetString()!;
+        await LoginAsync(client, student.Enrollment, "Errada-Sintetica-3");
+        await LoginAsync(client, "inexistente", "Desconhecida-Sintetica-4");
+        await LoginAsync(client, pending.Enrollment, "Pendente-Sintetica-2");
+        using var authed = factory.CreateClient();
+        authed.DefaultRequestHeaders.Authorization = new("Bearer", token);
+        await authed.GetAsync("/api/profile", Ct);
+        clock.UtcNow = clock.UtcNow.AddHours(9);
+        await authed.GetAsync("/api/profile", Ct);
+
+        Assert.NotEmpty(logs.Lines);
+        foreach (var secret in new[] { token, Password, "Errada-Sintetica-3", "Desconhecida-Sintetica-4", "Pendente-Sintetica-2" })
+        {
+            Assert.DoesNotContain(logs.Lines, line => line.Contains(secret, StringComparison.Ordinal));
+        }
     }
 }
