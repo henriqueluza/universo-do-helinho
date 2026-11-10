@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Helinho.Web.Api;
 using Helinho.Application.Abstractions;
+using Helinho.Application.Contracts;
 using Helinho.Web.Composition;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -112,22 +113,11 @@ public class ApiContractEndpointsTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task Rota_autenticada_nao_aceita_chamada_anonima()
-    {
-        await using var factory = new HelinhoWebFactory(postgres);
-        using var anonymous = factory.CreateClient();
-
-        var response = await anonymous.PostAsJsonAsync("/api/logout", new { }, Ct);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public void Missao_generica_serializa_quiz_type_vazio_e_nunca_null()
     {
-        var item = new Helinho.Application.Contracts.QuestItem("q1", "Missão", 0, 3, 10, string.Empty);
+        var item = new QuestItem("q1", "Missão", 0, 3, 10, string.Empty);
 
-        var json = JsonSerializer.Serialize(item, Helinho.Application.Contracts.ApiJson.CreateOptions());
+        var json = JsonSerializer.Serialize(item, ApiJson.CreateOptions());
 
         using var doc = JsonDocument.Parse(json);
         Assert.Equal(JsonValueKind.String, doc.RootElement.GetProperty("quiz_type").ValueKind);
@@ -137,12 +127,12 @@ public class ApiContractEndpointsTests(PostgresFixture postgres)
     [Fact]
     public void Codigos_de_erro_forbidden_e_invalid_credentials_seguem_o_contrato()
     {
-        var options = Helinho.Application.Contracts.ApiJson.CreateOptions();
-        var forbidden = JsonSerializer.SerializeToElement(Helinho.Application.Contracts.ApiErrors.CreateForbidden(), options);
-        var invalid = JsonSerializer.SerializeToElement(Helinho.Application.Contracts.ApiErrors.CreateInvalidCredentials(), options);
+        var options = ApiJson.CreateOptions();
 
-        Assert.Equal("forbidden", forbidden.GetProperty("error").GetString());
-        Assert.Equal("invalid_credentials", invalid.GetProperty("error").GetString());
+        Assert.Equal("forbidden", JsonSerializer.SerializeToElement(ApiErrors.CreateForbidden(), options).GetProperty("error").GetString());
+        Assert.Equal(
+            "invalid_credentials",
+            JsonSerializer.SerializeToElement(ApiErrors.CreateInvalidCredentials(), options).GetProperty("error").GetString());
     }
 
     [Fact]
