@@ -12,9 +12,9 @@ namespace Helinho.Application.Devices;
 /// </summary>
 public static class RegisterPushToken
 {
-    public const int MaxTokenLength = 512; // limite da coluna
+    internal const int MaxTokenLength = 512; // limite da coluna
 
-    public static readonly IReadOnlyList<string> Platforms = ["android", "ios"];
+    private static readonly IReadOnlyList<string> Platforms = ["android", "ios"];
 
     /// <summary>Devolve false se o aluno não existe; lança <see cref="InvalidPushTokenException"/> se o corpo é inválido.</summary>
     public static async Task<bool> HandleAsync(
@@ -35,6 +35,9 @@ public static class RegisterPushToken
             return false;
         }
 
+        // Serializa por token: sem isso dois registros paralelos do mesmo token (alunos diferentes, ou retry
+        // do mesmo aluno) leem o estado antigo e gravam duas linhas. O índice do banco é só (UserId, Token).
+        await using var transaction = await db.BeginLockedTransactionAsync("push-token:" + token, cancellationToken);
         var existing = await db.PushTokens.Where(t => t.Token == token).ToListAsync(cancellationToken);
         if (existing.Count == 1 && existing[0].UserId == userId && existing[0].Platform == platform)
         {
@@ -44,6 +47,7 @@ public static class RegisterPushToken
         db.PushTokens.RemoveRange(existing);
         db.PushTokens.Add(new PushToken(userId.Value, token, platform, clock.UtcNow));
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return true;
     }
 }

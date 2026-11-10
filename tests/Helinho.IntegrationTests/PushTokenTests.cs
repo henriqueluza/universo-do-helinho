@@ -69,6 +69,47 @@ public class PushTokenTests(PostgresFixture postgres)
         Assert.Equal(token, Assert.Single(await RowsAsync(web, biaUser)).Token);
     }
 
+    [Fact]
+    public async Task Mesmo_token_com_outra_plataforma_regrava_a_linha()
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        var web = factory.WithTestSessions();
+        var (studentId, userId) = await SeedStudentAsync(web);
+        using var client = web.CreateStudentClient(studentId);
+        var token = "tok-p-" + userId;
+
+        await client.PostAsJsonAsync("/api/devices/push-token", new { token, platform = "android" }, Ct);
+        var response = await client.PostAsJsonAsync("/api/devices/push-token", new { token, platform = "ios" }, Ct);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal("ios", Assert.Single(await RowsAsync(web, userId)).Platform);
+    }
+
+    [Fact]
+    public async Task Registros_paralelos_do_mesmo_token_deixam_uma_unica_linha()
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        var web = factory.WithTestSessions();
+        var (anaId, anaUser) = await SeedStudentAsync(web);
+        var (biaId, biaUser) = await SeedStudentAsync(web);
+        var token = "paralelo-" + Guid.NewGuid();
+        using var ana = web.CreateStudentClient(anaId);
+        using var bia = web.CreateStudentClient(biaId);
+        var body = new { token, platform = "android" };
+
+        for (var round = 0; round < 5; round++)
+        {
+            var calls = new[] { ana, bia, ana, bia, ana }.Select(c => c.PostAsJsonAsync("/api/devices/push-token", body, Ct));
+            var responses = await Task.WhenAll(calls);
+            Assert.All(responses, r => Assert.Equal(HttpStatusCode.NoContent, r.StatusCode));
+        }
+
+        await using var scope = web.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Single(await db.PushTokens.AsNoTracking().Where(t => t.Token == token).ToListAsync(Ct));
+        Assert.Equal(1, (await RowsAsync(web, anaUser)).Count + (await RowsAsync(web, biaUser)).Count);
+    }
+
     public static TheoryData<string> InvalidBodies => new()
     {
         """{"token":"abc","platform":"windows"}""",
@@ -77,6 +118,7 @@ public class PushTokenTests(PostgresFixture postgres)
         """{"token":"","platform":"ios"}""",
         """{"token":"   ","platform":"ios"}""",
         """{"platform":"ios"}""",
+        """{"token":" abc","platform":"ios"}""",
         """{"token":null,"platform":null}""",
         "{}",
     };
@@ -130,7 +172,12 @@ public class PushTokenTests(PostgresFixture postgres)
 
         var response = await client.PostAsJsonAsync("/api/devices/push-token", new { token, platform = "android" }, Ct);
 
+        var invalid = new string('z', 513);
+        var rejected = await client.PostAsJsonAsync("/api/devices/push-token", new { token = invalid, platform = "android" }, Ct);
+
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        Assert.DoesNotContain(logs.Lines, l => l.Contains(invalid, StringComparison.Ordinal));
         Assert.Equal(0, sender.Calls);
         Assert.DoesNotContain(logs.Lines, l => l.Contains(token, StringComparison.Ordinal));
     }
