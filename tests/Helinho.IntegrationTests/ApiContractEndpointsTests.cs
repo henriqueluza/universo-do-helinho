@@ -153,10 +153,11 @@ public class ApiContractEndpointsTests(PostgresFixture postgres)
     {
         var id = Guid.NewGuid();
         var identity = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, id.ToString())], "test");
-        var signedIn = new HttpContextAccessor { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) } };
-        var anonymous = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) } };
 
-        Assert.Equal(id, new HttpContextCurrentStudent(signedIn).StudentId);
-        Assert.Throws<InvalidOperationException>(() => new HttpContextCurrentStudent(anonymous).StudentId);
+        Assert.Equal(id, new HttpContextCurrentStudent(accessor).StudentId);
+
+        accessor.HttpContext = new DefaultHttpContext();
+        Assert.Throws<InvalidOperationException>(() => new HttpContextCurrentStudent(accessor).StudentId);
     }
 }
