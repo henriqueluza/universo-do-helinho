@@ -90,15 +90,30 @@ public class PanelTests(PostgresFixture postgres)
 
         Assert.Contains("Maria Master", home);
         Assert.Contains("Todas as unidades", home);
+        Assert.Contains(">Master<", home);
     }
 
     [Fact]
     public async Task Admin_nao_ve_Unidades_nem_Administradores_e_e_barrado_nelas()
     {
         await using var factory = await NewFactoryAsync();
-        using var client = factory.CreateClientAs(RoleNames.Admin, Guid.NewGuid(), "Ana Admin");
+        string unitName;
+        Guid unitId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var unit = scope.ServiceProvider.GetRequiredService<AppDbContext>().Units.OrderBy(u => u.Name).First();
+            (unitId, unitName) = (unit.Id, unit.Name);
+        }
+
+        using var client = factory.CreateClientAs(RoleNames.Admin, unitId, "Ana Admin");
 
         var home = await client.GetStringAsync("/Dashboard", Ct);
+
+        Assert.Contains(unitName, home);
+        Assert.DoesNotContain("Sem unidade", home);
+        Assert.DoesNotContain("Todas as unidades", home);
+        Assert.Contains("data-bs-target=\"#menu\"", home);
+        Assert.Contains("aria-controls=\"menu\"", home);
 
         Assert.DoesNotContain("href=\"/Unidades\"", home);
         Assert.DoesNotContain("href=\"/Administradores\"", home);

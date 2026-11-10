@@ -5,14 +5,14 @@
         || current.StartsWith(i.Path + "/", StringComparison.OrdinalIgnoreCase)
         || (i.Path == "/Dashboard" && current == "/");
 }
-<header class="topbar">
+<header class="topbar d-md-none">
     <span class="brand">Universo do Helinho</span>
     <button class="btn btn-outline-secondary" type="button" data-bs-toggle="offcanvas"
-            data-bs-target="#menu" aria-controls="menu">Menu</button>
+            data-bs-target="#menu" aria-controls="menu" aria-expanded="false">Menu</button>
 </header>
-<div class="offcanvas-md offcanvas-start sidebar" tabindex="-1" id="menu" aria-label="Menu principal">
+<div class="offcanvas-md offcanvas-start sidebar" tabindex="-1" id="menu" aria-labelledby="menu-titulo">
     <div class="offcanvas-header d-md-none">
-        <span class="brand">Universo do Helinho</span>
+        <span class="brand" id="menu-titulo">Universo do Helinho</span>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#menu" aria-label="Fechar menu"></button>
     </div>
     <div class="offcanvas-body sidebar-body">
