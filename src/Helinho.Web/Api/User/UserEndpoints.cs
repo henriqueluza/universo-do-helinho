@@ -15,7 +15,7 @@ public static class UserEndpoints
                     : Results.Json(ApiErrors.CreateForbidden(), statusCode: StatusCodes.Status403Forbidden))
             .Produces<UserStatsResponse>()
             .Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
-        api.MapGet("/user/badges", async ([FromQuery] int? page, IAppDbContext db, ICurrentStudent current, CancellationToken ct) =>
+        api.MapGet("/user/badges", async ([FromQuery] string? page, IAppDbContext db, ICurrentStudent current, CancellationToken ct) =>
             {
                 var result = await GetUserBadges.HandleAsync(db, current, page, ct);
                 return result.Status switch

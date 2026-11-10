@@ -1,3 +1,4 @@
+using System.Globalization;
 using Helinho.Application.Abstractions;
 using Helinho.Application.Contracts;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,7 @@ public sealed record BadgesResult(BadgesStatus Status, BadgesResponse? Badges = 
 
 /// <summary>
 /// Caso de uso do GET /user/badges?page=N (P11). Tamanho de página fixo no servidor (24: 182 conquistas = 8 páginas, como no contrato).
-/// Página ausente = 1; menor que 1 é inválida (400); além do fim devolve lista vazia. Regras de desbloqueio estão fora de escopo.
+/// Página ausente = 1; menor que 1, não numérica ou fora de int é inválida (400); além do fim devolve lista vazia. Regras de desbloqueio estão fora de escopo.
 /// </summary>
 public static class GetUserBadges
 {
@@ -21,10 +22,11 @@ public static class GetUserBadges
         new(InvalidPageCode, "page deve ser um inteiro a partir de 1.");
 
     public static async Task<BadgesResult> HandleAsync(
-        IAppDbContext db, ICurrentStudent current, int? page, CancellationToken cancellationToken)
+        IAppDbContext db, ICurrentStudent current, string? page, CancellationToken cancellationToken)
     {
-        var number = page ?? 1;
-        if (number < 1)
+        var number = 1;
+        if (page is not null
+            && (!int.TryParse(page, NumberStyles.None, CultureInfo.InvariantCulture, out number) || number < 1))
         {
             return new BadgesResult(BadgesStatus.InvalidPage);
         }
@@ -39,6 +41,11 @@ public static class GetUserBadges
 
         var total = await db.Badges.CountAsync(cancellationToken);
         var totalPages = (total + PageSize - 1) / PageSize;
+
+        if (number > totalPages)
+        {
+            return new BadgesResult(BadgesStatus.Ok, new BadgesResponse([], number, totalPages));
+        }
 
         var items = await db.Badges
             .OrderBy(b => b.Code)

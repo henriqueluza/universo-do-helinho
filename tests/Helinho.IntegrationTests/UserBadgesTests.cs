@@ -58,14 +58,16 @@ public class UserBadgesTests(PostgresFixture postgres)
         var (ana, _) = await SeedAsync(web, $"t{Guid.NewGuid():N}"[..9], 3);
         using var client = web.CreateStudentClient(ana);
 
-        foreach (var invalid in new[] { "0", "-1", "abc" })
+        foreach (var invalid in new[] { "0", "-1", "abc", "99999999999999999999" })
         {
             var bad = await client.GetAsync($"/api/user/badges?page={invalid}", Ct);
-            Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+            Assert.True(HttpStatusCode.BadRequest == bad.StatusCode, $"page={invalid}");
+            var error = await bad.Content.ReadFromJsonAsync<JsonElement>(Ct);
+            Assert.True("invalid_page" == error.GetProperty("error").GetString(), $"page={invalid}");
         }
 
-        var error = await (await client.GetAsync("/api/user/badges?page=0", Ct)).Content.ReadFromJsonAsync<JsonElement>(Ct);
-        Assert.Equal("invalid_page", error.GetProperty("error").GetString());
+        var huge = await client.GetFromJsonAsync<JsonElement>($"/api/user/badges?page={int.MaxValue}", Ct);
+        Assert.Empty(huge.GetProperty("badges").EnumerateArray());
 
         var first = await client.GetFromJsonAsync<JsonElement>("/api/user/badges?page=1", Ct);
         var totalPages = first.GetProperty("total_pages").GetInt32();

@@ -18,7 +18,7 @@ Onde este arquivo e `rotas-api.md` divergirem, vale este arquivo.
 | P8 | Sessão de quiz | O servidor mantém a sessão por aluno e tipo de quiz. `GET /quiz/random` devolve a pergunta corrente da sessão, com `position` e `total`. Responder de novo a mesma pergunta devolve o mesmo resultado, sem somar XP |
 | P9 | `POST /devices/push-token` | `{ "token": "...", "platform": "android" }`. Responde 204. Só registra; não há envio no MVP |
 | P10 | `POST /user/inventory` | Responde com a seleção gravada, no formato do GET |
-| P11 | `GET /user/badges` | Parâmetro `?page=1`; tamanho de página fixo no servidor |
+| P11 | `GET /user/badges` | Parâmetro `?page=1`; tamanho de página fixo no servidor: 24 (182 conquistas = 8 páginas). `page` ausente vale 1; inválida (menor que 1, não numérica ou fora de `int`) responde 400 `invalid_page`; além do fim devolve `badges: []` |
 | P12 | Catálogo de customização | Fixo no jogo; não há rota |
 | P13 | XP, níveis e conquistas | Fórmula simples, documentada como PROPOSTA; cerca de 10 conquistas fictícias |
 | P14 | Identificadores de login | No seed, matrícula, usuário e e-mail são únicos por aluno. A regra definitiva de unicidade continua pendente |
@@ -34,6 +34,7 @@ Onde este arquivo e `rotas-api.md` divergirem, vale este arquivo.
 | Sem permissão, ou conta não aprovada pelo responsável | 403 | `forbidden` | Mostra aviso; não adianta tentar de novo |
 | `quiz_type` ausente ou fora dos cinco tipos em `GET /quiz/random` (PROPOSTA, pendente de aceite da contratante) | 400 | `invalid_quiz_type` | Não deve ocorrer; indica erro do jogo |
 | Sem perguntas ativas para o tipo e a faixa do aluno em `GET /quiz/random` (PROPOSTA, pendente de aceite da contratante) | 404 | `no_questions` | Mostra aviso de que o quiz ainda não está disponível |
+| `page` inválida em `GET /user/badges` (PROPOSTA, pendente de aceite da contratante) | 400 | `invalid_page` | Não deve ocorrer; indica erro do jogo |
 
 ## Regras do JsonUtility
 
