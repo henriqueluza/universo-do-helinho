@@ -26,4 +26,4 @@ description: Use quando o usuário (ou a automação de dispatch) pedir para imp
     Corrija achados críticos/altos, commite e rode de novo. Se não conseguir corrigir, aplique `needs-human` e NÃO abra o PR.
 12. Rode `python3 scripts/pr-size.py` uma última vez. Acima de 800 linhas o CI reprova: não abra o PR, divida. Nunca aplique `size:exception` (só humanos).
 13. Abra o PR com `gh pr create`: título em Conventional Commits, `Closes #<numero>`, template completo — **Escopo** ("Este PR faz uma coisa: …", tipo, saída do pr-size, Issues de continuação), **Como revisar** (ordem de leitura), **Design**, **Evidências**, **Segurança**.
-14. Nunca faça merge. Pare após abrir o PR.
+14. Nunca faça merge. Pare após abrir o PR. A revisão automática dá o veredito por label: `review:approved`, `changes-requested` (quem responde é a skill `address-review`, na mesma branch) ou `needs-human`.
