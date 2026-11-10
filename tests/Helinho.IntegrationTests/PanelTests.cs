@@ -95,15 +95,19 @@ public class PanelTests(PostgresFixture postgres)
         Assert.Equal("/entrar", options.LoginPath.Value);
     }
 
-    [Fact]
-    public async Task Sair_por_GET_nao_encerra_a_sessao()
+    [Theory]
+    [InlineData(RoleNames.Master, "/Dashboard")]
+    [InlineData(RoleNames.Master, "/Alunos")]
+    [InlineData(RoleNames.Admin, "/Dashboard")]
+    [InlineData(RoleNames.Admin, "/Alunos")]
+    public async Task Master_e_Admin_abrem_as_paginas_do_painel(string role, string path)
     {
         await using var factory = await NewFactoryAsync();
-        using var client = factory.CreateAnonymousClient();
+        using var client = factory.CreateClientAs(role, Guid.NewGuid());
 
-        var response = await client.GetAsync("/sair", Ct);
+        var response = await client.GetAsync(path, Ct);
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]

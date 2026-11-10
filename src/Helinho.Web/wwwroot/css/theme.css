@@ -142,6 +142,7 @@
 .form-control, .form-select { border-color: #8a919c; min-height: 32px; font-size: .875rem; background-color: #fff; }
 .form-control:focus, .form-select:focus { border-color: #b8336a; box-shadow: 0 0 0 3px rgba(184, 51, 106, .35); }
 .form-control.is-invalid, .form-select.is-invalid { border-color: #c4242a; }
+.text-negative { color: #c4242a; }
 .card { --bs-card-bg: #fff; --bs-card-border-color: #e5e7eb; --bs-card-border-radius: 8px; --bs-card-spacer-y: 24px; --bs-card-spacer-x: 24px; --bs-card-cap-bg: #f3f4f6; }
 .table { --bs-table-bg: transparent; --bs-table-border-color: #f2f2f2; --bs-table-hover-bg: #f3f4f6; --bs-table-striped-bg: transparent; --bs-table-cell-padding-y: .75rem; }
 .table > thead { --bs-table-bg: #f3f4f6; font-size: .75rem; font-weight: 600; }
