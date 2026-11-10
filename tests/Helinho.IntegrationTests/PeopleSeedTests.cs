@@ -1,3 +1,4 @@
+using Helinho.Application.Abstractions;
 using Helinho.Domain;
 using Helinho.Infrastructure.Persistence;
 using Helinho.Infrastructure.Seeding;
@@ -52,7 +53,7 @@ public class PeopleSeedTests(PostgresFixture postgres)
         Assert.All(units, u => Assert.Equal(5, students.Count(s => s.UnitId == u.Id)));
         Assert.Contains(students, s => !s.GuardianApproved);
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DateOnly.FromDateTime(scope.ServiceProvider.GetRequiredService<IClock>().UtcNow.UtcDateTime);
         var bands = students.Select(s => s.AgeBandAt(today)).Distinct().ToList();
         Assert.Equal(Enum.GetValues<AgeBand>().Length, bands.Count);
 
@@ -64,9 +65,36 @@ public class PeopleSeedTests(PostgresFixture postgres)
         Assert.Equal(2, roles[RoleNames.Admin]);
         Assert.Equal(10, roles[RoleNames.Student]);
 
-        var admins = await db.Users.Where(u => u.Email!.StartsWith("admin.")).ToListAsync(ct);
-        Assert.Equal(2, admins.Select(a => a.UnitId).Distinct().Count());
+        // Critérios de aceite da Issue #7: identificadores exatos.
+        Assert.Equal(
+            ["Unidade Norte (fictícia)", "Unidade Sul (fictícia)"],
+            units.Select(u => u.Name).Order().ToArray());
+        var north = units.Single(u => u.Name == PeopleSeeder.NorthUnitName);
+        var south = units.Single(u => u.Name == PeopleSeeder.SouthUnitName);
+
+        var master = await db.Users.SingleAsync(u => u.Email == "master@helinho.example", ct);
+        Assert.Null(master.UnitId);
+        var adminNorth = await db.Users.SingleAsync(u => u.Email == "admin.norte@helinho.example", ct);
+        Assert.Equal(north.Id, adminNorth.UnitId);
+        var adminSouth = await db.Users.SingleAsync(u => u.Email == "admin.sul@helinho.example", ct);
+        Assert.Equal(south.Id, adminSouth.UnitId);
+
         Assert.Equal(13, await db.Users.CountAsync(u => u.Email!.EndsWith("@helinho.example"), ct));
-        Assert.All(students, s => Assert.StartsWith("20260", s.Enrollment));
+        var expectedEmails = Enumerable.Range(1, 10).Select(n => $"aluno{n:00}@helinho.example").ToArray();
+        var studentEmails = await (from s in db.Students.IgnoreQueryFilters()
+                                   join u in db.Users on s.UserId equals u.Id
+                                   select u.Email!).ToListAsync(ct);
+        Assert.Equal(expectedEmails, studentEmails.Order().ToArray());
+        Assert.Equal(
+            Enumerable.Range(2026001, 10).Select(n => n.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray(),
+            students.Select(s => s.Enrollment).Order().ToArray());
+
+        // Senha nunca em texto puro: hash do Identity (v3, prefixo "AQAAAA"). O banco é compartilhado entre
+        // os testes e o seed é idempotente, então a senha da execução original pode ser outra.
+        foreach (var user in new[] { master, adminNorth, adminSouth })
+        {
+            Assert.NotEqual(password, user.PasswordHash);
+            Assert.StartsWith("AQAAAA", user.PasswordHash, StringComparison.Ordinal);
+        }
     }
 }
