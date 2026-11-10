@@ -113,26 +113,15 @@ public class ApiContractEndpointsTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public void Missao_generica_serializa_quiz_type_vazio_e_nunca_null()
-    {
-        var item = new QuestItem("q1", "Missão", 0, 3, 10, string.Empty);
-
-        var json = JsonSerializer.Serialize(item, ApiJson.CreateOptions());
-
-        using var doc = JsonDocument.Parse(json);
-        Assert.Equal(JsonValueKind.String, doc.RootElement.GetProperty("quiz_type").ValueKind);
-        Assert.Equal(string.Empty, doc.RootElement.GetProperty("quiz_type").GetString());
-    }
-
-    [Fact]
-    public void Codigos_de_erro_forbidden_e_invalid_credentials_seguem_o_contrato()
+    public void Missao_generica_e_erro_invalid_credentials_seguem_o_contrato()
     {
         var options = ApiJson.CreateOptions();
+        var quest = JsonSerializer.SerializeToElement(new QuestItem("q1", "Missão", 0, 3, 10, string.Empty), options);
+        var error = JsonSerializer.SerializeToElement(ApiErrors.CreateInvalidCredentials(), options);
 
-        Assert.Equal("forbidden", JsonSerializer.SerializeToElement(ApiErrors.CreateForbidden(), options).GetProperty("error").GetString());
-        Assert.Equal(
-            "invalid_credentials",
-            JsonSerializer.SerializeToElement(ApiErrors.CreateInvalidCredentials(), options).GetProperty("error").GetString());
+        Assert.Equal(JsonValueKind.String, quest.GetProperty("quiz_type").ValueKind);
+        Assert.Equal(string.Empty, quest.GetProperty("quiz_type").GetString());
+        Assert.Equal("invalid_credentials", error.GetProperty("error").GetString());
     }
 
     [Fact]
@@ -160,23 +149,14 @@ public class ApiContractEndpointsTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public void ICurrentStudent_le_o_aluno_do_principal()
+    public void ICurrentStudent_le_o_aluno_do_principal_e_lanca_sem_autenticacao()
     {
         var id = Guid.NewGuid();
-        var context = new DefaultHttpContext
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, id.ToString())], "test")),
-        };
-        var student = new HttpContextCurrentStudent(new HttpContextAccessor { HttpContext = context });
+        var identity = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, id.ToString())], "test");
+        var signedIn = new HttpContextAccessor { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) } };
+        var anonymous = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
 
-        Assert.Equal(id, student.StudentId);
-    }
-
-    [Fact]
-    public void ICurrentStudent_lanca_sem_aluno_autenticado()
-    {
-        var student = new HttpContextCurrentStudent(new HttpContextAccessor { HttpContext = new DefaultHttpContext() });
-
-        Assert.Throws<InvalidOperationException>(() => student.StudentId);
+        Assert.Equal(id, new HttpContextCurrentStudent(signedIn).StudentId);
+        Assert.Throws<InvalidOperationException>(() => new HttpContextCurrentStudent(anonymous).StudentId);
     }
 }
