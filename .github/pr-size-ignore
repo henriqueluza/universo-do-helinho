@@ -1,0 +1,33 @@
+# Arquivos que NÃO contam no tamanho do PR (scripts/pr-size.py).
+# Padrões fnmatch sobre o caminho relativo; "**/x" também casa "x" na raiz.
+
+# Lockfiles
+**/package-lock.json
+**/pnpm-lock.yaml
+**/yarn.lock
+**/*.lock
+**/go.sum
+**/packages.lock.json
+
+# Código gerado
+**/Migrations/*.Designer.cs
+**/Migrations/*ModelSnapshot.cs
+**/*.g.dart
+**/*.freezed.dart
+**/*.g.cs
+**/*.generated.*
+**/generated/**
+**/__generated__/**
+**/__snapshots__/**
+**/*.snap
+
+# Documentação e kit de agentes (revisados de outra forma)
+**/*.md
+.claude/**
+.agents/**
+
+# Assets
+**/*.svg
+**/*.png
+**/*.jpg
+**/*.ico

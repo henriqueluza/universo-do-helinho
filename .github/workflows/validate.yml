@@ -1,0 +1,46 @@
+name: Validate
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check YAML syntax
+        run: |
+          for f in $(find .github -name "*.yml" -o -name "*.yaml"); do
+            python3 -c "import yaml; yaml.safe_load(open('$f'))" || exit 1
+          done
+      - name: Check agent kit (skills, subagents, rules, settings)
+        run: |
+          python3 - <<'PY'
+          import glob, json, sys, yaml
+          errors = []
+          def front(path, required):
+              text = open(path, encoding="utf-8").read()
+              if not text.startswith("---\n"):
+                  errors.append(f"{path}: sem frontmatter"); return
+              meta = yaml.safe_load(text.split("---\n", 2)[1]) or {}
+              for k in required:
+                  if not meta.get(k): errors.append(f"{path}: falta '{k}'")
+          for p in glob.glob(".claude/skills/*/SKILL.md"): front(p, ["name", "description"])
+          for p in glob.glob(".claude/agents/*.md"): front(p, ["name", "description"])
+          for p in glob.glob(".claude/rules/*.md"):
+              if open(p, encoding="utf-8").read().startswith("---\n"): front(p, ["paths"])
+          for p in [".claude/settings.json", ".mcp.json"]:
+              try: json.load(open(p))
+              except Exception as e: errors.append(f"{p}: JSON inválido ({e})")
+          print("\n".join(errors) or "kit ok"); sys.exit(1 if errors else 0)
+          PY
+      - name: Codex mirror in sync
+        run: |
+          cp -R .agents/skills /tmp/committed && ./scripts/sync-agents-mirror.sh
+          diff -r /tmp/committed .agents/skills || { echo "::error::.agents/skills desatualizado. Rode scripts/sync-agents-mirror.sh"; exit 1; }
+      # TODO (por projeto): adicione aqui lint, typecheck e testes da stack.
+      # O snippet pronto está na seção 9 do guia da stack:
+      # .claude/skills/engineering-standards/references/stacks/<stack>.md
+      - name: Aviso — lint e testes ainda nao configurados
+        run: echo "::warning::validate.yml ainda nao roda lint nem testes. Edite este arquivo (ver secao 9 do guia da stack)."

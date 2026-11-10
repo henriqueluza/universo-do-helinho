@@ -1,0 +1,91 @@
+# Revisão automática de PR com a skill review-pr do kit, rodando no GitHub Actions.
+# Autenticação: token OAuth da assinatura Claude (segredo CLAUDE_CODE_OAUTH_TOKEN, gerado
+# com `claude setup-token`; setup-project.sh grava no repo novo a partir de REVIEW_OAUTH_TOKEN).
+# Alternativa sem segredo: Workload Identity Federation (inputs comentados abaixo) — hoje não
+# usada porque o crédito promocional do plano não cobre Claude Code. Nunca os dois juntos:
+# a credencial estática vence.
+#
+# O que ele NÃO faz: merge, push, deploy. Permissões são só leitura + comentar/rotular.
+
+name: review-pr
+
+# Dispara quando o PR abre, sai de draft, é reaberto ou recebe a label `re-review`.
+# `synchronize` (push na branch) NÃO está no gatilho, de propósito: poupa cota.
+on:
+  pull_request:
+    types: [opened, ready_for_review, reopened, labeled]
+
+# Um review por PR de cada vez; se chegar push novo, o review em andamento termina
+# e o próximo começa (cancel-in-progress: false evita gastar tokens à toa com cancelamentos parciais).
+concurrency:
+  group: review-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    # Pula drafts, PRs de bootstrap/kit e PRs rotulados para pular (chore/docs/sync-kit)
+    if: >-
+      github.event.pull_request.draft == false &&
+      (github.event.action != 'labeled' || github.event.label.name == 're-review') &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-review') &&
+      !contains(github.event.pull_request.labels.*.name, 'kit') &&
+      !startsWith(github.event.pull_request.title, 'chore(kit)') &&
+      !startsWith(github.event.pull_request.title, 'docs:')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20            # teto de custo nº 1
+    permissions:
+      contents: read
+      pull-requests: write          # comentário consolidado + inline + labels
+      issues: write                 # labels
+      checks: read                  # gh pr checks (validate, semgrep, gitleaks, pr-size)
+      # id-token: write             # reativar junto com a federação (inputs comentados abaixo)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0            # a skill compara base...head e o pr-size.py precisa do histórico
+
+      - name: Revisar com a skill review-pr
+        # Fixe o SHA completo da release em vez de @v1 (ver nota de segurança)
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Federação (regra github-actions-review-pr, conta github-review, workspace Default):
+          # anthropic_federation_rule_id: fdrl_019RYoiKRCYvoNJTf48hYY1t
+          # anthropic_organization_id: 4695fe42-40e3-4483-835c-df8bc8d6c6f5
+          # anthropic_service_account_id: svac_0199rgh6XyLftD9dRxxrULRA
+          # anthropic_workspace_id: wrkspc_019nEpVugpDECGERBkwWqUgB
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR: #${{ github.event.pull_request.number }}
+            O branch do PR já está no diretório de trabalho.
+
+            Rode a skill review-pr neste PR, em modo CI:
+            - Dispare code-reviewer, security-reviewer e qa-tester em paralelo,
+              na mesma mensagem e SEMPRE de forma síncrona (Task com
+              run_in_background: false). Em CI não há notificação de agente em
+              segundo plano: se você encerrar a vez antes de receber os
+              resultados, nada é publicado e a revisão é perdida.
+              ui-reviewer só se o diff tocar UI; devops-reviewer só se tocar
+              Dockerfile, .github/workflows, infra/ ou configuração de deploy.
+            - Só termine depois de publicar o comentário consolidado.
+            - Rode `python3 scripts/pr-size.py` e trate PR acima do orçamento
+              da label size:* como bloqueante, com plano de divisão.
+            - Publique UM comentário consolidado no PR (atualize o existente se já
+              houver um seu em vez de criar outro) com: veredito, bloqueantes,
+              sugestões, e o resultado de cada subagente.
+            - Use comentários inline (mcp__github_inline_comment__create_inline_comment)
+              apenas para problemas concretos que exigem correção.
+            - Se houver bloqueante: `gh pr edit --add-label needs-human`.
+              Se não houver: `gh pr edit --remove-label needs-human` (ignore erro se não existir).
+            - Ao final, remova a label re-review se estiver aplicada (ignore erro se não existir).
+            - Não aprove, não faça merge, não altere código, não faça push.
+          # Bash liberado porque o qa-tester roda lint/build/testes. O token do job é
+          # somente leitura em contents (push impossível) e settings.json + hook
+          # block-destructive.sh continuam valendo dentro do runner.
+          claude_args: >-
+            --model sonnet
+            --max-turns 40
+            --allowedTools "Read,Grep,Glob,Bash,Task,mcp__github_inline_comment__create_inline_comment"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

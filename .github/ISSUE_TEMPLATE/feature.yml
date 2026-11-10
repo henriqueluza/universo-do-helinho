@@ -1,0 +1,76 @@
+name: Feature / Tarefa
+description: Uma unidade de trabalho que vira UM PR pequeno e de propósito único
+title: "feat(<escopo>): "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Uma Issue = um PR de **um só tipo** (feat, fix, refactor, test, chore, docs) e **até ~400 linhas**.
+        Maior que isso? Divida em várias Issues ligadas por `Depende de #N` (guia: `.claude/skills/engineering-standards/references/small-prs.md`).
+  - type: dropdown
+    id: type
+    attributes:
+      label: Tipo de mudança
+      options:
+        - feat — uma fatia de comportamento
+        - fix — correção com teste que reproduz
+        - refactor — estrutura, sem mudar comportamento
+        - test — só testes
+        - chore — dependências, configuração, CI
+        - docs — só documentação
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Descrição
+      description: O que precisa ser feito e por quê. Uma coisa só.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Critérios de aceite
+      description: Lista verificável. O agente não pode considerar a issue pronta sem marcar todos.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependências
+      description: Uma linha por dependência, exatamente neste formato. O dispatch só começa esta Issue quando todas estiverem fechadas.
+      placeholder: |
+        Depende de #12
+        Parte de #8
+    validations:
+      required: false
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Fora de escopo
+      description: O que NÃO entra neste PR (vira outra Issue).
+    validations:
+      required: false
+  - type: dropdown
+    id: exec
+    attributes:
+      label: Executor
+      options:
+        - exec:orca
+        - exec:cloud
+    validations:
+      required: true
+  - type: dropdown
+    id: size
+    attributes:
+      label: Tamanho estimado (linhas de código + testes, sem gerados/lock/docs)
+      options:
+        - size:xs — até 50
+        - size:s — até 150 (ideal)
+        - size:m — até 400 (máximo para agente)
+        - size:l — maior; precisa ser dividida antes de autorizar
+    validations:
+      required: true
