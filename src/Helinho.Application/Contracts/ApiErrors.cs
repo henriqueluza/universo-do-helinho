@@ -10,6 +10,8 @@ public static class ApiErrors
     public const string TokenExpired = "token_expired";
     public const string Forbidden = "forbidden";
     public const string NotImplemented = "not_implemented";
+    public const string InvalidQuizType = "invalid_quiz_type";
+    public const string NoQuestions = "no_questions";
 
     public static ErrorResponse CreateInvalidCredentials() => new(InvalidCredentials, "Credencial inválida.");
 
@@ -18,4 +20,9 @@ public static class ApiErrors
     public static ErrorResponse CreateForbidden() => new(Forbidden, "Sem permissão para esta operação.");
 
     public static ErrorResponse CreateNotImplemented() => new(NotImplemented, "Rota ainda não implementada.");
+
+    public static ErrorResponse CreateInvalidQuizType() =>
+        new(InvalidQuizType, "quiz_type obrigatório: ambiental, conhecimento, esportivo, cultural ou diversidade.");
+
+    public static ErrorResponse CreateNoQuestions() => new(NoQuestions, "Sem perguntas disponíveis para este quiz.");
 }

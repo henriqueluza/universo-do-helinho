@@ -56,8 +56,14 @@ public class ProfileTests(PostgresFixture postgres)
     public async Task Sem_token_responde_401_e_aluno_inexistente_403()
     {
         await using var factory = new HelinhoWebFactory(postgres);
+        var web = factory.WithTestSessions();
+        await using (var scope = web.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync(Ct);
+        }
+
         using var anonymous = factory.CreateClient();
-        using var unknown = factory.WithTestSessions().CreateStudentClient(Guid.NewGuid());
+        using var unknown = web.CreateStudentClient(Guid.NewGuid());
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/profile", Ct)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await unknown.GetAsync("/api/profile", Ct)).StatusCode);
