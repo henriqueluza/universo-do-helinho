@@ -177,15 +177,28 @@ public class QuizAnswerTests(PostgresFixture postgres)
         await AddQuestionsAsync(web, QuizType.Ambiental, 2);
         using var client = web.CreateStudentClient(ana);
 
+        // O banco é compartilhado entre testes: o tamanho da sessão é min(10, pool) e varia com a ordem de execução.
         var first = (await AnswerCurrentAsync(client, "ambiental", "b")).Body;
+        int total;
+        await using (var totalScope = web.Services.CreateAsyncScope())
+        {
+            var totalDb = totalScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            total = (await totalDb.QuizSessions.SingleAsync(s => s.StudentId == ana, Ct)).Total;
+        }
+
+        for (var i = 1; i < total - 1; i++)
+        {
+            await AnswerCurrentAsync(client, "ambiental", "b");
+        }
+
         var lastId = await CurrentIdAsync(client, "ambiental");
         var last = await PostAsync(client, lastId, "b");
         var replay = await PostAsync(client, lastId, "b");
 
-        Assert.True(first.GetProperty("has_next").GetBoolean());
+        Assert.Equal(total > 1, first.GetProperty("has_next").GetBoolean());
         Assert.False(last.Body.GetProperty("has_next").GetBoolean());
         Assert.Equal(last.Json, replay.Json);
-        Assert.Equal(20, await XpAsync(web, ana));
+        Assert.Equal(total * 10, await XpAsync(web, ana));
         await using var scope = web.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.All(await db.QuizSessions.Where(s => s.StudentId == ana).ToListAsync(Ct), s => Assert.NotNull(s.CompletedAt));
