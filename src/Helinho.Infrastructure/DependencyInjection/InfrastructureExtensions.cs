@@ -15,6 +15,7 @@ public static class InfrastructureExtensions
         services.AddScoped<ICurrentUser, AnonymousCurrentUser>();
         services.AddSingleton<IApiSessionValidator, RejectAllSessionValidator>();
         services.AddScoped<DatabaseSeeder>();
+        services.AddScoped<ISeeder, PeopleSeeder>();
         return services;
     }
 }
