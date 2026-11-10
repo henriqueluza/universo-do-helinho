@@ -175,10 +175,10 @@ public class LoginTests(PostgresFixture postgres)
         using var authed = factory.CreateClient();
         authed.DefaultRequestHeaders.Authorization = new("Bearer", token);
         // 501 = autenticou e chegou à rota ainda sem lógica.
-        Assert.Equal(HttpStatusCode.NotImplemented, (await authed.GetAsync("/api/profile", Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotImplemented, (await authed.GetAsync("/api/user/stats", Ct)).StatusCode);
 
         clock.UtcNow = clock.UtcNow.AddHours(8).AddSeconds(1);
-        var expired = await authed.GetAsync("/api/profile", Ct);
+        var expired = await authed.GetAsync("/api/user/stats", Ct);
         Assert.Equal(HttpStatusCode.Unauthorized, expired.StatusCode);
         Assert.Equal("token_expired", (await expired.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("error").GetString());
     }
@@ -191,7 +191,7 @@ public class LoginTests(PostgresFixture postgres)
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new("Bearer", "desconhecido");
 
-        var response = await client.GetAsync("/api/profile", Ct);
+        var response = await client.GetAsync("/api/user/stats", Ct);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Equal("token_expired", (await response.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("error").GetString());
@@ -355,9 +355,9 @@ public class LoginTests(PostgresFixture postgres)
         await LoginAsync(client, pending.Enrollment, "Pendente-Sintetica-2");
         using var authed = factory.CreateClient();
         authed.DefaultRequestHeaders.Authorization = new("Bearer", token);
-        await authed.GetAsync("/api/profile", Ct);
+        await authed.GetAsync("/api/user/stats", Ct);
         clock.UtcNow = clock.UtcNow.AddHours(9);
-        await authed.GetAsync("/api/profile", Ct);
+        await authed.GetAsync("/api/user/stats", Ct);
 
         Assert.NotEmpty(logs.Lines);
         foreach (var secret in new[] { token, Password, "Errada-Sintetica-3", "Desconhecida-Sintetica-4", "Pendente-Sintetica-2" })

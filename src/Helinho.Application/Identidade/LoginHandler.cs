@@ -41,7 +41,7 @@ public sealed class LoginHandler(
 
         // Administrador e master não usam a API do jogo; aluno sem aprovação do responsável também não (P4).
         var student = credential.IsStudent
-            ? await db.Students.IgnoreQueryFilters().AsNoTracking()
+            ? await db.Students.IgnoreQueryFilters().AsNoTracking() // ignora-filtro: login ocorre antes de haver escopo de unidade; a busca é pelo próprio aluno da credencial
                 .FirstOrDefaultAsync(s => s.UserId == credential.UserId, cancellationToken)
             : null;
         if (student is null || !student.GuardianApproved)

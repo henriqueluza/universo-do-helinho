@@ -17,6 +17,7 @@ public sealed class ApiSessionValidator(IAppDbContext db, IClock clock) : IApiSe
             return null;
         }
 
+        // ignora-filtro: a validação do token roda antes de existir escopo de unidade; o escopo é o próprio aluno da sessão.
         var studentId = await db.Students.IgnoreQueryFilters().AsNoTracking()
             .Where(s => s.UserId == session.UserId && s.GuardianApproved)
             .Select(s => (Guid?)s.Id).FirstOrDefaultAsync(cancellationToken);

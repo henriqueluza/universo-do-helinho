@@ -45,6 +45,7 @@ public sealed class LoginIdentityGateway(AppDbContext db, UserManager<AppUser> u
 
     private async Task<AppUser?> FindAsync(string login, CancellationToken cancellationToken)
     {
+        // ignora-filtro: login ocorre antes de haver escopo de unidade; a busca é pela matrícula informada.
         var byEnrollment = await db.Students.IgnoreQueryFilters().AsNoTracking()
             .Where(s => s.Enrollment == login).Select(s => s.UserId).FirstOrDefaultAsync(cancellationToken);
         if (byEnrollment != Guid.Empty)
