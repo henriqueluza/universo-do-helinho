@@ -114,6 +114,7 @@ public sealed class PeopleSeeder(AppDbContext db, IClock clock, IConfiguration c
     private async Task EnsureStudentAsync(int n, Unit unit, DateOnly today, string password, CancellationToken ct)
     {
         var enrollment = $"{2026000 + n}";
+        // ignora-filtro: o seed roda sem usuário/unidade de contexto e precisa enxergar alunos de todas as unidades para ser idempotente.
         if (await db.Students.IgnoreQueryFilters().AnyAsync(s => s.Enrollment == enrollment, ct))
         {
             return;

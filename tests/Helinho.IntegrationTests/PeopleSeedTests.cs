@@ -48,7 +48,9 @@ public class PeopleSeedTests(PostgresFixture postgres)
         var units = await db.Units.Where(u => u.Name.EndsWith("(fictícia)")).ToListAsync(ct);
         Assert.Equal(2, units.Count);
 
-        var students = await db.Students.IgnoreQueryFilters().ToListAsync(ct);
+        // Banco compartilhado: outros testes criam alunos próprios; conta só os do seed (matrículas 2026001…2026010).
+        var seedEnrollments = Enumerable.Range(1, 10).Select(n => $"{2026000 + n}").ToList();
+        var students = await db.Students.IgnoreQueryFilters().Where(s => seedEnrollments.Contains(s.Enrollment)).ToListAsync(ct);
         Assert.Equal(10, students.Count);
         Assert.All(units, u => Assert.Equal(5, students.Count(s => s.UnitId == u.Id)));
         Assert.Contains(students, s => !s.GuardianApproved);
@@ -57,8 +59,11 @@ public class PeopleSeedTests(PostgresFixture postgres)
         var bands = students.Select(s => s.AgeBandAt(today)).Distinct().ToList();
         Assert.Equal(Enum.GetValues<AgeBand>().Length, bands.Count);
 
+        // Banco compartilhado: só as contas do seed (e-mails @helinho.example criadas por ele).
         var roles = await (from ur in db.UserRoles
                            join r in db.Roles on ur.RoleId equals r.Id
+                           join us in db.Users on ur.UserId equals us.Id
+                           where us.Email!.EndsWith("@helinho.example")
                            group r by r.Name into g
                            select new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key!, x => x.Count, ct);
         Assert.Equal(1, roles[RoleNames.Master]);
