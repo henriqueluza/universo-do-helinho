@@ -38,10 +38,10 @@ public class ApiContractEndpointsTests(PostgresFixture postgres)
         {
             (HttpMethod.Post, "/api/logout"),
             (HttpMethod.Post, "/api/quiz/q-1/answer"),
-            (HttpMethod.Get, "/api/user/badges?page=1"), (HttpMethod.Post, "/api/devices/push-token"),
+            (HttpMethod.Get, "/api/user/badges?page=1"),
             (HttpMethod.Post, "/api/login"),
         };
-        Assert.Equal(Routes.Length - 9, calls.Length); // /api/profile, /live-event, /quizzes/progress, /quiz/random, /quests/*, /user/stats e /user/inventory já têm lógica (testes próprios)
+        Assert.Equal(Routes.Length - 10, calls.Length); // /api/profile, /live-event, /quizzes/progress, /quiz/random, /quests/*, /user/stats, /user/inventory e /devices/push-token já têm lógica (testes próprios)
 
         foreach (var (method, path) in calls)
         {

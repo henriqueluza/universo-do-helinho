@@ -4,6 +4,7 @@ using Helinho.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Helinho.Infrastructure.Persistence;
 
@@ -15,6 +16,21 @@ public partial class AppDbContext(DbContextOptions<AppDbContext> options, ICurre
     private bool SeesAllUnits => currentUser.IsInRole(RoleNames.Master);
 
     private Guid? CurrentUnitId => currentUser.UnitId;
+
+    public async Task<IDbContextTransaction> BeginLockedTransactionAsync(string lockKey, CancellationToken cancellationToken = default)
+    {
+        var transaction = await Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({lockKey}))", cancellationToken);
+            return transaction;
+        }
+        catch
+        {
+            await transaction.DisposeAsync();
+            throw;
+        }
+    }
 
     public DbSet<Unit> Units => Set<Unit>();
 
