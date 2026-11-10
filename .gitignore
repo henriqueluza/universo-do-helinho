@@ -3,3 +3,10 @@ __pycache__/
 *.pyc
 .claude/skills/stageshow/node_modules/
 .agents/skills/stageshow/node_modules/
+
+# .NET / local
+.env
+bin/
+obj/
+*.user
+TestResults/
