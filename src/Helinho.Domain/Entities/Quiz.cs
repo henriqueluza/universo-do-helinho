@@ -26,6 +26,8 @@ public class QuizSession
     public DateTimeOffset StartedAt { get; private set; }
 
     public DateTimeOffset? CompletedAt { get; private set; }
+
+    public void Complete(DateTimeOffset now) => CompletedAt ??= now;
 }
 
 /// <summary>Resposta única por sessão e pergunta (P8): garante que o XP some uma vez.</summary>

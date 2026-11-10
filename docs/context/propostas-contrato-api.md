@@ -32,6 +32,8 @@ Onde este arquivo e `rotas-api.md` divergirem, vale este arquivo.
 | Credencial errada ou usuário inexistente | 401 | `invalid_credentials` | Pede a credencial de novo |
 | Token vencido ou revogado | 401 | `token_expired` | Volta para a tela de login |
 | Sem permissão, ou conta não aprovada pelo responsável | 403 | `forbidden` | Mostra aviso; não adianta tentar de novo |
+| `quiz_type` ausente ou fora dos cinco tipos em `GET /quiz/random` (PROPOSTA, pendente de aceite da contratante) | 400 | `invalid_quiz_type` | Não deve ocorrer; indica erro do jogo |
+| Sem perguntas ativas para o tipo e a faixa do aluno em `GET /quiz/random` (PROPOSTA, pendente de aceite da contratante) | 404 | `no_questions` | Mostra aviso de que o quiz ainda não está disponível |
 
 ## Regras do JsonUtility
 
