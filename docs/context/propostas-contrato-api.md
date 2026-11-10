@@ -34,7 +34,17 @@ Onde este arquivo e `rotas-api.md` divergirem, vale este arquivo.
 | Sem permissão, ou conta não aprovada pelo responsável | 403 | `forbidden` | Mostra aviso; não adianta tentar de novo |
 | `quiz_type` ausente ou fora dos cinco tipos em `GET /quiz/random` (PROPOSTA, pendente de aceite da contratante) | 400 | `invalid_quiz_type` | Não deve ocorrer; indica erro do jogo |
 | Sem perguntas ativas para o tipo e a faixa do aluno em `GET /quiz/random` (PROPOSTA, pendente de aceite da contratante) | 404 | `no_questions` | Mostra aviso de que o quiz ainda não está disponível |
+| `option_id` ausente ou inexistente em `POST /quiz/{question_id}/answer` (PROPOSTA, pendente de aceite da contratante) | 400 | `invalid_option` | Não deve ocorrer; indica erro do jogo |
+| Pergunta que não é a corrente da sessão do aluno (ou inexistente) em `POST /quiz/{question_id}/answer` (PROPOSTA, pendente de aceite da contratante) | 409 | `question_not_current` | Busca a pergunta corrente de novo em `GET /quiz/random` |
 
 ## Regras do JsonUtility
 
 As oito regras da seção 1 de `rotas-api.md` valem para todas as rotas, inclusive as novas (`/logout`, `/devices/push-token`) e para o corpo de erro.
+
+## Regras do POST /quiz/{question_id}/answer (PROPOSTA, pendente de aceite da contratante)
+
+- XP só no acerto: 10 por pergunta (P13); errar não tira XP. `next_level_xp` segue `LevelPolicy`.
+- `streak_count`: acertos seguidos do aluno em qualquer sessão; o erro zera. Derivado das respostas gravadas.
+- Idempotência (P8): reenviar a pergunta já respondida devolve o resultado da primeira resposta, mesmo com `option_id` diferente, sem somar XP; vale para requisições simultâneas. `current_xp` do reenvio é o XP atual do aluno.
+- `has_next` é falso na última pergunta da sessão, que é encerrada na mesma gravação.
+- Missões: cada resposta soma 1 às missões genéricas e às do tipo da pergunta, até a meta, no dia de Brasília (UTC−3). Missões do tipo "seguidas" ainda não têm regra própria (a entidade não distingue o tipo de meta).

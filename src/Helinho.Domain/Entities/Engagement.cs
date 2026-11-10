@@ -39,6 +39,9 @@ public class QuestProgress(Guid studentId, Guid questId, DateOnly day, int curre
     public DateOnly Day { get; private set; } = day;
 
     public int Current { get; private set; } = current;
+
+    /// <summary>Soma uma resposta ao progresso, sem passar da meta.</summary>
+    public void Advance(int target) => Current = Math.Min(target, Current + 1);
 }
 
 public class Badge(string code, string title, string visual)
