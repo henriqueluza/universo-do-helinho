@@ -9,14 +9,12 @@ namespace Helinho.Infrastructure.Seeding;
 /// <summary>
 /// Seed sintético de conteúdo: questões (<see cref="QuestionBank"/>), 1 evento ativo e 1 encerrado, 3 missões diárias e 10 conquistas.
 /// Idempotente (chave natural por item) e com datas relativas ao dia da execução (<see cref="IClock"/>).
-/// O bônus diário não tem entidade (contrato congelado): os valores ficam em <see cref="DailyBonusRewardXp"/> e <see cref="DailyBonusRequiredQuests"/>.
+/// O bônus diário não tem entidade (contrato congelado) e não é semeado: a Issue #30 define seus valores.
 /// </summary>
 public sealed class ContentSeeder(AppDbContext db, IClock clock) : ISeeder
 {
     public const string ActiveEventTitle = "Semana da Floresta (fictícia)";
     public const string EndedEventTitle = "Copa da Escola (fictícia)";
-    public const int DailyBonusRewardXp = 50;
-    public const int DailyBonusRequiredQuests = 3;
 
     public static readonly IReadOnlyList<(string Code, string Title)> Badges =
     [

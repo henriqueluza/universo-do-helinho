@@ -1,3 +1,4 @@
+using Helinho.Application.Abstractions;
 using Helinho.Domain;
 using Helinho.Domain.Entities;
 using Helinho.Infrastructure.Persistence;
@@ -10,10 +11,18 @@ namespace Helinho.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public class ContentSeedTests(PostgresFixture postgres)
 {
+    // Data fixa distinta de hoje: o teste falha se o seed usar DateTime.UtcNow em vez do IClock.
+    private static readonly DateTimeOffset Now = new(2026, 8, 20, 10, 0, 0, TimeSpan.Zero);
+
+    private sealed class FixedClock(DateTimeOffset now) : IClock
+    {
+        public DateTimeOffset UtcNow => now;
+    }
+
     [Fact]
     public async Task Seed_de_conteudo_e_historico_tem_contagens_esperadas_e_e_idempotente()
     {
-        await using var factory = new HelinhoWebFactory(postgres);
+        await using var factory = new HelinhoWebFactory(postgres, clock: new FixedClock(Now));
         var ct = TestContext.Current.CancellationToken;
         for (var run = 0; run < 2; run++) // segunda execução: não duplica nem falha
         {
@@ -23,7 +32,7 @@ public class ContentSeedTests(PostgresFixture postgres)
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
 
         // Questões do seed (identificadas pelo banco do próprio seed): ≥10 aprovadas por tipo, 4 faixas, e rascunhos.
         var seeded = QuestionBank.All.Select(i => i.Statement).ToList();
@@ -42,8 +51,8 @@ public class ContentSeedTests(PostgresFixture postgres)
         // Eventos, missões e conquistas.
         var active = await db.LiveEvents.SingleAsync(e => e.Title == ContentSeeder.ActiveEventTitle, ct);
         var ended = await db.LiveEvents.SingleAsync(e => e.Title == ContentSeeder.EndedEventTitle, ct);
-        Assert.True(active.EndsAt > now);
-        Assert.True(ended.EndsAt < now);
+        Assert.Equal(now.AddDays(5), active.EndsAt);
+        Assert.Equal(now.AddDays(-10), ended.EndsAt);
         var quests = await db.DailyQuests.Where(q => q.Title.EndsWith("(fictícia)")).ToListAsync(ct);
         Assert.Equal(3, quests.Count);
         Assert.Equal(1, quests.Count(q => q.QuizType != null));
@@ -57,14 +66,16 @@ public class ContentSeedTests(PostgresFixture postgres)
         var ids = students.Select(s => s.Id).ToList();
         var sessions = await db.QuizSessions.Where(s => ids.Contains(s.StudentId)).ToListAsync(ct);
         Assert.All(sessions, s => Assert.InRange(s.StartedAt, now.AddDays(-HistorySeeder.HistoryDays - 1), now));
+        Assert.Contains(sessions, s => s.StartedAt >= now.AddDays(-HistorySeeder.HistoryDays));
         Assert.All(ids, id => Assert.Contains(sessions, s => s.StudentId == id));
         foreach (var student in students)
         {
             var sessionIds = sessions.Where(s => s.StudentId == student.Id).Select(s => s.Id).ToList();
             var xp = await db.QuizAnswers.Where(a => sessionIds.Contains(a.SessionId)).SumAsync(a => a.XpGained, ct);
+            var correct = await db.QuizAnswers.CountAsync(a => sessionIds.Contains(a.SessionId) && a.IsCorrect, ct);
             Assert.Equal(xp, student.Xp);
+            Assert.Equal(correct * HistorySeeder.XpPerCorrectAnswer, student.Xp);
             Assert.True(xp > 0);
-            Assert.True(LevelPolicy.LevelFor(student.Xp) >= 1);
             Assert.Equal(3, await db.QuestProgress.CountAsync(p => p.StudentId == student.Id && p.Day == DateOnly.FromDateTime(now.UtcDateTime), ct));
             Assert.Equal(5, await db.InventoryItems.CountAsync(i => i.StudentId == student.Id, ct));
             Assert.True(await db.StudentBadges.CountAsync(b => b.StudentId == student.Id, ct) >= 1);
