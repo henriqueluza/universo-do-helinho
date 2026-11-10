@@ -1,6 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Claims;
 using System.Text.Json;
+using Helinho.Web.Api;
+using Helinho.Application.Abstractions;
+using Helinho.Web.Composition;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Helinho.IntegrationTests;
 
@@ -89,5 +98,95 @@ public class ApiContractEndpointsTests(PostgresFixture postgres)
 
         var scalar = await client.GetAsync("/scalar", Ct);
         Assert.Equal(HttpStatusCode.OK, scalar.StatusCode);
+    }
+
+    [Fact]
+    public async Task Login_aceita_chamada_anonima()
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        using var anonymous = factory.CreateClient();
+
+        var response = await anonymous.PostAsJsonAsync("/api/login", new { }, Ct);
+
+        Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Rota_autenticada_nao_aceita_chamada_anonima()
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        using var anonymous = factory.CreateClient();
+
+        var response = await anonymous.PostAsJsonAsync("/api/logout", new { }, Ct);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public void Missao_generica_serializa_quiz_type_vazio_e_nunca_null()
+    {
+        var item = new Helinho.Application.Contracts.QuestItem("q1", "Missão", 0, 3, 10, string.Empty);
+
+        var json = JsonSerializer.Serialize(item, Helinho.Application.Contracts.ApiJson.CreateOptions());
+
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal(JsonValueKind.String, doc.RootElement.GetProperty("quiz_type").ValueKind);
+        Assert.Equal(string.Empty, doc.RootElement.GetProperty("quiz_type").GetString());
+    }
+
+    [Fact]
+    public void Codigos_de_erro_forbidden_e_invalid_credentials_seguem_o_contrato()
+    {
+        var options = Helinho.Application.Contracts.ApiJson.CreateOptions();
+        var forbidden = JsonSerializer.SerializeToElement(Helinho.Application.Contracts.ApiErrors.CreateForbidden(), options);
+        var invalid = JsonSerializer.SerializeToElement(Helinho.Application.Contracts.ApiErrors.CreateInvalidCredentials(), options);
+
+        Assert.Equal("forbidden", forbidden.GetProperty("error").GetString());
+        Assert.Equal("invalid_credentials", invalid.GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public async Task Handler_responde_403_forbidden_com_corpo_padrao()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseTestServer();
+        builder.Services.AddSingleton<IApiSessionValidator, TestSessionValidator>();
+        builder.Services.AddApiContracts();
+        builder.Services.AddAuthorizationBuilder().AddPolicy(
+            "NegaTudo", p => p.AddAuthenticationSchemes(ApiAuth.Scheme).RequireAssertion(_ => false));
+        await using var app = builder.Build();
+        app.UseAuthentication();
+        app.UseAuthorization();
+        app.MapGet("/proibido", () => "x").RequireAuthorization("NegaTudo");
+        await app.StartAsync(Ct);
+        using var http = app.GetTestClient();
+        http.DefaultRequestHeaders.Authorization = new("Bearer", TestSessionValidator.Prefix + Guid.NewGuid());
+
+        var response = await http.GetAsync("/proibido", Ct);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
+        Assert.Equal("forbidden", body.GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public void ICurrentStudent_le_o_aluno_do_principal()
+    {
+        var id = Guid.NewGuid();
+        var context = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, id.ToString())], "test")),
+        };
+        var student = new HttpContextCurrentStudent(new HttpContextAccessor { HttpContext = context });
+
+        Assert.Equal(id, student.StudentId);
+    }
+
+    [Fact]
+    public void ICurrentStudent_lanca_sem_aluno_autenticado()
+    {
+        var student = new HttpContextCurrentStudent(new HttpContextAccessor { HttpContext = new DefaultHttpContext() });
+
+        Assert.Throws<InvalidOperationException>(() => student.StudentId);
     }
 }
