@@ -12,6 +12,7 @@ public static class DomainPersistenceExtensions
     {
         services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(configuration.GetConnectionString("Default")));
+        services.AddScoped<Helinho.Application.Abstractions.IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         return services;
     }
 }

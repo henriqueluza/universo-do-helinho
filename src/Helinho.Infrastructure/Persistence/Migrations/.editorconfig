@@ -1,0 +1,3 @@
+[*.cs]
+# Código gerado pelo `dotnet ef`: fora das análises de estilo e qualidade.
+generated_code = true
