@@ -1,0 +1,9 @@
+# Configuração do gitleaks (CI: .github/workflows/security.yml).
+# Mantém todas as regras padrão e libera só falsos positivos conhecidos e documentados.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Token ilustrativo e truncado do exemplo de resposta do login em docs/context/rotas-api.md"
+regexTarget = "line"
+regexes = ['''"token": "eyJhbGciOiJIUzI1NiIs\.\.\."''']
