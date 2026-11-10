@@ -7,11 +7,14 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Helinho.IntegrationTests;
 
 /// <summary>WebApplicationFactory apontando para o PostgreSQL do container.</summary>
-public sealed class HelinhoWebFactory(PostgresFixture postgres) : WebApplicationFactory<Program>
+public sealed class HelinhoWebFactory(PostgresFixture postgres, string? seedPassword = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:Default", postgres.ConnectionString);
+        // Sem senha explícita, usa uma aleatória por fábrica (o seed exige a variável); "" simula a ausência.
+        builder.UseSetting("HELINHO_SEED_PASSWORD", seedPassword ?? $"{Guid.NewGuid():N}Aa1!");
+
         builder.ConfigureServices(services =>
         {
             // Esquema de teste só autentica; desafio e acesso negado continuam no cookie real do painel.
