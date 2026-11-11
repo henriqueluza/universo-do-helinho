@@ -38,9 +38,8 @@ public class ApiContractEndpointsTests(PostgresFixture postgres)
         {
             (HttpMethod.Post, "/api/logout"),
             (HttpMethod.Get, "/api/user/badges?page=1"),
-            (HttpMethod.Post, "/api/login"),
         };
-        Assert.Equal(Routes.Length - 11, calls.Length); // /api/profile, /live-event, /quizzes/progress, /quiz/random, /quiz/{id}/answer, /quests/*, /user/stats, /user/inventory e /devices/push-token já têm lógica (testes próprios)
+        Assert.Equal(Routes.Length - 12, calls.Length); // login, /api/profile, /live-event, /quizzes/progress, /quiz/random, /quiz/{id}/answer, /quests/*, /user/stats, /user/inventory e /devices/push-token já têm lógica (testes próprios)
 
         foreach (var (method, path) in calls)
         {
@@ -63,6 +62,12 @@ public class ApiContractEndpointsTests(PostgresFixture postgres)
     public async Task Sem_token_ou_com_token_invalido_responde_401_token_expired()
     {
         await using var factory = new HelinhoWebFactory(postgres);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            // O validador real consulta ApiSessions: o banco precisa estar migrado.
+            await scope.ServiceProvider.GetRequiredService<Helinho.Infrastructure.Seeding.DatabaseSeeder>().RunAsync(Ct);
+        }
+
         using var anonymous = factory.CreateClient();
         using var invalid = factory.CreateClient();
         invalid.DefaultRequestHeaders.Authorization = new("Bearer", "qualquer-coisa");
@@ -98,14 +103,14 @@ public class ApiContractEndpointsTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task Login_aceita_chamada_anonima()
+    public async Task Login_aceita_chamada_anonima_e_rejeita_corpo_vazio()
     {
         await using var factory = new HelinhoWebFactory(postgres);
         using var anonymous = factory.CreateClient();
 
         var response = await anonymous.PostAsJsonAsync("/api/login", new { }, Ct);
 
-        Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

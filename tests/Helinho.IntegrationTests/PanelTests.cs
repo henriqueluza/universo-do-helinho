@@ -15,6 +15,9 @@ namespace Helinho.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public class PanelTests(PostgresFixture postgres)
 {
+    private static readonly string[] MenuPaths =
+        ["/Dashboard", "/Alunos", "/Unidades", "/Administradores", "/Questoes", "/Eventos", "/Missoes", "/Desempenho"];
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     // O Location do cookie middleware vem absoluto (http://localhost/...); compara só o caminho.
@@ -68,6 +71,62 @@ public class PanelTests(PostgresFixture postgres)
         var response = await client.PostAsync("/entrar", form, Ct);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Master_ve_o_menu_completo_e_nenhum_link_da_404()
+    {
+        await using var factory = await NewFactoryAsync();
+        using var client = factory.CreateClientAs(RoleNames.Master, name: "Maria Master");
+
+        var home = await client.GetStringAsync("/Dashboard", Ct);
+
+        foreach (var path in MenuPaths)
+        {
+            Assert.Contains($"href=\"{path}\"", home);
+            var response = await client.GetAsync(path, Ct);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        Assert.Contains("Maria Master", home);
+        Assert.Contains("Todas as unidades", home);
+        Assert.Contains(">Master<", home);
+    }
+
+    [Fact]
+    public async Task Admin_nao_ve_Unidades_nem_Administradores_e_e_barrado_nelas()
+    {
+        await using var factory = await NewFactoryAsync();
+        string unitName;
+        Guid unitId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var unit = scope.ServiceProvider.GetRequiredService<AppDbContext>().Units.OrderBy(u => u.Name).First();
+            (unitId, unitName) = (unit.Id, unit.Name);
+        }
+
+        using var client = factory.CreateClientAs(RoleNames.Admin, unitId, "Ana Admin");
+
+        var home = await client.GetStringAsync("/Dashboard", Ct);
+
+        Assert.Contains(System.Text.Encodings.Web.HtmlEncoder.Default.Encode(unitName), home);
+        Assert.DoesNotContain("Sem unidade", home);
+        Assert.DoesNotContain("Todas as unidades", home);
+        Assert.Contains("data-bs-target=\"#menu\"", home);
+        Assert.Contains("aria-controls=\"menu\"", home);
+
+        Assert.DoesNotContain("href=\"/Unidades\"", home);
+        Assert.DoesNotContain("href=\"/Administradores\"", home);
+        Assert.Contains("href=\"/Alunos\"", home);
+        Assert.Contains("Ana Admin", home);
+        Assert.Contains("Administrador de unidade", home);
+
+        foreach (var path in new[] { "/Unidades", "/Administradores" })
+        {
+            var response = await client.GetAsync(path, Ct);
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            Assert.Equal("/acesso-negado", LocationPath(response));
+        }
     }
 
     [Fact]

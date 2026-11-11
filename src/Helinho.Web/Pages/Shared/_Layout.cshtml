@@ -10,6 +10,7 @@
 <body>
     <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
     <div class="shell">
+        @await Component.InvokeAsync("PanelUser")
         <main id="conteudo" class="content" tabindex="-1">
             <h1 class="page-title">@ViewData["Title"]</h1>
             @RenderBody()

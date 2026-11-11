@@ -19,6 +19,18 @@ bash scripts/demo.sh     # sobe o banco, aplica a migração, roda o seed e inic
 
 Painel em `http://localhost:5018`; API em `/api`. Passo a passo da apresentação, logins do seed e chamadas à API: [`docs/demo/roteiro-apresentacao.md`](docs/demo/roteiro-apresentacao.md).
 
+## Configuração do login da API
+
+`POST /api/login` aceita matrícula, usuário ou e-mail e devolve um token opaco Bearer (256 bits; só o hash SHA-256 fica no banco). Falha de credencial responde `401 invalid_credentials` (uniforme); aluno não aprovado, admin e master respondem `403 forbidden`. Chaves opcionais da seção `Api:Auth` (em `appsettings` ou variável de ambiente com `__`, ex.: `Api__Auth__TokenLifetime`):
+
+| Chave | Padrão | Efeito |
+|---|---|---|
+| `TokenLifetime` | `08:00:00` | Validade do token (sem refresh) |
+| `MaxFailedAttempts` | `5` | Tentativas erradas seguidas até bloquear a conta (Identity) |
+| `LockoutDuration` | `00:15:00` | Duração do bloqueio |
+| `LoginRateLimit` | `10` | Requisições a `/api/login` por IP por janela |
+| `LoginRateWindow` | `00:01:00` | Janela do limite de taxa |
+
 ## Como testar
 
 ```bash

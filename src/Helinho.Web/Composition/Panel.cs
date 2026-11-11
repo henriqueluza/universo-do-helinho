@@ -52,6 +52,8 @@ public static class Panel
         {
             options.Conventions.AuthorizeFolder("/", PanelPolicies.Panel);
             options.Conventions.AllowAnonymousToFolder("/Conta");
+            options.Conventions.AuthorizeFolder("/Unidades", PanelPolicies.MasterOnly);
+            options.Conventions.AuthorizeFolder("/Administradores", PanelPolicies.MasterOnly);
             options.Conventions.AddPageRoute("/Conta/Entrar", LoginPath);
             options.Conventions.AddPageRoute("/Conta/Sair", "/sair");
             options.Conventions.AddPageRoute("/Conta/AcessoNegado", "/acesso-negado");
