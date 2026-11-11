@@ -50,7 +50,7 @@ public class StudentPerformanceTests(PostgresFixture postgres)
         {
             var appUser = new AppUser { UserName = $"perf{name}{Guid.NewGuid():N}", UnitId = unit.Id };
             db.Users.Add(appUser);
-            var s = new Student(appUser.Id, unit.Id, $"PRF-{name}-{Guid.NewGuid():N}", name, "11.111.111-1", "111.111.111-11",
+            var s = new Student(appUser.Id, unit.Id, $"PRF-{name}-{Guid.NewGuid().ToString("N")[..16]}", name, "11.111.111-1", "111.111.111-11",
                 "Rua Sintética, 1", birth, "Responsável Fictício", "5A", Today);
             s.AddXp(xp);
             db.Students.Add(s);
@@ -62,11 +62,11 @@ public class StudentPerformanceTests(PostgresFixture postgres)
         var caio = Make("Caio", unitB, new DateOnly(2019, 3, 1), 10);
         var session = new QuizSession(ana.Id, QuizType.Ambiental, 2, Now);
         db.QuizSessions.Add(session);
-        var q = Guid.NewGuid();
+        var questionIds = await db.Questions.Select(x => x.Id).Take(2).ToListAsync(ct);
         db.QuizAnswers.AddRange(
-            new QuizAnswer(session.Id, q, "a", true, 10, Now),
-            new QuizAnswer(session.Id, Guid.NewGuid(), "b", false, 0, Now));
-        var badge = new Badge("explorador", "Explorador do Bosque", "");
+            new QuizAnswer(session.Id, questionIds[0], "a", true, 10, Now),
+            new QuizAnswer(session.Id, questionIds[1], "b", false, 0, Now));
+        var badge = new Badge($"desemp-{Guid.NewGuid():N}", "Explorador do Bosque", "");
         db.Badges.Add(badge);
         db.StudentBadges.Add(new StudentBadge(ana.Id, badge.Id, Now));
         await db.SaveChangesAsync(ct);
