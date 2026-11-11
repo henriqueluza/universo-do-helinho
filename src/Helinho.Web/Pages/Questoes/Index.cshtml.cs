@@ -1,4 +1,5 @@
 using Helinho.Application.Abstractions;
+using Helinho.Application.Painel;
 using Helinho.Application.Questions;
 using Helinho.Domain;
 using Helinho.Domain.Entities;
@@ -9,12 +10,27 @@ namespace Helinho.Web.Pages.Questoes;
 
 public sealed class IndexModel(IAppDbContext db) : PageModel
 {
-    public IReadOnlyList<QuestionRow> Questions { get; private set; } = [];
+    [BindProperty(SupportsGet = true)]
+    public QuizType? Tipo { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public AgeBand? Faixa { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public QuestionStatus? Status { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public int Pagina { get; set; } = 1;
 
     [TempData]
     public string? Saved { get; set; }
 
-    public async Task OnGetAsync(CancellationToken ct) => Questions = await ListQuestions.HandleAsync(db, ct);
+    public QuestionListResult Result { get; private set; } = null!;
+
+    public bool HasFilters => Tipo is not null || Faixa is not null || Status is not null;
+
+    public async Task OnGetAsync(CancellationToken ct) =>
+        Result = await Application.Painel.ListQuestions.HandleAsync(db, new QuestionListQuery(Tipo, Faixa, Status, Pagina), ct);
 
     public async Task<IActionResult> OnPostAprovarAsync(Guid id, CancellationToken ct)
     {
@@ -24,8 +40,12 @@ public sealed class IndexModel(IAppDbContext db) : PageModel
         }
 
         Saved = "Questão aprovada.";
-        return RedirectToPage();
+        return RedirectToPage(new { tipo = Tipo, faixa = Faixa, status = Status, pagina = Pagina });
     }
+
+    public static string StatusLabel(QuestionStatus status) => status == QuestionStatus.Approved ? "Aprovada" : "Rascunho";
+
+    public string PageLink(int page) => Url.Page("/Questoes/Index", new { tipo = Tipo, faixa = Faixa, status = Status, pagina = page })!;
 
     public static string QuizLabel(QuizType t) => t switch
     {
