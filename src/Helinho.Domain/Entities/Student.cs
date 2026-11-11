@@ -56,6 +56,22 @@ public class Student
 
     public void ApproveByGuardian() => GuardianApproved = true;
 
+    public void SetGuardianApproval(bool approved) => GuardianApproved = approved;
+
+    /// <summary>Edição cadastral: a unidade, a matrícula e a credencial não mudam por aqui.</summary>
+    public void UpdateRegistration(
+        string fullName, string rg, string cpf, string address, DateOnly birthDate, string guardianName, string className, DateOnly today)
+    {
+        AgeBands.FromBirthDate(birthDate, today);
+        FullName = Guard.Required(fullName, "Nome completo");
+        Rg = Guard.Required(rg, "RG");
+        Cpf = Guard.Required(cpf, "CPF");
+        Address = Guard.Required(address, "Endereço");
+        GuardianName = Guard.Required(guardianName, "Responsável");
+        ClassName = Guard.Required(className, "Turma");
+        BirthDate = birthDate;
+    }
+
     public void AddXp(int amount) =>
         Xp += amount < 0 ? throw new DomainException("XP ganho não pode ser negativo.") : amount;
 }
