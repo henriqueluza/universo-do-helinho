@@ -2,6 +2,9 @@ using System.Net;
 using System.Threading.RateLimiting;
 using Helinho.Application.Identidade;
 using Helinho.Infrastructure.DependencyInjection;
+using Helinho.Infrastructure.Persistence;
+using Helinho.Web.Panel;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace Helinho.Web.Composition;
@@ -14,6 +17,8 @@ public static class IdentidadeArea
     public static IServiceCollection AddIdentidade(this IServiceCollection services)
     {
         services.AddApiLogin();
+        // AddApiLogin (AddIdentityCore) volta a registrar a fábrica padrão e apagaria a claim de unidade do cookie do painel.
+        services.AddScoped<IUserClaimsPrincipalFactory<AppUser>, UnitClaimsPrincipalFactory>();
         services.AddRateLimiter(o =>
         {
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
