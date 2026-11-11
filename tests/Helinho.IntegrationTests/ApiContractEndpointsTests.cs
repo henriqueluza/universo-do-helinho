@@ -36,14 +36,11 @@ public class ApiContractEndpointsTests(PostgresFixture postgres)
 
         var calls = new (HttpMethod Method, string Path)[]
         {
-            (HttpMethod.Post, "/api/logout"), (HttpMethod.Get, "/api/quizzes/progress"),
-            (HttpMethod.Get, "/api/quiz/random?quiz_type=ambiental"),
-            (HttpMethod.Post, "/api/quiz/q-1/answer"), (HttpMethod.Get, "/api/quests/daily"),
-            (HttpMethod.Get, "/api/quests/daily-bonus"), (HttpMethod.Get, "/api/user/stats"),
-            (HttpMethod.Get, "/api/user/badges?page=1"), (HttpMethod.Get, "/api/user/inventory"),
-            (HttpMethod.Post, "/api/user/inventory"), (HttpMethod.Post, "/api/devices/push-token"),
+            (HttpMethod.Post, "/api/logout"),
+            (HttpMethod.Post, "/api/quiz/q-1/answer"),
+            (HttpMethod.Get, "/api/user/badges?page=1"),
         };
-        Assert.Equal(Routes.Length - 3, calls.Length); // login, /api/profile e /api/live-event já têm lógica (LoginTests, ProfileTests, LiveEventTests)
+        Assert.Equal(Routes.Length - 11, calls.Length); // login, /api/profile, /live-event, /quizzes/progress, /quiz/random, /quests/*, /user/stats, /user/inventory e /devices/push-token já têm lógica (testes próprios)
 
         foreach (var (method, path) in calls)
         {
