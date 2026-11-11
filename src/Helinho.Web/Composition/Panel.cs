@@ -56,6 +56,7 @@ public static class Panel
             options.Conventions.AuthorizeFolder("/Administradores", PanelPolicies.MasterOnly);
             options.Conventions.AddPageRoute("/Conta/Entrar", LoginPath);
             options.Conventions.AddPageRoute("/Conta/Sair", "/sair");
+            options.Conventions.AddPageRoute("/Conta/RecuperarSenha", "/recuperar-senha");
             options.Conventions.AddPageRoute("/Conta/AcessoNegado", "/acesso-negado");
             options.Conventions.AddPageRoute("/Dashboard/Index", "/");
         });

@@ -9,7 +9,8 @@ using Npgsql;
 namespace Helinho.IntegrationTests;
 
 /// <summary>WebApplicationFactory apontando para o PostgreSQL do container.</summary>
-public sealed class HelinhoWebFactory(PostgresFixture postgres, string? seedPassword = null, IClock? clock = null) : WebApplicationFactory<Program>
+public sealed class HelinhoWebFactory(PostgresFixture postgres, string? seedPassword = null, IClock? clock = null, bool realCookieAuth = false,
+    Action<IServiceCollection>? configure = null) : WebApplicationFactory<Program>
 {
     // Banco próprio por fábrica (o migrate o cria): o seed de conteúdo não vaza questões para testes que contam as suas.
     private readonly string _connectionString =
@@ -29,8 +30,13 @@ public sealed class HelinhoWebFactory(PostgresFixture postgres, string? seedPass
             }
 
             // Esquema de teste só autentica; desafio e acesso negado continuam no cookie real do painel.
-            services.AddAuthentication().AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, null);
-            services.PostConfigure<AuthenticationOptions>(o => o.DefaultAuthenticateScheme = TestAuthHandler.SchemeName);
+            if (!realCookieAuth)
+            {
+                services.AddAuthentication().AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, null);
+                services.PostConfigure<AuthenticationOptions>(o => o.DefaultAuthenticateScheme = TestAuthHandler.SchemeName);
+            }
+
+            configure?.Invoke(services);
         });
     }
 
