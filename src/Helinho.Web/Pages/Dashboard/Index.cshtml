@@ -19,7 +19,7 @@
     }
     <div class="dash-selects">
         <label class="muted" for="dias">Período</label>
-        <select id="dias" name="dias" class="form-select" onchange="this.form.submit()">
+        <select id="dias" name="dias" class="form-select">
             @foreach (var d in Helinho.Application.Painel.GetDashboard.AllowedDays)
             {
                 <option value="@d" selected="@(d == periodo)">Últimos @d dias</option>
@@ -28,7 +28,7 @@
         @if (Model.IsMaster)
         {
             <label class="muted" for="unidade">Unidade</label>
-            <select id="unidade" name="unidade" class="form-select" onchange="this.form.submit()">
+            <select id="unidade" name="unidade" class="form-select">
                 <option value="">Todas as unidades</option>
                 @foreach (var u in Model.Result.Units)
                 {
@@ -36,7 +36,7 @@
                 }
             </select>
         }
-        <noscript><button type="submit" class="btn btn-outline-secondary">Aplicar</button></noscript>
+        <button type="submit" class="btn btn-outline-secondary">Aplicar</button>
         @if (Model.HasFilters)
         {
             <a class="btn btn-outline-secondary" href="@Url.Page("/Dashboard/Index")">Limpar filtros</a>

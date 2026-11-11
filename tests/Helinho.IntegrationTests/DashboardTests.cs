@@ -173,6 +173,22 @@ public class DashboardTests(PostgresFixture postgres) : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task Filtros_nao_enviam_sozinhos_e_o_botao_aplicar_esta_sempre_visivel()
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        await factory.EnsureDatabaseAsync();
+        using var client = factory.CreateClientAs(RoleNames.Master);
+
+        var response = await client.GetAsync("/Dashboard", TestContext.Current.CancellationToken);
+        var html = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("onchange", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<noscript>", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(">Aplicar</button>", html, StringComparison.Ordinal);
+    }
+
     private async Task<DashboardResult> RunAsync(string role, Guid? unitId, DashboardQuery query)
     {
         var user = new FakeUser(role, unitId);
