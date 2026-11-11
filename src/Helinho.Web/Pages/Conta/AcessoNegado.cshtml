@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "Acesso negado";
     Layout = "_Bare";
+    Response.StatusCode = StatusCodes.Status403Forbidden;
 }
 <div class="card-panel auth-card">
     <h1 class="page-title">Acesso negado</h1>
