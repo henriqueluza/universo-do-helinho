@@ -36,6 +36,8 @@ Onde este arquivo e `rotas-api.md` divergirem, vale este arquivo.
 | Sem perguntas ativas para o tipo e a faixa do aluno em `GET /quiz/random` (PROPOSTA, pendente de aceite da contratante) | 404 | `no_questions` | Mostra aviso de que o quiz ainda não está disponível |
 | `option_id` ausente ou inexistente em `POST /quiz/{question_id}/answer` (PROPOSTA, pendente de aceite da contratante) | 400 | `invalid_option` | Não deve ocorrer; indica erro do jogo |
 | Pergunta que não é a corrente da sessão do aluno (ou inexistente) em `POST /quiz/{question_id}/answer` (PROPOSTA, pendente de aceite da contratante) | 409 | `question_not_current` | Busca a pergunta corrente de novo em `GET /quiz/random` |
+| `POST /user/inventory` com `type` fora de cabelo, pele, roupa, rosto ou acessorio, mais de um item por `type`, `id`/`name` vazios ou mais de 5 itens (PROPOSTA, pendente de aceite da contratante) | 400 | `invalid_inventory` | Não deve ocorrer; indica erro do jogo |
+| `POST /devices/push-token` com `token` vazio, acima de 512 caracteres ou `platform` diferente de `android`/`ios` (PROPOSTA, pendente de aceite da contratante) | 400 | `invalid_push_token` | Não deve ocorrer; indica erro do jogo |
 
 ## Regras do JsonUtility
 

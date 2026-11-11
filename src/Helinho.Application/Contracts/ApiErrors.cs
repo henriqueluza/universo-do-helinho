@@ -14,6 +14,8 @@ public static class ApiErrors
     public const string NoQuestions = "no_questions";
     public const string InvalidOption = "invalid_option";
     public const string QuestionNotCurrent = "question_not_current";
+    public const string InvalidInventory = "invalid_inventory";
+    public const string InvalidPushToken = "invalid_push_token";
 
     public static ErrorResponse CreateInvalidCredentials() => new(InvalidCredentials, "Credencial inválida.");
 
@@ -33,4 +35,9 @@ public static class ApiErrors
 
     public static ErrorResponse CreateQuestionNotCurrent() =>
         new(QuestionNotCurrent, "Esta não é a pergunta corrente da sua sessão.");
+    public static ErrorResponse CreateInvalidInventory() => new(
+        InvalidInventory, "Seleção inválida: no máximo um item por type (cabelo, pele, roupa, rosto, acessorio), com id e name.");
+
+    public static ErrorResponse CreateInvalidPushToken() => new(
+        InvalidPushToken, "token obrigatório (até 512 caracteres) e platform android ou ios.");
 }

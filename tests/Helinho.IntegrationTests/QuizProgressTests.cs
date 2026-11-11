@@ -69,6 +69,7 @@ public class QuizProgressTests(PostgresFixture postgres)
     public async Task Sem_token_responde_401_e_aluno_inexistente_403()
     {
         await using var factory = new HelinhoWebFactory(postgres);
+        await factory.EnsureDatabaseAsync(); // banco próprio por fábrica: precisa do esquema
         using var anonymous = factory.CreateClient();
         using var unknown = factory.WithTestSessions().CreateStudentClient(Guid.NewGuid());
 
