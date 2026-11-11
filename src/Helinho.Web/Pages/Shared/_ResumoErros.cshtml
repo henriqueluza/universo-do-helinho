@@ -1,0 +1,18 @@
+@* Resumo de erros acima do formulário: cada item leva ao campo (WCAG 3.3.1). *@
+@{
+    var erros = ViewData.ModelState
+        .Where(e => e.Value?.Errors.Count > 0)
+        .SelectMany(e => e.Value!.Errors.Select(x => (Campo: e.Key.Replace('.', '_'), x.ErrorMessage)))
+        .ToList();
+}
+@if (erros.Count > 0)
+{
+    <div class="alert alert-danger" role="alert" tabindex="-1" id="resumo-erros">
+        <ul class="mb-0 ps-3">
+            @foreach (var e in erros)
+            {
+                <li>@if (e.Campo.Length > 0) { <a href="#@e.Campo">@e.ErrorMessage</a> } else { @e.ErrorMessage }</li>
+            }
+        </ul>
+    </div>
+}

@@ -21,6 +21,9 @@ public sealed class TestAuthHandler(
     public const string UnitHeader = "X-Test-Unit";
     public const string NameHeader = "X-Test-Name";
 
+    /// <summary>Id fixo do usuário; necessário quando o teste envia formulário (o token antiforgery é ligado ao usuário).</summary>
+    public const string UserHeader = "X-Test-User";
+
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!Request.Headers.TryGetValue(RoleHeader, out var role))
@@ -30,7 +33,7 @@ public sealed class TestAuthHandler(
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+            new(ClaimTypes.NameIdentifier, Request.Headers[UserHeader].FirstOrDefault() ?? Guid.NewGuid().ToString()),
             new(ClaimTypes.Name, Request.Headers[NameHeader].FirstOrDefault() ?? "Pessoa de Teste"),
             new(ClaimTypes.Role, role.ToString()),
         };
@@ -59,6 +62,14 @@ public static class TestAuthExtensions
             client.DefaultRequestHeaders.Add(TestAuthHandler.UnitHeader, id.ToString());
         }
 
+        return client;
+    }
+
+    /// <summary>Como <see cref="CreateClientAs"/>, com id de usuário estável entre requisições (para POST com antiforgery).</summary>
+    public static HttpClient CreateFormClientAs(this HelinhoWebFactory factory, string role, Guid? unitId = null)
+    {
+        var client = factory.CreateClientAs(role, unitId);
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, Guid.NewGuid().ToString());
         return client;
     }
 
