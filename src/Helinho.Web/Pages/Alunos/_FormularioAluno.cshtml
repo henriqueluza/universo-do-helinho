@@ -1,0 +1,55 @@
+@model Helinho.Web.Pages.Alunos.StudentFormPage
+@{
+    var campos = new (string Name, string Label, string? Value, string Type, string Autocomplete)[]
+    {
+        ("FullName", "Nome completo", Model.Input.FullName, "text", "off"),
+        ("BirthDate", "Data de nascimento", Model.Input.BirthDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), "date", "off"),
+        ("Rg", "RG", Model.Input.Rg, "text", "off"),
+        ("Cpf", "CPF", Model.Input.Cpf, "text", "off"),
+        ("Address", "Endereço", Model.Input.Address, "text", "off"),
+        ("GuardianName", "Nome do responsável", Model.Input.GuardianName, "text", "off"),
+        ("ClassName", "Turma", Model.Input.ClassName, "text", "off"),
+    };
+    var erros = campos.Where(c => Model.Error(c.Name) is not null).ToList();
+}
+<form method="post" novalidate class="card-panel form-aluno">
+    @if (Model.Error("Unidade") is { } unidadeErro)
+    {
+        <div class="alert alert-danger" role="alert">@unidadeErro</div>
+    }
+    @if (erros.Count > 0)
+    {
+        <div class="alert alert-danger" role="alert" tabindex="-1" id="resumo-erros">
+            <p class="fw-semibold mb-1">Corrija os campos abaixo:</p>
+            <ul class="mb-0">
+                @foreach (var c in erros)
+                {
+                    <li><a href="#Input_@c.Name">@c.Label: @Model.Error(c.Name)</a></li>
+                }
+            </ul>
+        </div>
+    }
+    <p class="muted">Todos os campos são obrigatórios. Unidade: <strong>@(Model.UnitName ?? "—")</strong>.</p>
+    @foreach (var c in campos)
+    {
+        var erro = Model.Error(c.Name);
+        <div class="mb-3">
+            <label class="form-label" for="Input_@c.Name">@c.Label</label>
+            <input class="form-control @(erro is null ? "" : "is-invalid")" id="Input_@c.Name" name="Input.@c.Name" type="@c.Type"
+                   value="@c.Value" autocomplete="@c.Autocomplete" required
+                   aria-invalid="@(erro is null ? null : "true")" aria-describedby="@(erro is null ? null : $"Input_{c.Name}-erro")" />
+            @if (erro is not null)
+            {
+                <div id="Input_@(c.Name)-erro" class="form-text text-negative">@erro</div>
+            }
+        </div>
+    }
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" id="Input_GuardianApproved" name="Input.GuardianApproved" value="true" checked="@Model.Input.GuardianApproved" />
+        <label class="form-check-label" for="Input_GuardianApproved">Responsável aprovou o cadastro (desmarcado = pendente)</label>
+    </div>
+    <div class="dash-selects">
+        <button class="btn btn-primary" type="submit">Salvar</button>
+        <a class="btn btn-outline-secondary" href="@Url.Page("/Alunos/Index")">Cancelar</a>
+    </div>
+</form>

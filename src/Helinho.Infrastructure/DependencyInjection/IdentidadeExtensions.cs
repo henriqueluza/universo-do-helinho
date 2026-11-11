@@ -31,6 +31,7 @@ public static class IdentidadeExtensions
         });
 
         services.AddScoped<ILoginIdentityGateway, LoginIdentityGateway>();
+        services.AddScoped<IStudentAccounts, StudentAccounts>();
         services.AddScoped<LoginHandler>();
         services.AddScoped<LogoutHandler>();
         services.AddScoped<IApiSessionValidator, ApiSessionValidator>();

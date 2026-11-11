@@ -8,4 +8,7 @@ public static class PanelPolicies
 
     /// <summary>Somente Master.</summary>
     public const string MasterOnly = "MasterOnly";
+
+    /// <summary>Somente Admin (cadastro e edição de aluno são da própria unidade).</summary>
+    public const string AdminOnly = "AdminOnly";
 }

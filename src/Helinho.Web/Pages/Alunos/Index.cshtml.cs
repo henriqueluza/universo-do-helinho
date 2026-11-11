@@ -22,6 +22,8 @@ public sealed class IndexModel(IAppDbContext db, ICurrentUser user, IClock clock
 
     public bool IsMaster => user.IsInRole(RoleNames.Master);
 
+    public bool IsAdmin => user.IsInRole(RoleNames.Admin);
+
     public StudentListResult Result { get; private set; } = null!;
 
     public bool HasFilters => Faixa is not null || !string.IsNullOrWhiteSpace(Turma) || Unidade is not null;
