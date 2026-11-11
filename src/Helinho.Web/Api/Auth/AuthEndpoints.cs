@@ -17,10 +17,22 @@ public static class AuthEndpoints
             .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status429TooManyRequests);
 
-        api.MapPost("/logout", () => ApiResults.NotImplemented())
+        api.MapPost("/logout", LogoutAsync)
             .Produces(StatusCodes.Status204NoContent)
-            .Produces<ErrorResponse>(StatusCodes.Status501NotImplemented);
+            .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
         return api;
+    }
+
+    private static async Task<IResult> LogoutAsync(
+        HttpContext http, LogoutHandler handler, CancellationToken cancellationToken)
+    {
+        // O esquema Bearer já autenticou; o token vem do cabeçalho para revogar só esta sessão.
+        const string prefix = "Bearer ";
+        var header = http.Request.Headers.Authorization.ToString();
+        var token = header.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? header[prefix.Length..].Trim() : "";
+        return token.Length > 0 && await handler.HandleAsync(token, cancellationToken)
+            ? Results.NoContent()
+            : Results.Json(ApiErrors.CreateTokenExpired(), statusCode: StatusCodes.Status401Unauthorized);
     }
 
     private static async Task<IResult> LoginAsync(
