@@ -86,7 +86,7 @@ public static class GetDashboard
     }
 
     /// <summary>Nascidos até <c>Youngest</c> (já têm a idade mínima) e depois de <c>Oldest</c> (ainda não passaram da máxima).</summary>
-    private static (DateOnly Youngest, DateOnly Oldest) BirthDateRange(AgeBand band, DateOnly today)
+    internal static (DateOnly Youngest, DateOnly Oldest) BirthDateRange(AgeBand band, DateOnly today)
     {
         var (min, max) = band switch
         {

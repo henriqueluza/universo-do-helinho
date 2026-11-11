@@ -1,5 +1,99 @@
 @page
+@model Helinho.Web.Pages.Alunos.IndexModel
+@using Helinho.Domain
 @{
     ViewData["Title"] = "Alunos";
 }
-<partial name="_EmConstrucao" />
+<form method="get" class="card-panel dash-filters mb-4" aria-label="Filtros de alunos">
+    <div class="dash-selects">
+        <label class="muted" for="faixa">Faixa etária</label>
+        <select id="faixa" name="faixa" class="form-select">
+            <option value="">Todas</option>
+            @foreach (var band in Enum.GetValues<AgeBand>())
+            {
+                <option value="@band" selected="@(Model.Faixa == band)">@IndexModel.BandLabel(band) anos</option>
+            }
+        </select>
+        <label class="muted" for="turma">Turma</label>
+        <select id="turma" name="turma" class="form-select">
+            <option value="">Todas</option>
+            @foreach (var c in Model.Result.Classes)
+            {
+                <option value="@c" selected="@(c == Model.Turma)">@c</option>
+            }
+        </select>
+        @if (Model.IsMaster)
+        {
+            <label class="muted" for="unidade">Unidade</label>
+            <select id="unidade" name="unidade" class="form-select">
+                <option value="">Todas as unidades</option>
+                @foreach (var u in Model.Result.Units)
+                {
+                    <option value="@u.Id" selected="@(u.Id == Model.Unidade)">@u.Name</option>
+                }
+            </select>
+        }
+        <button type="submit" class="btn btn-outline-secondary">Aplicar</button>
+        @if (Model.HasFilters)
+        {
+            <a class="btn btn-outline-secondary" href="@Url.Page("/Alunos/Index")">Limpar filtros</a>
+        }
+    </div>
+</form>
+
+@if (Model.Result.Total == 0)
+{
+    <div class="card-panel" id="alunos-vazio">
+        <p class="mb-1 fw-semibold">Nenhum aluno encontrado.</p>
+        <p class="muted mb-0">Ajuste a turma ou a faixa etária@(Model.IsMaster ? " ou a unidade" : "") para ver os alunos.</p>
+    </div>
+}
+else
+{
+    <div class="card-panel p-0">
+        <table class="table mb-0">
+            <caption class="visually-hidden">Alunos cadastrados</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Nome</th><th scope="col">Matrícula</th><th scope="col">Unidade</th>
+                    <th scope="col">Turma</th><th scope="col">Faixa etária</th><th scope="col">Aprovação do responsável</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in Model.Result.Rows)
+                {
+                    <tr>
+                        <td>@s.FullName</td>
+                        <td>@s.Enrollment</td>
+                        <td>@s.UnitName</td>
+                        <td>@s.ClassName</td>
+                        <td>@(s.Band is null ? "—" : $"{IndexModel.BandLabel(s.Band)} anos")</td>
+                        <td>
+                            @if (s.GuardianApproved)
+                            {
+                                <span class="badge badge-ok">Aprovado</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-miss">Pendente</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <nav class="dash-filters mt-3" aria-label="Paginação de alunos">
+        <p class="muted mb-0" id="alunos-resumo">@Model.Result.Total @(Model.Result.Total == 1 ? "aluno" : "alunos") · página @Model.Result.Page de @Model.Result.TotalPages</p>
+        <div class="dash-selects">
+            @if (Model.Result.Page > 1)
+            {
+                <a class="btn btn-outline-secondary" rel="prev" href="@Model.PageLink(Model.Result.Page - 1)">Anterior</a>
+            }
+            @if (Model.Result.Page < Model.Result.TotalPages)
+            {
+                <a class="btn btn-outline-secondary" rel="next" href="@Model.PageLink(Model.Result.Page + 1)">Próxima</a>
+            }
+        </div>
+    </nav>
+}
