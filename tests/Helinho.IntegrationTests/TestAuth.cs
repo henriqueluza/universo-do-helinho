@@ -31,10 +31,14 @@ public sealed class TestAuthHandler(
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
+        var name = Request.Headers[NameHeader].FirstOrDefault() ?? "Pessoa de Teste";
+        // Id estável por (papel, nome, unidade): o token antiforgery do GET precisa valer no POST seguinte.
+        var seed = $"{role}|{name}|{Request.Headers[UnitHeader]}";
+        var id = new Guid(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(seed))[..16]);
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, Request.Headers[UserHeader].FirstOrDefault() ?? Guid.NewGuid().ToString()),
-            new(ClaimTypes.Name, Request.Headers[NameHeader].FirstOrDefault() ?? "Pessoa de Teste"),
+            new(ClaimTypes.NameIdentifier, Request.Headers[UserHeader].FirstOrDefault() ?? id.ToString()),
+            new(ClaimTypes.Name, name),
             new(ClaimTypes.Role, role.ToString()),
         };
         if (Request.Headers.TryGetValue(UnitHeader, out var unit))
