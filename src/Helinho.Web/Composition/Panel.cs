@@ -16,6 +16,7 @@ public static class Panel
     {
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
+        services.AddAdminAccounts();
 
         services.AddIdentity<AppUser, IdentityRole<Guid>>(options =>
             {
@@ -39,7 +40,8 @@ public static class Panel
 
         services.AddAuthorizationBuilder()
             .AddPolicy(PanelPolicies.Panel, p => p.RequireRole(RoleNames.Master, RoleNames.Admin))
-            .AddPolicy(PanelPolicies.MasterOnly, p => p.RequireRole(RoleNames.Master));
+            .AddPolicy(PanelPolicies.MasterOnly, p => p.RequireRole(RoleNames.Master))
+            .AddPolicy(PanelPolicies.AdminOnly, p => p.RequireRole(RoleNames.Admin));
 
         services.AddAntiforgery(options =>
         {
@@ -54,6 +56,8 @@ public static class Panel
             options.Conventions.AllowAnonymousToFolder("/Conta");
             options.Conventions.AuthorizeFolder("/Unidades", PanelPolicies.MasterOnly);
             options.Conventions.AuthorizeFolder("/Administradores", PanelPolicies.MasterOnly);
+            options.Conventions.AuthorizePage("/Alunos/Novo", PanelPolicies.AdminOnly);
+            options.Conventions.AuthorizePage("/Alunos/Editar", PanelPolicies.AdminOnly);
             options.Conventions.AddPageRoute("/Conta/Entrar", LoginPath);
             options.Conventions.AddPageRoute("/Conta/Sair", "/sair");
             options.Conventions.AddPageRoute("/Conta/RecuperarSenha", "/recuperar-senha");

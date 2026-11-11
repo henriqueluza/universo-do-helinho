@@ -2,10 +2,19 @@
 @model Helinho.Web.Pages.Questoes.IndexModel
 @using Helinho.Domain
 @using Helinho.Domain.Entities
-@using Dash = Helinho.Web.Pages.Dashboard.IndexModel
 @{
     ViewData["Title"] = "Questões";
 }
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="page-title mb-0">Questões</h1>
+    <a class="btn btn-primary" asp-page="Editar">Nova questão</a>
+</div>
+
+@if (Model.Saved is not null)
+{
+    <div class="alert alert-success" role="status">@Model.Saved</div>
+}
+
 <form method="get" class="card-panel dash-filters mb-4" aria-label="Filtros de questões">
     <div class="dash-selects">
         <label class="muted" for="tipo">Tipo de quiz</label>
@@ -13,7 +22,7 @@
             <option value="">Todos</option>
             @foreach (var t in Enum.GetValues<QuizType>())
             {
-                <option value="@t" selected="@(t == Model.Tipo)">@Dash.TypeLabel(t)</option>
+                <option value="@t" selected="@(t == Model.Tipo)">@IndexModel.QuizLabel(t)</option>
             }
         </select>
         <label class="muted" for="faixa">Faixa etária</label>
@@ -21,7 +30,7 @@
             <option value="">Todas</option>
             @foreach (var b in Enum.GetValues<AgeBand>())
             {
-                <option value="@b" selected="@(b == Model.Faixa)">@Dash.BandLabel(b) anos</option>
+                <option value="@b" selected="@(b == Model.Faixa)">@IndexModel.BandLabel(b)</option>
             }
         </select>
         <label class="muted" for="status">Status</label>
@@ -43,8 +52,16 @@
 @if (Model.Result.Total == 0)
 {
     <div class="card-panel" id="questoes-vazio">
-        <p class="mb-1 fw-semibold">Nenhuma questão encontrada.</p>
-        <p class="muted mb-0">Ajuste o tipo de quiz, a faixa etária ou o status para ver outras questões.</p>
+        @if (Model.HasFilters)
+        {
+            <p class="mb-1 fw-semibold">Nenhuma questão encontrada.</p>
+            <p class="muted mb-0">Ajuste o tipo de quiz, a faixa etária ou o status para ver outras questões.</p>
+        }
+        else
+        {
+            <p class="mb-1 fw-semibold">Nenhuma questão cadastrada.</p>
+            <p class="muted mb-0">Crie a primeira questão. Ela nasce como rascunho e só chega ao jogo depois de aprovada.</p>
+        }
     </div>
 }
 else
@@ -53,15 +70,15 @@ else
         <table class="table mb-0">
             <caption class="visually-hidden">Questões cadastradas</caption>
             <thead>
-                <tr><th scope="col">Enunciado</th><th scope="col">Tipo de quiz</th><th scope="col">Faixa etária</th><th scope="col">Status</th></tr>
+                <tr><th scope="col">Enunciado</th><th scope="col">Tipo de quiz</th><th scope="col">Faixa etária</th><th scope="col">Status</th><th scope="col">Ações</th></tr>
             </thead>
             <tbody>
                 @foreach (var q in Model.Result.Items)
                 {
                     <tr>
                         <td>@q.Statement</td>
-                        <td><span class="badge type-badge @Dash.TypeClass(q.QuizType)">@Dash.TypeLabel(q.QuizType)</span></td>
-                        <td>@Dash.BandLabel(q.AgeBand) anos</td>
+                        <td><span class="badge type-badge quiz-@q.QuizType.ToString().ToLowerInvariant()">@IndexModel.QuizLabel(q.QuizType)</span></td>
+                        <td>@IndexModel.BandLabel(q.AgeBand)</td>
                         <td>
                             @if (q.Status == QuestionStatus.Approved)
                             {
@@ -71,6 +88,17 @@ else
                             {
                                 <span class="badge badge-draft">Rascunho</span>
                             }
+                        </td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-2">
+                                <a class="btn btn-sm btn-outline-secondary" asp-page="Editar" asp-route-id="@q.Id">Editar<span class="visually-hidden"> questão: @q.Statement</span></a>
+                                @if (q.Status == QuestionStatus.Draft)
+                                {
+                                    <form method="post" asp-page-handler="Aprovar" asp-route-id="@q.Id" asp-route-tipo="@Model.Tipo" asp-route-faixa="@Model.Faixa" asp-route-status="@Model.Status" asp-route-pagina="@Model.Pagina">
+                                        <button class="btn btn-sm btn-primary" type="submit">Aprovar<span class="visually-hidden"> questão: @q.Statement</span></button>
+                                    </form>
+                                }
+                            </div>
                         </td>
                     </tr>
                 }

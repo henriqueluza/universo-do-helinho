@@ -63,6 +63,35 @@ public class DomainTests
     }
 
     [Fact]
+    public void Editar_questao_aprovada_devolve_a_rascunho_e_aplica_os_novos_dados()
+    {
+        var q = new Question(QuizType.Ambiental, AgeBand.Age8To10, "Enunciado", "Explicação", Options(1));
+        q.Approve();
+        Assert.Equal(QuestionStatus.Approved, q.Status);
+
+        q.Update(QuizType.Cultural, AgeBand.Age11To12, "Novo", "Nova explicação", [("W", false), ("X", false), ("Y", false), ("Z", true)]);
+
+        Assert.Equal(QuestionStatus.Draft, q.Status);
+        Assert.Equal(QuizType.Cultural, q.QuizType);
+        Assert.Equal("Novo", q.Statement);
+        Assert.Equal("d", Assert.Single(q.Options, o => o.IsCorrect).Key);
+        Assert.Equal(["W", "X", "Y", "Z"], q.Options.Select(o => o.Label));
+    }
+
+    [Fact]
+    public void Editar_questao_com_dado_invalido_lanca_e_preserva_a_aprovacao()
+    {
+        var q = new Question(QuizType.Ambiental, AgeBand.Age8To10, "Enunciado", "Explicação", Options(1));
+        q.Approve();
+
+        Assert.Throws<DomainException>(() => q.Update(QuizType.Ambiental, AgeBand.Age8To10, "E", "X", Options(0)[..3]));
+        Assert.Throws<DomainException>(() => q.Update(QuizType.Ambiental, AgeBand.Age8To10, " ", "X", Options(0)));
+
+        Assert.Equal(QuestionStatus.Approved, q.Status);
+        Assert.Equal("Enunciado", q.Statement);
+    }
+
+    [Fact]
     public void Quiz_tem_os_cinco_tipos_do_contrato() =>
         Assert.Equal(["Ambiental", "Conhecimento", "Esportivo", "Cultural", "Diversidade"], Enum.GetNames<QuizType>());
 
@@ -94,5 +123,31 @@ public class DomainTests
         Assert.False(session.IsActive(now.AddHours(8)));
         session.Revoke(now);
         Assert.False(session.IsActive(now));
+    }
+
+    [Fact]
+    public void Update_casa_alternativas_por_chave_mesmo_com_lista_fora_de_ordem()
+    {
+        var q = new Question(QuizType.Ambiental, AgeBand.Age8To10, "Enunciado", "Explicação", Options(0));
+        var field = typeof(Question).GetField("_options", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        ((List<QuestionOption>)field.GetValue(q)!).Reverse();
+
+        q.Update(QuizType.Ambiental, AgeBand.Age8To10, "Enunciado", "Explicação", [("Um", false), ("Dois", true), ("Três", false), ("Quatro", false)]);
+
+        Assert.Equal("Um", q.Options.Single(o => o.Key == "a").Label);
+        Assert.Equal("Dois", q.Options.Single(o => o.Key == "b").Label);
+        Assert.True(q.Options.Single(o => o.Key == "b").IsCorrect);
+        Assert.Equal("Quatro", q.Options.Single(o => o.Key == "d").Label);
+    }
+
+    [Fact]
+    public void Update_com_alternativa_em_branco_nao_altera_nada()
+    {
+        var q = new Question(QuizType.Ambiental, AgeBand.Age8To10, "Enunciado", "Explicação", Options(0));
+
+        Assert.ThrowsAny<DomainException>(() => q.Update(QuizType.Cultural, AgeBand.Age6To7, "Novo", "Nova", [("Um", true), ("Dois", false), ("Três", false), (" ", false)]));
+
+        Assert.Equal("Enunciado", q.Statement);
+        Assert.Equal("A", q.Options.Single(o => o.Key == "a").Label);
     }
 }

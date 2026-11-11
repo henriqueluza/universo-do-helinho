@@ -1,5 +1,29 @@
 @page
+@model Helinho.Web.Pages.Unidades.IndexModel
 @{
     ViewData["Title"] = "Unidades";
 }
-<partial name="_EmConstrucao" />
+<div class="card-panel">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <p class="muted mb-0">@Model.Units.Count unidade(s) cadastrada(s)</p>
+        <a class="btn btn-primary" href="/Unidades/Nova">Nova unidade</a>
+    </div>
+    @if (Model.Units.Count == 0)
+    {
+        <p class="mb-0">Nenhuma unidade cadastrada. Crie a primeira com “Nova unidade”.</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table">
+                <thead><tr><th scope="col">Nome</th></tr></thead>
+                <tbody>
+                    @foreach (var u in Model.Units)
+                    {
+                        <tr><td>@u.Name</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
