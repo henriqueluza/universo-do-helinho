@@ -1,5 +1,6 @@
 using Helinho.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Helinho.Application.Abstractions;
@@ -35,6 +36,7 @@ public interface IAppDbContext
 
     DbSet<PushToken> PushTokens { get; }
 
+    DatabaseFacade Database { get; }
     /// <summary>Abre transação que serializa quem usa a mesma chave (lock de aviso do Postgres, liberado no fim da transação).</summary>
     Task<IDbContextTransaction> BeginLockedTransactionAsync(string lockKey, CancellationToken cancellationToken = default);
 
