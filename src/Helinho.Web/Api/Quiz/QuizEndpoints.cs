@@ -32,9 +32,25 @@ public static class QuizEndpoints
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
         api.MapPost(
                 "/quiz/{question_id}/answer",
-                ([FromRoute(Name = "question_id")] string questionId, AnswerRequest request) => ApiResults.NotImplemented())
+                async (
+                    [FromRoute(Name = "question_id")] string questionId, AnswerRequest? request, IAppDbContext db,
+                    ICurrentStudent current, IClock clock, CancellationToken ct) =>
+                {
+                    var result = await AnswerQuiz.HandleAsync(db, current, clock, questionId, request?.OptionId, ct);
+                    return result.Status switch
+                    {
+                        AnswerStatus.Ok => Results.Ok(result.Answer),
+                        AnswerStatus.InvalidOption => Results.Json(
+                            ApiErrors.CreateInvalidOption(), statusCode: StatusCodes.Status400BadRequest),
+                        AnswerStatus.QuestionNotCurrent => Results.Json(
+                            ApiErrors.CreateQuestionNotCurrent(), statusCode: StatusCodes.Status409Conflict),
+                        _ => Results.Json(ApiErrors.CreateForbidden(), statusCode: StatusCodes.Status403Forbidden),
+                    };
+                })
             .Produces<AnswerResponse>()
-            .Produces<ErrorResponse>(StatusCodes.Status501NotImplemented);
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
         return api;
     }
 }

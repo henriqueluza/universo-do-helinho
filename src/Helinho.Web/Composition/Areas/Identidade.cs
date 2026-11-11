@@ -1,9 +1,41 @@
+using System.Net;
+using System.Threading.RateLimiting;
+using Helinho.Application.Identidade;
+using Helinho.Infrastructure.DependencyInjection;
+using Microsoft.AspNetCore.RateLimiting;
+
 namespace Helinho.Web.Composition;
 
-/// <summary>Ponto de extensão da área Identidade: só a Issue dessa área edita este arquivo.</summary>
+/// <summary>Área Identidade: login da API (P1, P2, P4), sessão por token opaco e limite de taxa do login (T3).</summary>
 public static class IdentidadeArea
 {
-    public static IServiceCollection AddIdentidade(this IServiceCollection services) => services;
+    public const string LoginRateLimitPolicy = "api-login";
 
-    public static WebApplication MapIdentidade(this WebApplication app) => app;
+    public static IServiceCollection AddIdentidade(this IServiceCollection services)
+    {
+        services.AddApiLogin();
+        services.AddRateLimiter(o =>
+        {
+            o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            o.AddPolicy(LoginRateLimitPolicy, context =>
+            {
+                var limits = context.RequestServices.GetRequiredService<ApiAuthOptions>();
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    context.Connection.RemoteIpAddress ?? IPAddress.None,
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = limits.LoginRateLimit,
+                        Window = limits.LoginRateWindow,
+                        QueueLimit = 0,
+                    });
+            });
+        });
+        return services;
+    }
+
+    public static WebApplication MapIdentidade(this WebApplication app)
+    {
+        app.UseRateLimiter();
+        return app;
+    }
 }

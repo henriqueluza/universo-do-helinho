@@ -47,8 +47,7 @@ public static class GetRandomQuiz
         }
 
         var band = AgeBands.FromBirthDate(birthDate.Value, DateOnly.FromDateTime(now.UtcDateTime));
-        var eligible = db.Questions.Where(q =>
-            q.Status == QuestionStatus.Approved && q.QuizType == type && q.AgeBand == band);
+        var eligible = Eligible(db, type, band);
 
         var session = await db.QuizSessions
             .Where(s => s.StudentId == studentId && s.QuizType == type && s.CompletedAt == null)
@@ -85,7 +84,10 @@ public static class GetRandomQuiz
             : Ok(first, type, 1, session.Total);
     }
 
-    private static Task<Question?> NextAsync(
+    internal static IQueryable<Question> Eligible(IAppDbContext db, QuizType type, AgeBand band) =>
+        db.Questions.Where(q => q.Status == QuestionStatus.Approved && q.QuizType == type && q.AgeBand == band);
+
+    internal static Task<Question?> NextAsync(
         IAppDbContext db, IQueryable<Question> eligible, Guid sessionId, CancellationToken cancellationToken) =>
         eligible
             .Where(q => !db.QuizAnswers.Any(a => a.SessionId == sessionId && a.QuestionId == q.Id))
