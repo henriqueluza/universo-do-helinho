@@ -5,6 +5,7 @@ using Helinho.Domain;
 using Helinho.Domain.Entities;
 using Helinho.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 #pragma warning disable CA1859 // consulta pela porta IAppDbContext, como o caso de uso
 
@@ -93,21 +94,78 @@ public class QuestionListTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Pagina_mostra_tabela_filtra_e_trata_estado_vazio()
+    public async Task Pagina_mostra_enunciado_tipo_faixa_e_status_das_questoes()
     {
         await using var factory = new HelinhoWebFactory(postgres);
         await factory.EnsureDatabaseAsync();
+        await ReplaceQuestionsAsync(factory, approved: true);
         using var client = factory.CreateClientAs(RoleNames.Master);
         var ct = TestContext.Current.CancellationToken;
 
-        var all = await client.GetAsync("/Questoes", ct);
-        var html = await all.Content.ReadAsStringAsync(ct);
-        Assert.Equal(HttpStatusCode.OK, all.StatusCode);
-        Assert.Contains("Enunciado", html, StringComparison.Ordinal);
-        Assert.Contains(">Aplicar</button>", html, StringComparison.Ordinal);
+        var response = await client.GetAsync("/Questoes", ct);
+        var html = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync(ct));
 
-        var invalid = await client.GetAsync("/Questoes?tipo=Inexistente&pagina=-3", ct);
-        Assert.NotEqual(HttpStatusCode.InternalServerError, invalid.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("<table", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("questoes-vazio", html, StringComparison.Ordinal);
+        Assert.Contains("Pergunta ambiental aprovada?", html, StringComparison.Ordinal);
+        Assert.Contains("Pergunta esportiva rascunho?", html, StringComparison.Ordinal);
+        Assert.Contains(">Ambiental</span>", html, StringComparison.Ordinal);
+        Assert.Contains("6–7 anos", html, StringComparison.Ordinal);
+        Assert.Contains("11–12 anos", html, StringComparison.Ordinal);
+        Assert.Contains(">Aprovada</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Rascunho</span>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Pagina_com_filtro_sem_resultado_mostra_estado_vazio_sem_tabela()
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        await factory.EnsureDatabaseAsync();
+        await ReplaceQuestionsAsync(factory, approved: true);
+        using var client = factory.CreateClientAs(RoleNames.Master);
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await client.GetAsync("/Questoes?tipo=Diversidade", ct);
+        var html = await response.Content.ReadAsStringAsync(ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("id=\"questoes-vazio\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<table", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Pagina_com_entrada_invalida_responde_200_e_renderiza_a_lista()
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        await factory.EnsureDatabaseAsync();
+        await ReplaceQuestionsAsync(factory, approved: true);
+        using var client = factory.CreateClientAs(RoleNames.Master);
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await client.GetAsync("/Questoes?tipo=Inexistente&pagina=-3", ct);
+        var html = await response.Content.ReadAsStringAsync(ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("<table", html, StringComparison.Ordinal);
+        Assert.Contains("Pergunta ambiental aprovada?", html, StringComparison.Ordinal);
+    }
+
+    private static async Task ReplaceQuestionsAsync(HelinhoWebFactory factory, bool approved)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.QuizAnswers.ExecuteDeleteAsync(ct);
+        await db.Questions.ExecuteDeleteAsync(ct);
+        var first = NewQuestion(QuizType.Ambiental, AgeBand.Age6To7, "Pergunta ambiental aprovada?");
+        if (approved)
+        {
+            first.Approve();
+        }
+
+        db.Questions.AddRange(first, NewQuestion(QuizType.Esportivo, AgeBand.Age11To12, "Pergunta esportiva rascunho?"));
+        await db.SaveChangesAsync(ct);
     }
 
     [Fact]
