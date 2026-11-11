@@ -33,3 +33,14 @@ Regras deste repositório (somam-se a `~/.claude/CLAUDE.md` e a `.claude/rules/`
 - **Revisão:** PR entre 400 e 800 linhas **não é achado bloqueante** neste sprint. Continua bloqueante PR que mistura propósitos.
 - Migrações do EF Core (`**/Migrations/*.cs`) são código gerado e não contam no tamanho.
 - Depois da demonstração esta seção é removida e volta a valer o orçamento de `size:m`.
+
+## Design no sprint do MVP (protocolo reduzido — decisão do Henrique em 10/11/2026)
+
+O protocolo completo de `.claude/rules/10-ui-design.md` (oito skills) **não se aplica neste sprint**. O front será refeito com o protocolo completo em um sprint futuro. Até lá, toda Issue ou PR que toca UI (`*.cshtml`, `Pages/`, `wwwroot/css`, componentes) segue o protocolo reduzido:
+
+1. **`DESIGN.md` manda.** Use os tokens e componentes de `wwwroot/css/theme.css`; não invente paleta, tipografia nem espaçamento.
+2. **`unslop-design`:** rode `python3 .claude/skills/unslop-design/scripts/scan.py <pasta alterada>` e corrija os sinais encontrados (ou justifique).
+3. **`web-design-guidelines`:** auto-revisão dos arquivos de UI alterados — contraste, foco visível, labels, navegação por teclado, estados (vazio, erro, carregando) e responsividade.
+4. **Registre na seção Design do PR, só o que foi feito de verdade:** "Protocolo reduzido do sprint — DESIGN.md: seções seguidas · unslop-design: N sinais → corrigidos/justificados · web-design-guidelines: itens verificados · verificação visual: não realizada (sem navegador)". Nunca registre skill que não rodou.
+
+**Para a revisão (`review-pr`, `ui-reviewer`):** neste sprint, o registro reduzido acima **satisfaz** o protocolo de design. A ausência das outras skills (`ui-ux-pro-max`, `design-taste-frontend`, `impeccable`, `frontend-design`, `emil-design-eng`, `design-references`) e da verificação visual **não é bloqueante** e não precisa de decisão humana. Continuam bloqueantes: registro reduzido ausente, registro falso, tela que contradiz o `DESIGN.md`, e problemas de acessibilidade.
