@@ -109,7 +109,7 @@ public class PanelTests(PostgresFixture postgres)
 
         var home = await client.GetStringAsync("/Dashboard", Ct);
 
-        Assert.Contains(unitName, home);
+        Assert.Contains(System.Text.Encodings.Web.HtmlEncoder.Default.Encode(unitName), home);
         Assert.DoesNotContain("Sem unidade", home);
         Assert.DoesNotContain("Todas as unidades", home);
         Assert.Contains("data-bs-target=\"#menu\"", home);
