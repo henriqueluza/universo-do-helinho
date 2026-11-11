@@ -16,6 +16,7 @@ public static class Panel
     {
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
+        services.AddAdminAccounts();
 
         services.AddIdentity<AppUser, IdentityRole<Guid>>(options =>
             {

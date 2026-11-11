@@ -185,6 +185,22 @@ public class PanelUnidadesAdministradoresTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Senha_sem_simbolo_e_recusada_e_a_ajuda_da_tela_menciona_o_simbolo()
+    {
+        await using var factory = await NewFactoryAsync();
+        var unitId = await CreateUnitAsync(factory, "Unidade Sem Simbolo");
+        using var client = factory.CreateFormClientAs(RoleNames.Master);
+
+        var form = await (await client.GetAsync("/Administradores/Novo", Ct)).Content.ReadAsStringAsync(Ct);
+        var response = await PostFormAsync(client, "/Administradores/Novo", AdminForm(unitId, "adm.simbolo", "Segredo123"));
+
+        var html = System.Net.WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync(Ct));
+        Assert.Contains("número e um símbolo", System.Net.WebUtility.HtmlDecode(form));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("A senha deve ter pelo menos um símbolo.", html);
+    }
+
+    [Fact]
     public async Task Unidade_tem_no_maximo_um_administrador_ativo()
     {
         await using var factory = await NewFactoryAsync();

@@ -5,7 +5,9 @@ namespace Helinho.Web.Panel;
 /// <summary>Mensagens em português para os erros do Identity (o texto padrão vem em inglês).</summary>
 public static class IdentityMensagens
 {
-    public static (string Campo, string Mensagem) Traduzir(IdentityError error) => error.Code switch
+    public static (string Campo, string Mensagem) Traduzir(IdentityError error) => Traduzir(error.Code);
+
+    public static (string Campo, string Mensagem) Traduzir(string code) => code switch
     {
         "DuplicateUserName" => ("Input.UserName", "Já existe um usuário com este nome de usuário."),
         "InvalidUserName" => ("Input.UserName", "O nome de usuário tem caracteres não permitidos."),
