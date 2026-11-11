@@ -35,6 +35,8 @@ Onde este arquivo e `rotas-api.md` divergirem, vale este arquivo.
 | `quiz_type` ausente ou fora dos cinco tipos em `GET /quiz/random` (PROPOSTA, pendente de aceite da contratante) | 400 | `invalid_quiz_type` | Não deve ocorrer; indica erro do jogo |
 | Sem perguntas ativas para o tipo e a faixa do aluno em `GET /quiz/random` (PROPOSTA, pendente de aceite da contratante) | 404 | `no_questions` | Mostra aviso de que o quiz ainda não está disponível |
 | `page` inválida em `GET /user/badges` (PROPOSTA, pendente de aceite da contratante) | 400 | `invalid_page` | Não deve ocorrer; indica erro do jogo |
+| `POST /user/inventory` com `type` fora de cabelo, pele, roupa, rosto ou acessorio, mais de um item por `type`, `id`/`name` vazios ou mais de 5 itens (PROPOSTA, pendente de aceite da contratante) | 400 | `invalid_inventory` | Não deve ocorrer; indica erro do jogo |
+| `POST /devices/push-token` com `token` vazio, acima de 512 caracteres ou `platform` diferente de `android`/`ios` (PROPOSTA, pendente de aceite da contratante) | 400 | `invalid_push_token` | Não deve ocorrer; indica erro do jogo |
 
 ## Regras do JsonUtility
 
