@@ -174,8 +174,8 @@ public class ApiLoginTests(PostgresFixture postgres)
 
         using var authed = factory.CreateClient();
         authed.DefaultRequestHeaders.Authorization = new("Bearer", token);
-        // 501 = autenticou e chegou à rota ainda sem lógica.
-        Assert.Equal(HttpStatusCode.NotImplemented, (await authed.GetAsync("/api/user/badges?page=1", Ct)).StatusCode);
+        // 200 = o token autenticou e chegou a uma rota protegida (o logout revogaria a sessão).
+        Assert.Equal(HttpStatusCode.OK, (await authed.GetAsync("/api/user/badges?page=1", Ct)).StatusCode);
 
         clock.UtcNow = clock.UtcNow.AddHours(8).AddSeconds(1);
         var expired = await authed.GetAsync("/api/user/stats", Ct);
