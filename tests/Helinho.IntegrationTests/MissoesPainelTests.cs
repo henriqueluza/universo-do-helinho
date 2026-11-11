@@ -35,6 +35,7 @@ public class MissoesPainelTests(PostgresFixture postgres)
         var html = WebUtility.HtmlDecode(await client.GetStringAsync("/Missoes", TestContext.Current.CancellationToken));
 
         Assert.Contains(title + "-a", html);
+        Assert.Contains("<td>3</td>", html);
         Assert.Contains("20 XP", html);
         Assert.Contains("Esportivo", html);
         Assert.Contains("Genérica", html);
