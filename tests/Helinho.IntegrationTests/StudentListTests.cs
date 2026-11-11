@@ -112,6 +112,27 @@ public class StudentListTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Aluno_fora_de_6_a_14_anos_aparece_sem_faixa_em_vez_de_derrubar_a_listagem()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using (var db = NewContext(new FakeUser(RoleNames.Master, null)))
+        {
+            // Nasceu em 2011: tinha 14 anos quando foi cadastrado e fez 15 depois.
+            var appUser = new AppUser { UserName = "listDora", UnitId = _unitA.Id };
+            db.Users.Add(appUser);
+            db.Students.Add(new Student(appUser.Id, _unitA.Id, "LST-Dora", "Dora", "11.111.111-1", "111.111.111-11",
+                "Rua Sintética, 1", new DateOnly(2011, 3, 1), "Responsável Fictício", "9A", new DateOnly(2025, 11, 10)));
+            await db.SaveChangesAsync(ct);
+        }
+
+        var result = await RunAsync(RoleNames.Master, null, new StudentListQuery(null, null, null, 1));
+
+        Assert.Equal(4, result.Total);
+        Assert.Null(result.Rows.Single(r => r.FullName == "Dora").Band);
+        Assert.Equal(AgeBand.Age6To7, result.Rows.Single(r => r.FullName == "Ana").Band);
+    }
+
+    [Fact]
     public async Task Pagina_fora_do_intervalo_e_ajustada()
     {
         var result = await RunAsync(RoleNames.Master, null, new StudentListQuery(null, null, null, 99));

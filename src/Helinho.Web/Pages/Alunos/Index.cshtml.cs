@@ -32,15 +32,13 @@ public sealed class IndexModel(IAppDbContext db, ICurrentUser user, IClock clock
         Pagina = Result.Page;
     }
 
-    public AgeBand BandOf(DateOnly birthDate) =>
-        AgeBands.FromBirthDate(birthDate, DateOnly.FromDateTime(clock.UtcNow.ToOffset(TimeSpan.FromHours(-3)).DateTime));
-
-    public static string BandLabel(AgeBand band) => band switch
+    public static string BandLabel(AgeBand? band) => band switch
     {
         AgeBand.Age6To7 => "6–7",
         AgeBand.Age8To10 => "8–10",
         AgeBand.Age11To12 => "11–12",
-        _ => "13–14",
+        AgeBand.Age13To14 => "13–14",
+        _ => "—",
     };
 
     public string PageLink(int page) =>

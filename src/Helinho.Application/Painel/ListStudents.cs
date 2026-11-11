@@ -8,7 +8,7 @@ public sealed record StudentListQuery(Guid? UnitId, string? ClassName, AgeBand? 
 
 /// <summary>Linha da listagem. Não carrega CPF, RG nem endereço: dado sensível não sai na tabela.</summary>
 public sealed record StudentRow(
-    Guid Id, string FullName, string Enrollment, string UnitName, string ClassName, DateOnly BirthDate, bool GuardianApproved);
+    Guid Id, string FullName, string Enrollment, string UnitName, string ClassName, AgeBand? Band, bool GuardianApproved);
 
 public sealed record StudentListResult(
     IReadOnlyList<StudentRow> Rows,
@@ -60,13 +60,18 @@ public static class ListStudents
         var lastPage = Math.Max(1, (total + PageSize - 1) / PageSize);
         var page = Math.Clamp(query.Page, 1, lastPage);
 
-        var rows = await (from s in students
-                          join u in db.Units on s.UnitId equals u.Id
-                          orderby s.FullName, s.Id
-                          select new StudentRow(s.Id, s.FullName, s.Enrollment, u.Name, s.ClassName, s.BirthDate, s.GuardianApproved))
+        var found = await (from s in students
+                           join u in db.Units on s.UnitId equals u.Id
+                           orderby s.FullName, s.Id
+                           select new { s.Id, s.FullName, s.Enrollment, UnitName = u.Name, s.ClassName, s.BirthDate, s.GuardianApproved })
             .Skip((page - 1) * PageSize)
             .Take(PageSize)
             .ToListAsync(cancellationToken);
+        // Faixa fora de 6–14 (aluno que fez 15 anos, data inconsistente) vira null: a tela mostra "—", sem 500.
+        var rows = found
+            .Select(r => new StudentRow(r.Id, r.FullName, r.Enrollment, r.UnitName, r.ClassName,
+                AgeBands.TryFromBirthDate(r.BirthDate, today), r.GuardianApproved))
+            .ToList();
         var classes = await scoped.Select(s => s.ClassName).Distinct().OrderBy(c => c).ToListAsync(cancellationToken);
         var units = isMaster
             ? await db.Units.OrderBy(u => u.Name).Select(u => new UnitOption(u.Id, u.Name)).ToListAsync(cancellationToken)

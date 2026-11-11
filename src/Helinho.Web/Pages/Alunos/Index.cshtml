@@ -67,7 +67,7 @@ else
                         <td>@s.Enrollment</td>
                         <td>@s.UnitName</td>
                         <td>@s.ClassName</td>
-                        <td>@IndexModel.BandLabel(Model.BandOf(s.BirthDate)) anos</td>
+                        <td>@(s.Band is null ? "—" : $"{IndexModel.BandLabel(s.Band)} anos")</td>
                         <td>
                             @if (s.GuardianApproved)
                             {
@@ -84,7 +84,7 @@ else
         </table>
     </div>
     <nav class="dash-filters mt-3" aria-label="Paginação de alunos">
-        <p class="muted mb-0" id="alunos-resumo">@Model.Result.Total alunos · página @Model.Result.Page de @Model.Result.TotalPages</p>
+        <p class="muted mb-0" id="alunos-resumo">@Model.Result.Total @(Model.Result.Total == 1 ? "aluno" : "alunos") · página @Model.Result.Page de @Model.Result.TotalPages</p>
         <div class="dash-selects">
             @if (Model.Result.Page > 1)
             {
