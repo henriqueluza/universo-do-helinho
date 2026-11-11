@@ -26,6 +26,26 @@ public class DailyQuest(string title, int target, int rewardXp, QuizType? quizTy
     public int RewardXp { get; private set; } = rewardXp;
 
     public QuizType? QuizType { get; private set; } = quizType;
+
+    /// <summary>Edição pelo painel: meta e recompensa positivas; tipo nulo grava missão genérica.</summary>
+    public void Update(string title, int target, int rewardXp, QuizType? quizType)
+    {
+        var validTitle = Guard.Required(title, "Título");
+        if (target <= 0)
+        {
+            throw new DomainException("Meta deve ser positiva.");
+        }
+
+        if (rewardXp <= 0)
+        {
+            throw new DomainException("Recompensa deve ser positiva.");
+        }
+
+        Title = validTitle;
+        Target = target;
+        RewardXp = rewardXp;
+        QuizType = quizType;
+    }
 }
 
 public class QuestProgress(Guid studentId, Guid questId, DateOnly day, int current)

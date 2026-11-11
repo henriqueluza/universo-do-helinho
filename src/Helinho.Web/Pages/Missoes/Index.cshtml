@@ -1,5 +1,45 @@
 @page
+@model Helinho.Web.Pages.Missoes.IndexModel
 @{
     ViewData["Title"] = "Missões";
 }
-<partial name="_EmConstrucao" />
+@if (Model.Aviso is not null)
+{
+    <div class="alert alert-success" role="status">@Model.Aviso</div>
+}
+@if (Model.Quests.Count == 0)
+{
+    <div class="card-panel" id="missoes-vazio">
+        <p class="mb-1 fw-semibold">Nenhuma missão cadastrada.</p>
+        <p class="muted mb-0">As missões diárias aparecem aqui quando existirem.</p>
+    </div>
+}
+else
+{
+    <div class="card-panel">
+        <table class="table" id="missoes">
+            <caption class="visually-hidden">Missões diárias</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Título</th>
+                    <th scope="col">Meta</th>
+                    <th scope="col">Recompensa</th>
+                    <th scope="col">Tipo de quiz</th>
+                    <th scope="col"><span class="visually-hidden">Ações</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var q in Model.Quests)
+                {
+                    <tr>
+                        <th scope="row" class="fw-semibold">@q.Title</th>
+                        <td>@q.Target</td>
+                        <td>@q.RewardXp XP</td>
+                        <td>@IndexModel.TypeLabel(q.QuizType)</td>
+                        <td><a class="btn btn-outline-secondary" asp-page="Editar" asp-route-id="@q.Id">Editar<span class="visually-hidden"> @q.Title</span></a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
