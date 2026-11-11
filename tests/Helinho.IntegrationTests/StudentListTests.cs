@@ -161,8 +161,15 @@ public class StudentListTests(PostgresFixture postgres) : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.DoesNotContain("id=\"unidade\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("CPF", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("RG", html, StringComparison.Ordinal);
+
+        // "CPF"/"RG" só no texto visível: o token antiforgery (atributo de <input>) é aleatório e pode conter "RG".
+        // O padrão de CPF vai no HTML bruto (cobre atributos); o token base64url não gera esse padrão.
+        var visible = System.Text.RegularExpressions.Regex.Replace(
+            System.Text.RegularExpressions.Regex.Replace(html, @"<(script|style)\b.*?</\1>", " ", System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+            "<[^>]*>",
+            " ");
+        Assert.DoesNotContain("CPF", visible, StringComparison.Ordinal);
+        Assert.DoesNotContain("RG", visible, StringComparison.Ordinal);
         Assert.DoesNotMatch(@"\d{3}\.\d{3}\.\d{3}-\d{2}", html);
     }
 
