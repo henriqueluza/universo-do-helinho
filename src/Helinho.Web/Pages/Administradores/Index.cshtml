@@ -1,5 +1,36 @@
 @page
+@model Helinho.Web.Pages.Administradores.IndexModel
 @{
     ViewData["Title"] = "Administradores";
 }
-<partial name="_EmConstrucao" />
+<div class="card-panel">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <p class="muted mb-0">@Model.Rows.Count administrador(es) cadastrado(s)</p>
+        <a class="btn btn-primary" href="/Administradores/Novo">Novo administrador</a>
+    </div>
+    @if (Model.Rows.Count == 0)
+    {
+        <p class="mb-0">Nenhum administrador cadastrado. Crie o primeiro com “Novo administrador”.</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr><th scope="col">Usuário</th><th scope="col">E-mail</th><th scope="col">Unidade</th><th scope="col">Situação</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        <tr>
+                            <td>@r.UserName</td>
+                            <td>@r.Email</td>
+                            <td>@r.UnitName</td>
+                            <td>@(r.Active ? "Ativo" : "Inativo")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
