@@ -227,7 +227,7 @@ public class PanelAdministradoresTests(PostgresFixture postgres)
             ["Input.Password"] = "",
         });
 
-        var html = await response.Content.ReadAsStringAsync(Ct);
+        var html = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync(Ct));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Informe o nome de usuário.", html);
         Assert.Contains("Informe o e-mail.", html);
