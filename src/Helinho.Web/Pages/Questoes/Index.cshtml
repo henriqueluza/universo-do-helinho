@@ -1,5 +1,93 @@
 @page
+@model Helinho.Web.Pages.Questoes.IndexModel
+@using Helinho.Domain
+@using Helinho.Domain.Entities
+@using Dash = Helinho.Web.Pages.Dashboard.IndexModel
 @{
     ViewData["Title"] = "Questões";
 }
-<partial name="_EmConstrucao" />
+<form method="get" class="card-panel dash-filters mb-4" aria-label="Filtros de questões">
+    <div class="dash-selects">
+        <label class="muted" for="tipo">Tipo de quiz</label>
+        <select id="tipo" name="tipo" class="form-select">
+            <option value="">Todos</option>
+            @foreach (var t in Enum.GetValues<QuizType>())
+            {
+                <option value="@t" selected="@(t == Model.Tipo)">@Dash.TypeLabel(t)</option>
+            }
+        </select>
+        <label class="muted" for="faixa">Faixa etária</label>
+        <select id="faixa" name="faixa" class="form-select">
+            <option value="">Todas</option>
+            @foreach (var b in Enum.GetValues<AgeBand>())
+            {
+                <option value="@b" selected="@(b == Model.Faixa)">@Dash.BandLabel(b) anos</option>
+            }
+        </select>
+        <label class="muted" for="status">Status</label>
+        <select id="status" name="status" class="form-select">
+            <option value="">Todos</option>
+            @foreach (var s in Enum.GetValues<QuestionStatus>())
+            {
+                <option value="@s" selected="@(s == Model.Status)">@IndexModel.StatusLabel(s)</option>
+            }
+        </select>
+        <button type="submit" class="btn btn-outline-secondary">Aplicar</button>
+        @if (Model.HasFilters)
+        {
+            <a class="btn btn-outline-secondary" href="@Url.Page("/Questoes/Index")">Limpar filtros</a>
+        }
+    </div>
+</form>
+
+@if (Model.Result.Total == 0)
+{
+    <div class="card-panel" id="questoes-vazio">
+        <p class="mb-1 fw-semibold">Nenhuma questão encontrada.</p>
+        <p class="muted mb-0">Ajuste o tipo de quiz, a faixa etária ou o status para ver outras questões.</p>
+    </div>
+}
+else
+{
+    <div class="card-panel p-0">
+        <table class="table mb-0">
+            <caption class="visually-hidden">Questões cadastradas</caption>
+            <thead>
+                <tr><th scope="col">Enunciado</th><th scope="col">Tipo de quiz</th><th scope="col">Faixa etária</th><th scope="col">Status</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var q in Model.Result.Items)
+                {
+                    <tr>
+                        <td>@q.Statement</td>
+                        <td><span class="badge type-badge @Dash.TypeClass(q.QuizType)">@Dash.TypeLabel(q.QuizType)</span></td>
+                        <td>@Dash.BandLabel(q.AgeBand) anos</td>
+                        <td>
+                            @if (q.Status == QuestionStatus.Approved)
+                            {
+                                <span class="badge badge-ok">Aprovada</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-draft">Rascunho</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <nav class="d-flex align-items-center justify-content-between mt-3" aria-label="Paginação">
+        <span class="muted">@Model.Result.Total questões · página @Model.Result.Page de @Model.Result.TotalPages</span>
+        <span class="seg">
+            @if (Model.Result.Page > 1)
+            {
+                <a class="seg-item" rel="prev" href="@Model.PageLink(Model.Result.Page - 1)">Anterior</a>
+            }
+            @if (Model.Result.Page < Model.Result.TotalPages)
+            {
+                <a class="seg-item" rel="next" href="@Model.PageLink(Model.Result.Page + 1)">Próxima</a>
+            }
+        </span>
+    </nav>
+}
