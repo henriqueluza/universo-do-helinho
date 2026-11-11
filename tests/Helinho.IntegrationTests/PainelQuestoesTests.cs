@@ -21,7 +21,9 @@ public class PainelQuestoesTests(PostgresFixture postgres)
         var factory = new HelinhoWebFactory(postgres);
         await factory.EnsureDatabaseAsync();
         await using var scope = factory.Services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Questions.ExecuteDeleteAsync(Ct);
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.QuizAnswers.ExecuteDeleteAsync(Ct);
+        await db.Questions.ExecuteDeleteAsync(Ct);
         return factory;
     }
 
