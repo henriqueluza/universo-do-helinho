@@ -1,5 +1,121 @@
 @page
+@model Helinho.Web.Pages.Dashboard.IndexModel
+@using Helinho.Domain
 @{
     ViewData["Title"] = "Dashboard";
+    var periodo = Model.Dias;
 }
-<partial name="_EmConstrucao" />
+<form method="get" class="card-panel dash-filters mb-4" aria-label="Filtros do dashboard">
+    <div role="group" aria-label="Faixa etária" class="seg">
+        <a class="seg-item" href="@Model.Link(null)" aria-current="@(Model.Faixa is null ? "true" : "false")">Todas</a>
+        @foreach (var band in Enum.GetValues<AgeBand>())
+        {
+            <a class="seg-item" href="@Model.Link(band)" aria-current="@(Model.Faixa == band ? "true" : "false")">@IndexModel.BandLabel(band)</a>
+        }
+    </div>
+    @if (Model.Faixa is { } f)
+    {
+        <input type="hidden" name="faixa" value="@f" />
+    }
+    <div class="dash-selects">
+        <label class="muted" for="dias">Período</label>
+        <select id="dias" name="dias" class="form-select" onchange="this.form.submit()">
+            @foreach (var d in Helinho.Application.Painel.GetDashboard.AllowedDays)
+            {
+                <option value="@d" selected="@(d == periodo)">Últimos @d dias</option>
+            }
+        </select>
+        @if (Model.IsMaster)
+        {
+            <label class="muted" for="unidade">Unidade</label>
+            <select id="unidade" name="unidade" class="form-select" onchange="this.form.submit()">
+                <option value="">Todas as unidades</option>
+                @foreach (var u in Model.Result.Units)
+                {
+                    <option value="@u.Id" selected="@(u.Id == Model.Unidade)">@u.Name</option>
+                }
+            </select>
+        }
+        <noscript><button type="submit" class="btn btn-outline-secondary">Aplicar</button></noscript>
+        @if (Model.HasFilters)
+        {
+            <a class="btn btn-outline-secondary" href="@Url.Page("/Dashboard/Index")">Limpar filtros</a>
+        }
+    </div>
+</form>
+
+@if (Model.Result.Answers == 0)
+{
+    <div class="card-panel" id="dashboard-vazio">
+        <p class="mb-1 fw-semibold">Nenhuma resposta neste período.</p>
+        <p class="muted mb-0">Ajuste a faixa etária, o período ou a unidade para ver os indicadores.</p>
+    </div>
+}
+else
+{
+    <div class="kpi-grid mb-4">
+        <div class="card-panel kpi">
+            <p class="muted kpi-label">Alunos ativos</p>
+            <p class="kpi-value" id="kpi-ativos">@Model.Result.ActiveStudents</p>
+            <p class="muted kpi-context">Responderam nos últimos @Model.Dias dias</p>
+        </div>
+        <div class="card-panel kpi">
+            <p class="muted kpi-label">Respostas no período</p>
+            <p class="kpi-value" id="kpi-respostas">@Model.Result.Answers</p>
+            <p class="muted kpi-context">Últimos @Model.Dias dias</p>
+        </div>
+    </div>
+
+    <h2 class="section-title">Acerto médio por tipo de quiz</h2>
+    <div class="kpi-grid mb-4">
+        @foreach (var t in Model.Result.AccuracyByType)
+        {
+            <div class="card-panel kpi @IndexModel.TypeClass(t.QuizType)">
+                <p class="muted kpi-label"><span class="type-mark" aria-hidden="true"></span>@IndexModel.TypeLabel(t.QuizType)</p>
+                @if (t.AccuracyPercent is { } pct)
+                {
+                    <p class="kpi-value">@pct%</p>
+                    <div class="progress" role="progressbar" aria-label="Acerto em @IndexModel.TypeLabel(t.QuizType)" aria-valuenow="@pct" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress-bar type-bar" style="width: @(pct)%"></div>
+                    </div>
+                    <p class="muted kpi-context">@t.Answers respostas</p>
+                }
+                else
+                {
+                    <p class="kpi-value">—</p>
+                    <p class="muted kpi-context">Sem respostas</p>
+                }
+            </div>
+        }
+    </div>
+
+    <h2 class="section-title">Atividade recente</h2>
+    <div class="card-panel p-0">
+        <table class="table mb-0">
+            <caption class="visually-hidden">Últimas respostas dos alunos</caption>
+            <thead>
+                <tr><th scope="col">Aluno</th><th scope="col">Quiz</th><th scope="col">Resultado</th><th scope="col">Quando</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Model.Result.Recent)
+                {
+                    <tr>
+                        <td>@r.StudentName</td>
+                        <td><span class="badge type-badge @IndexModel.TypeClass(r.QuizType)">@IndexModel.TypeLabel(r.QuizType)</span></td>
+                        <td>
+                            @if (r.IsCorrect)
+                            {
+                                <span class="badge badge-ok">Acertou</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-miss">Errou</span>
+                            }
+                        </td>
+                        <td><time datetime="@r.AnsweredAt.ToString("O")">@r.AnsweredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</time></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
