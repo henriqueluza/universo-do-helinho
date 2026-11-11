@@ -1,0 +1,59 @@
+@page "{id:guid}"
+@model Helinho.Web.Pages.Desempenho.AlunoModel
+@{
+    ViewData["Title"] = Model.Student.FullName;
+    var s = Model.Student;
+}
+<p><a href="@Url.Page("/Desempenho/Index")">← Voltar ao desempenho</a></p>
+<section class="card-panel mb-4" aria-labelledby="resumo-titulo">
+    <h2 id="resumo-titulo" class="fs-5">@s.FullName</h2>
+    <p class="muted mb-3">@s.UnitName · Turma @s.ClassName@(s.Band is null ? "" : $" · {Helinho.Web.Pages.Alunos.IndexModel.BandLabel(s.Band)} anos")</p>
+    <p class="mb-0" id="aluno-nivel">
+        <span class="fw-semibold" style="font-size: var(--fs-kpi); font-variant-numeric: tabular-nums">@s.Xp XP</span>
+        · Nível @s.Level — @s.LevelName
+        <span class="muted">(próximo nível em @s.NextLevelXp XP)</span>
+    </p>
+</section>
+
+<section class="card-panel mb-4" aria-labelledby="acertos-titulo">
+    <h2 id="acertos-titulo" class="fs-5">Acertos por tipo de quiz</h2>
+    @if (s.Answered == 0)
+    {
+        <p class="muted mb-0" id="aluno-sem-respostas">Este aluno ainda não respondeu nenhuma pergunta.</p>
+    }
+    else
+    {
+        <table class="table mb-0">
+            <caption class="visually-hidden">Acertos por tipo de quiz</caption>
+            <thead><tr><th scope="col">Tipo</th><th scope="col" class="text-end">Respostas</th><th scope="col" class="text-end">Acertos</th><th scope="col" class="text-end">Aproveitamento</th></tr></thead>
+            <tbody>
+                @foreach (var t in s.Scores)
+                {
+                    <tr>
+                        <td>@AlunoModel.TypeLabel(t.Type)</td>
+                        <td class="text-end">@t.Answered</td>
+                        <td class="text-end">@t.Correct</td>
+                        <td class="text-end">@(t.Answered == 0 ? "—" : $"{100 * t.Correct / t.Answered}%")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+<section class="card-panel" aria-labelledby="conquistas-titulo">
+    <h2 id="conquistas-titulo" class="fs-5">Conquistas desbloqueadas</h2>
+    @if (s.Badges.Count == 0)
+    {
+        <p class="muted mb-0" id="aluno-sem-conquistas">Nenhuma conquista desbloqueada ainda.</p>
+    }
+    else
+    {
+        <ul class="mb-0">
+            @foreach (var b in s.Badges)
+            {
+                <li>@b.Title <span class="muted">· @b.UnlockedAt.ToOffset(TimeSpan.FromHours(-3)).ToString("dd/MM/yyyy")</span></li>
+            }
+        </ul>
+    }
+</section>

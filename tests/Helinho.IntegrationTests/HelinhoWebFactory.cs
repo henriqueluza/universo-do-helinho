@@ -16,6 +16,8 @@ public sealed class HelinhoWebFactory(PostgresFixture postgres, string? seedPass
     private readonly string _connectionString =
         new NpgsqlConnectionStringBuilder(postgres.ConnectionString) { Database = $"t_{Guid.NewGuid():N}" }.ConnectionString;
 
+    public string ConnectionString => _connectionString;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:Default", _connectionString);
