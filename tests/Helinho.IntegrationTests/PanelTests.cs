@@ -111,6 +111,40 @@ public class PanelTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Layout_bare_carrega_o_tema()
+    {
+        await using var factory = await NewFactoryAsync();
+        using var client = factory.CreateAnonymousClient();
+
+        var html = await (await client.GetAsync("/entrar", Ct)).Content.ReadAsStringAsync(Ct);
+
+        Assert.Contains("href=\"/css/theme.css", html);
+    }
+
+    [Fact]
+    public async Task Layout_do_painel_carrega_o_tema()
+    {
+        await using var factory = await NewFactoryAsync();
+        using var client = factory.CreateClientAs(RoleNames.Admin, Guid.NewGuid());
+
+        var html = await (await client.GetAsync("/Dashboard", Ct)).Content.ReadAsStringAsync(Ct);
+
+        Assert.Contains("href=\"/css/theme.css", html);
+    }
+
+    [Fact]
+    public async Task Tema_css_e_servido_como_text_css()
+    {
+        await using var factory = await NewFactoryAsync();
+        using var client = factory.CreateAnonymousClient();
+
+        var response = await client.GetAsync("/css/theme.css", Ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/css", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
     public void CurrentUser_le_papel_e_unidade_das_claims()
     {
         var unitId = Guid.NewGuid();
