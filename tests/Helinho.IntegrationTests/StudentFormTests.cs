@@ -8,6 +8,7 @@ using Helinho.Infrastructure.Identidade;
 using Helinho.Web.Pages.Alunos;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 #pragma warning disable CA1859 // consulta pela porta IAppDbContext, como o caso de uso
 
@@ -125,6 +126,34 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Logs_de_cadastro_e_edicao_nao_contem_cpf_nem_rg()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var capture = new CaptureLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(capture));
+        var user = new FakeUser(RoleNames.Admin, _unitA.Id);
+        await using var db = NewContext(user, loggerFactory);
+        var secretRg = "77.888.999-X";
+        var accounts = new StudentAccounts(db);
+
+        var invalid = await SaveStudent.CreateAsync(db, user, new FixedClock(), accounts, Valid() with { Cpf = "123.456.789-00", Rg = secretRg }, ct);
+        var created = await SaveStudent.CreateAsync(db, user, new FixedClock(), accounts, Valid() with { Rg = secretRg }, ct);
+        var edited = await SaveStudent.UpdateAsync(db, new FixedClock(), created.StudentId!.Value, Valid(approved: true) with { Rg = secretRg }, ct);
+
+        Assert.False(invalid.Succeeded);
+        Assert.True(created.Succeeded);
+        Assert.True(edited!.Succeeded);
+        Assert.NotEmpty(capture.Entries); // prova que a captura está ligada
+        Assert.All(capture.Entries, e =>
+        {
+            Assert.DoesNotContain("529.982.247-25", e, StringComparison.Ordinal);
+            Assert.DoesNotContain("52998224725", e, StringComparison.Ordinal);
+            Assert.DoesNotContain("123.456.789-00", e, StringComparison.Ordinal);
+            Assert.DoesNotContain(secretRg, e, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
     public async Task Master_ou_usuario_sem_unidade_nao_cadastra()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -207,8 +236,41 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
         Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
     }
 
-    private AppDbContext NewContext(ICurrentUser user) =>
-        new(new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(new Npgsql.NpgsqlConnectionStringBuilder(postgres.ConnectionString) { Database = _database }.ConnectionString)
-            .Options, user);
+    private AppDbContext NewContext(ICurrentUser user, ILoggerFactory? loggerFactory = null)
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(new Npgsql.NpgsqlConnectionStringBuilder(postgres.ConnectionString) { Database = _database }.ConnectionString);
+        if (loggerFactory is not null)
+        {
+            options.UseLoggerFactory(loggerFactory);
+        }
+
+        return new AppDbContext(options.Options, user);
+    }
+
+    private sealed class CaptureLoggerProvider : ILoggerProvider
+    {
+        public List<string> Entries { get; } = [];
+
+        public ILogger CreateLogger(string categoryName) => new CaptureLogger(Entries);
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class CaptureLogger(List<string> entries) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            {
+                lock (entries)
+                {
+                    entries.Add($"{formatter(state, exception)} {exception}");
+                }
+            }
+        }
+    }
 }
