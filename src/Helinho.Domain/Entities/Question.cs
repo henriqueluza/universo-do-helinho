@@ -17,16 +17,38 @@ public class Question
     /// <summary>Exatamente 4 alternativas, uma correta. As chaves a–d são atribuídas na ordem.</summary>
     public Question(QuizType quizType, AgeBand ageBand, string statement, string explanation, IReadOnlyList<(string Label, bool IsCorrect)> options)
     {
-        if (options.Count != 4 || options.Count(o => o.IsCorrect) != 1)
-        {
-            throw new DomainException("A questão precisa de exatamente 4 alternativas, uma correta.");
-        }
-
+        Validate(options);
         QuizType = quizType;
         AgeBand = ageBand;
         Statement = Guard.Required(statement, "Enunciado");
         Explanation = Guard.Required(explanation, "Explicação");
         _options.AddRange(options.Select((o, i) => new QuestionOption(Id, ((char)('a' + i)).ToString(), o.Label, o.IsCorrect)));
+    }
+
+    /// <summary>Edita a questão (mesmas regras da criação). Qualquer edição devolve a questão a rascunho.</summary>
+    public void Update(QuizType quizType, AgeBand ageBand, string statement, string explanation, IReadOnlyList<(string Label, bool IsCorrect)> options)
+    {
+        Validate(options);
+        var newStatement = Guard.Required(statement, "Enunciado");
+        var newExplanation = Guard.Required(explanation, "Explicação");
+        for (var i = 0; i < 4; i++)
+        {
+            _options[i].Set(options[i].Label, options[i].IsCorrect);
+        }
+
+        QuizType = quizType;
+        AgeBand = ageBand;
+        Statement = newStatement;
+        Explanation = newExplanation;
+        Status = QuestionStatus.Draft;
+    }
+
+    private static void Validate(IReadOnlyList<(string Label, bool IsCorrect)> options)
+    {
+        if (options.Count != 4 || options.Count(o => o.IsCorrect) != 1)
+        {
+            throw new DomainException("A questão precisa de exatamente 4 alternativas, uma correta.");
+        }
     }
 
     public Guid Id { get; private set; } = Guid.NewGuid();
@@ -57,6 +79,12 @@ public class QuestionOption
     {
         QuestionId = questionId;
         Key = key;
+        Label = Guard.Required(label, "Alternativa");
+        IsCorrect = isCorrect;
+    }
+
+    internal void Set(string label, bool isCorrect)
+    {
         Label = Guard.Required(label, "Alternativa");
         IsCorrect = isCorrect;
     }

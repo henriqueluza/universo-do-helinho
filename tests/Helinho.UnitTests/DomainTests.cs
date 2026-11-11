@@ -63,6 +63,35 @@ public class DomainTests
     }
 
     [Fact]
+    public void Editar_questao_aprovada_devolve_a_rascunho_e_aplica_os_novos_dados()
+    {
+        var q = new Question(QuizType.Ambiental, AgeBand.Age8To10, "Enunciado", "Explicação", Options(1));
+        q.Approve();
+        Assert.Equal(QuestionStatus.Approved, q.Status);
+
+        q.Update(QuizType.Cultural, AgeBand.Age11To12, "Novo", "Nova explicação", [("W", false), ("X", false), ("Y", false), ("Z", true)]);
+
+        Assert.Equal(QuestionStatus.Draft, q.Status);
+        Assert.Equal(QuizType.Cultural, q.QuizType);
+        Assert.Equal("Novo", q.Statement);
+        Assert.Equal("d", Assert.Single(q.Options, o => o.IsCorrect).Key);
+        Assert.Equal(["W", "X", "Y", "Z"], q.Options.Select(o => o.Label));
+    }
+
+    [Fact]
+    public void Editar_questao_com_dado_invalido_lanca_e_preserva_a_aprovacao()
+    {
+        var q = new Question(QuizType.Ambiental, AgeBand.Age8To10, "Enunciado", "Explicação", Options(1));
+        q.Approve();
+
+        Assert.Throws<DomainException>(() => q.Update(QuizType.Ambiental, AgeBand.Age8To10, "E", "X", Options(0)[..3]));
+        Assert.Throws<DomainException>(() => q.Update(QuizType.Ambiental, AgeBand.Age8To10, " ", "X", Options(0)));
+
+        Assert.Equal(QuestionStatus.Approved, q.Status);
+        Assert.Equal("Enunciado", q.Statement);
+    }
+
+    [Fact]
     public void Quiz_tem_os_cinco_tipos_do_contrato() =>
         Assert.Equal(["Ambiental", "Conhecimento", "Esportivo", "Cultural", "Diversidade"], Enum.GetNames<QuizType>());
 
