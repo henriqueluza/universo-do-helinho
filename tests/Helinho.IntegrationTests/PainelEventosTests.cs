@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using Helinho.Application.Abstractions;
+using Helinho.Application.LiveEvents;
 using Helinho.Domain;
 using Helinho.Domain.Entities;
 using Helinho.Infrastructure.Persistence;
@@ -132,6 +134,52 @@ public class PainelEventosTests(PostgresFixture postgres)
         Assert.Contains("Escolha o tipo de quiz.", html);
         await using var scope = factory.Services.CreateAsyncScope();
         Assert.False(await scope.ServiceProvider.GetRequiredService<AppDbContext>().LiveEvents.AnyAsync(Ct));
+    }
+
+    [Fact]
+    public async Task Tipo_de_quiz_invalido_e_rejeitado_e_nada_e_gravado()
+    {
+        await using var factory = await NewFactoryAsync();
+        using var client = factory.CreateClientAs(RoleNames.Master);
+
+        var response = await PostEventAsync(client, "Tipo inválido", "", "99", "2090-06-15T10:00");
+        var html = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync(Ct));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("aria-invalid=\"true\"", html);
+        await using var scope = factory.Services.CreateAsyncScope();
+        Assert.False(await scope.ServiceProvider.GetRequiredService<AppDbContext>().LiveEvents.AnyAsync(Ct));
+    }
+
+    [Fact]
+    public async Task Caso_de_uso_rejeita_tipo_de_quiz_indefinido_sem_gravar()
+    {
+        await using var factory = await NewFactoryAsync();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IClock>();
+
+        var error = await Assert.ThrowsAsync<DomainException>(() => CreateLiveEvent.HandleAsync(
+            db, clock, "Tipo 99", "", (QuizType)99, clock.UtcNow.AddDays(1), Ct));
+
+        Assert.Equal("Escolha um tipo de quiz.", error.Message);
+        Assert.False(await db.LiveEvents.AnyAsync(Ct));
+    }
+
+    [Fact]
+    public async Task Evento_criado_aponta_para_exatamente_um_tipo_de_quiz()
+    {
+        await using var factory = await NewFactoryAsync();
+        using var client = factory.CreateClientAs(RoleNames.Master);
+
+        var response = await PostEventAsync(client, "Um tipo só", "", "Esportivo", "2090-06-15T10:00");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var saved = await scope.ServiceProvider.GetRequiredService<AppDbContext>().LiveEvents.SingleAsync(Ct);
+        Assert.Equal(QuizType.Esportivo, saved.QuizType);
+        Assert.True(Enum.IsDefined(saved.QuizType));
+        Assert.False(saved.QuizType.ToString().Contains(','));
     }
 
     [Fact]
