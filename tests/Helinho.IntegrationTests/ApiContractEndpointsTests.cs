@@ -34,11 +34,8 @@ public class ApiContractEndpointsTests(PostgresFixture postgres)
         await using var factory = new HelinhoWebFactory(postgres);
         using var client = factory.WithTestSessions().CreateStudentClient(Guid.NewGuid());
 
-        var calls = new (HttpMethod Method, string Path)[]
-        {
-            (HttpMethod.Post, "/api/logout"),
-        };
-        Assert.Equal(Routes.Length - 13, calls.Length); // login, /api/profile, /live-event, /quizzes/progress, /quiz/random, /quiz/{id}/answer, /quests/*, /user/stats, /user/badges, /user/inventory e /devices/push-token já têm lógica (testes próprios)
+        (HttpMethod Method, string Path)[] calls = [];
+        Assert.Equal(Routes.Length - 14, calls.Length); // login, /logout, /api/profile, /live-event, /quizzes/progress, /quiz/random, /quiz/{id}/answer, /quests/*, /user/stats, /user/badges, /user/inventory e /devices/push-token já têm lógica (testes próprios)
 
         foreach (var (method, path) in calls)
         {

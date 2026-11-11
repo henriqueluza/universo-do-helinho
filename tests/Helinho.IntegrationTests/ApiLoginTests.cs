@@ -174,8 +174,8 @@ public class ApiLoginTests(PostgresFixture postgres)
 
         using var authed = factory.CreateClient();
         authed.DefaultRequestHeaders.Authorization = new("Bearer", token);
-        // 501 = autenticou e chegou à rota ainda sem lógica.
-        Assert.Equal(HttpStatusCode.NotImplemented, (await authed.PostAsJsonAsync("/api/logout", new { }, Ct)).StatusCode);
+        // 200 = o token autenticou e chegou a uma rota protegida (o logout revogaria a sessão).
+        Assert.Equal(HttpStatusCode.OK, (await authed.GetAsync("/api/user/badges?page=1", Ct)).StatusCode);
 
         clock.UtcNow = clock.UtcNow.AddHours(8).AddSeconds(1);
         var expired = await authed.GetAsync("/api/user/stats", Ct);
@@ -364,5 +364,85 @@ public class ApiLoginTests(PostgresFixture postgres)
         {
             Assert.DoesNotContain(logs.Lines, line => line.Contains(secret, StringComparison.Ordinal));
         }
+    }
+
+    private static async Task<string> LoginTokenAsync(HttpClient client, string login) =>
+        (await (await LoginAsync(client, login, Password)).Content.ReadFromJsonAsync<JsonElement>(Ct))
+        .GetProperty("token").GetString()!;
+
+    private static HttpClient WithToken(WebApplicationFactory<Program> factory, string token)
+    {
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", token);
+        return client;
+    }
+
+    private static async Task AssertTokenExpiredAsync(HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("token_expired", (await response.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public async Task Logout_revoga_a_sessao_e_o_token_deixa_de_valer_em_qualquer_rota()
+    {
+        var (factory, _) = await CreateFactoryAsync();
+        await using var _f = factory;
+        var account = await CreateUserAsync(factory.Services, RoleNames.Student);
+        using var login = factory.CreateClient();
+        var token = await LoginTokenAsync(login, account.Enrollment);
+        using var authed = WithToken(factory, token);
+
+        var logout = await authed.PostAsync("/api/logout", null, Ct);
+
+        Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+        Assert.Empty(await logout.Content.ReadAsStringAsync(Ct));
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var session = await scope.ServiceProvider.GetRequiredService<AppDbContext>().ApiSessions
+                .SingleAsync(s => s.UserId == account.UserId, Ct);
+            Assert.NotNull(session.RevokedAt);
+        }
+
+        await AssertTokenExpiredAsync(await authed.GetAsync("/api/user/stats", Ct));
+        await AssertTokenExpiredAsync(await authed.GetAsync("/api/profile", Ct));
+        await AssertTokenExpiredAsync(await authed.GetAsync("/api/user/badges?page=1", Ct));
+    }
+
+    [Fact]
+    public async Task Logout_repetido_ou_com_token_invalido_responde_401_token_expired()
+    {
+        var (factory, _) = await CreateFactoryAsync();
+        await using var _f = factory;
+        var account = await CreateUserAsync(factory.Services, RoleNames.Student);
+        using var login = factory.CreateClient();
+        var token = await LoginTokenAsync(login, account.Enrollment);
+        using var authed = WithToken(factory, token);
+        Assert.Equal(HttpStatusCode.NoContent, (await authed.PostAsync("/api/logout", null, Ct)).StatusCode);
+
+        await AssertTokenExpiredAsync(await authed.PostAsync("/api/logout", null, Ct));
+        using var unknown = WithToken(factory, "desconhecido");
+        await AssertTokenExpiredAsync(await unknown.PostAsync("/api/logout", null, Ct));
+        using var anonymous = factory.CreateClient();
+        await AssertTokenExpiredAsync(await anonymous.PostAsync("/api/logout", null, Ct));
+    }
+
+    [Fact]
+    public async Task Logout_nao_afeta_outras_sessoes_do_mesmo_aluno()
+    {
+        var (factory, _) = await CreateFactoryAsync();
+        await using var _f = factory;
+        var account = await CreateUserAsync(factory.Services, RoleNames.Student);
+        using var login = factory.CreateClient();
+        var first = await LoginTokenAsync(login, account.Enrollment);
+        var second = await LoginTokenAsync(login, account.Enrollment);
+        Assert.NotEqual(first, second);
+
+        using var a = WithToken(factory, first);
+        using var b = WithToken(factory, second);
+        Assert.Equal(HttpStatusCode.NoContent, (await a.PostAsync("/api/logout", null, Ct)).StatusCode);
+
+        await AssertTokenExpiredAsync(await a.GetAsync("/api/user/stats", Ct));
+        Assert.NotEqual(HttpStatusCode.Unauthorized, (await b.GetAsync("/api/user/badges?page=1", Ct)).StatusCode);
     }
 }
