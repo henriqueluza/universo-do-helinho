@@ -31,9 +31,16 @@ public class Question
         Validate(options);
         var newStatement = Guard.Required(statement, "Enunciado");
         var newExplanation = Guard.Required(explanation, "Explicação");
+        foreach (var option in options)
+        {
+            Guard.Required(option.Label, "Alternativa");
+        }
+
+        // Casa por chave (a–d): a ordem em que o EF carrega a lista não é garantida.
+        var ordered = _options.OrderBy(o => o.Key, StringComparer.Ordinal).ToList();
         for (var i = 0; i < 4; i++)
         {
-            _options[i].Set(options[i].Label, options[i].IsCorrect);
+            ordered[i].Set(options[i].Label, options[i].IsCorrect);
         }
 
         QuizType = quizType;
