@@ -34,14 +34,14 @@ export ASPNETCORE_URLS="${ASPNETCORE_URLS:-http://localhost:5018}"
 seed_pass_file="$state_dir/seed-password"
 if [[ -n "${HELINHO_SEED_PASSWORD:-}" ]]; then
   seed_password_source="variável HELINHO_SEED_PASSWORD"
-  (umask 077; printf '%s' "$HELINHO_SEED_PASSWORD" >"$seed_pass_file")
+  (umask 077; printf '%s' "$HELINHO_SEED_PASSWORD" >"$seed_pass_file") && chmod 600 "$seed_pass_file"
 elif [[ -s "$seed_pass_file" ]]; then
   seed_password_source="$seed_pass_file"
   HELINHO_SEED_PASSWORD="$(<"$seed_pass_file")"
 else
   seed_password_source="gerada agora em $seed_pass_file"
   HELINHO_SEED_PASSWORD="$(rand 20)Aa1!"
-  (umask 077; printf '%s' "$HELINHO_SEED_PASSWORD" >"$seed_pass_file")
+  (umask 077; printf '%s' "$HELINHO_SEED_PASSWORD" >"$seed_pass_file") && chmod 600 "$seed_pass_file"
 fi
 export HELINHO_SEED_PASSWORD
 

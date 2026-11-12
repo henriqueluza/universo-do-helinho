@@ -2,7 +2,7 @@
 
 > Todos os dados da demonstração são **sintéticos** (seed). Nenhuma pessoa real aparece aqui. Deploy é da fase final do projeto: a demo roda só localmente.
 
-## 1. Subir em 3 comandos
+## 1. Subir em 2 comandos
 
 Pré-requisitos: .NET 10 SDK, Docker e `curl`.
 
