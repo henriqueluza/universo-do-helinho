@@ -39,6 +39,10 @@ Closes #
 
 <!-- o que foi rodado e o resultado; se security:sensitive, liste as ameaças e como o código as trata -->
 
+## Decisões tomadas sem humano
+
+<!-- execução não assistida: cada decisão reversível que você tomou no lugar de perguntar, com a alternativa descartada. O que não rodou na máquina por falha de ambiente também entra aqui. "Nenhuma" se não houve. -->
+
 ## Riscos e observações
 
 <!-- trade-offs, dívida técnica deixada, pontos de atenção para a revisão -->
