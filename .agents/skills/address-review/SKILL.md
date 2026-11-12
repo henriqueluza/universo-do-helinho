@@ -19,7 +19,7 @@ Você é o **autor** respondendo ao revisor, como em um time: lê o que foi pedi
    - PR grande demais ou com propósitos misturados: siga o plano de divisão do revisor — reduza este PR à primeira fatia e crie as Issues de continuação (`Parte de #N`), como em `implement-issue`.
    - **Sugestões** (não bloqueantes): aplique só as triviais e seguras. O resto fica para depois; não transforme a rodada em refatoração.
    - Nunca remova, enfraqueça ou marque teste como skip para a revisão passar.
-5. **Verifique.** Rode format, lint/typecheck, build e testes do guia da stack (os mesmos comandos do `implement-issue`) e `python3 scripts/pr-size.py`. Se a `main` avançou e há conflito: `git fetch origin && git merge origin/main` (nunca rebase nem force push).
+5. **Verifique.** Se os testes não rodarem por falha de ambiente (Docker fora do ar, rede), isso não bloqueia a rodada nem é motivo para `needs-human`: garanta format e build limpos, envie mesmo assim e diga no comentário que a verificação fica com o CI (`.claude/rules/05-unattended.md`). Rode format, lint/typecheck, build e testes do guia da stack (os mesmos comandos do `implement-issue`) e `python3 scripts/pr-size.py`. Se a `main` avançou e há conflito: `git fetch origin && git merge origin/main` (nunca rebase nem force push).
 6. **Commit e push.** Commits `fix(review): <o que foi corrigido> (B<n>)`, depois `git push`. Atualize a descrição do PR se as evidências mudaram (`gh pr edit <n> --body-file …`).
 7. **Responda no PR** com um comentário "Resposta à revisão — rodada <k>" (k = quantas respostas suas já existem + 1), uma linha por bloqueante:
    `B1 — corrigido em <sha curto>: <o que mudou e qual teste cobre>` · `B2 — discordo: <evidência>` · `B3 — depende de humano: <qual decisão falta>`.
@@ -29,5 +29,5 @@ Você é o **autor** respondendo ao revisor, como em um time: lê o que foi pedi
 
 ## Limites
 - **Nunca** aplique `review:approved` (só o revisor aprova), nunca faça merge, nunca edite `.github/workflows`.
-- No máximo 3 rodadas por PR. O controle é da automação (`has-pr-to-fix.sh`): depois da terceira resposta sem aprovação, o PR vai para `needs-human`.
+- O número de rodadas por PR é controlado pela automação (`max_fix_attempts` da fábrica). A partir da segunda rodada sem aprovação, leia as respostas anteriores e mude de abordagem; não reenvie a mesma correção.
 - Um PR por execução. Ao terminar, pare.

@@ -47,6 +47,8 @@ A revisão funciona como em um time: o revisor pede mudanças, o autor corrige e
 - mudança em arquivo protegido (`.github/workflows`, rulesets, configuração de deploy) ou exceção a uma regra da casa (`size:exception`).
 Todo o resto — por mais grave que seja — é **mudanças solicitadas**: descreva a correção esperada e deixe o autor corrigir (skill `address-review`).
 
+**Teste que não rodou na máquina do autor por falha de ambiente** (Docker, rede — declarado no PR, ver `.claude/rules/05-unattended.md`) não é bloqueante por si só: o que vale é o CI. CI verde cobre; CI vermelho é mudança solicitada. "Critério de aceite ambíguo" só é [humano] quando as leituras possíveis levam a produtos diferentes; se o autor registrou uma decisão conservadora em "Decisões tomadas sem humano", avalie a decisão em vez de devolver a pergunta.
+
 **Nova revisão (label `re-review`).** Quando o PR volta depois das correções:
 - Comece pelos bloqueantes da rodada anterior e pela "Resposta à revisão" do autor: marque cada `B<n>` como resolvido ou não resolvido (com o motivo). Uma discordância do autor com evidência pode encerrar o item.
 - **Não mova a trave:** não crie bloqueante novo sobre código que já tinha sido revisado e não mudou, salvo achado crítico/alto de segurança ou bug que quebra um critério de aceite. O resto vira sugestão.
