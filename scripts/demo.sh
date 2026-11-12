@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Demonstração local: sobe o PostgreSQL, aplica migração + seed e inicia o sistema.
-# Uso: scripts/demo.sh   (HELINHO_SEED_PASSWORD opcional; se ausente, é gerada)
+# Uso: scripts/demo.sh   (HELINHO_SEED_PASSWORD opcional; se ausente, usa .demo/seed-password ou gera)
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -30,10 +30,18 @@ export ConnectionStrings__Default="Host=127.0.0.1;Port=5432;Database=${POSTGRES_
 export ASPNETCORE_ENVIRONMENT="${ASPNETCORE_ENVIRONMENT:-Development}"
 export ASPNETCORE_URLS="${ASPNETCORE_URLS:-http://localhost:5018}"
 
-seed_password_generated=0
-if [[ -z "${HELINHO_SEED_PASSWORD:-}" ]]; then
+# Senha do seed: HELINHO_SEED_PASSWORD (se definida) vale e é gravada; senão reaproveita o arquivo; senão é gerada.
+seed_pass_file="$state_dir/seed-password"
+if [[ -n "${HELINHO_SEED_PASSWORD:-}" ]]; then
+  seed_password_source="variável HELINHO_SEED_PASSWORD"
+  (umask 077; printf '%s' "$HELINHO_SEED_PASSWORD" >"$seed_pass_file") && chmod 600 "$seed_pass_file"
+elif [[ -s "$seed_pass_file" ]]; then
+  seed_password_source="$seed_pass_file"
+  HELINHO_SEED_PASSWORD="$(<"$seed_pass_file")"
+else
+  seed_password_source="gerada agora em $seed_pass_file"
   HELINHO_SEED_PASSWORD="$(rand 20)Aa1!"
-  seed_password_generated=1
+  (umask 077; printf '%s' "$HELINHO_SEED_PASSWORD" >"$seed_pass_file") && chmod 600 "$seed_pass_file"
 fi
 export HELINHO_SEED_PASSWORD
 
@@ -48,9 +56,7 @@ echo
 echo "==> Sistema em: $base_url"
 echo "    Painel: $base_url/"
 echo "    Scalar: $base_url/scalar/v1"
-if [[ "$seed_password_generated" -eq 1 ]]; then
-  echo "    Senha dos usuários do seed (mostrada uma única vez): $HELINHO_SEED_PASSWORD"
-fi
+echo "    Senha dos usuários do seed: $HELINHO_SEED_PASSWORD  ($seed_password_source)"
 echo "    Ctrl+C para parar (o banco continua: 'docker compose down' para desligar)."
 echo
 

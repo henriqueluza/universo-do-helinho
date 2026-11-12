@@ -2,17 +2,16 @@
 
 > Todos os dados da demonstração são **sintéticos** (seed). Nenhuma pessoa real aparece aqui. Deploy é da fase final do projeto: a demo roda só localmente.
 
-## 1. Subir em 3 comandos
+## 1. Subir em 2 comandos
 
 Pré-requisitos: .NET 10 SDK, Docker e `curl`.
 
 ```bash
-cp .env.example .env          # 1. configuração local (edite e defina POSTGRES_PASSWORD)
-bash scripts/demo.sh          # 2. sobe o PostgreSQL, aplica a migração, roda o seed e inicia o sistema
-open http://localhost:5018    # 3. painel (a API fica em /api; a UI da API em /scalar/v1)
+bash scripts/demo.sh          # 1. sobe o PostgreSQL, aplica a migração, roda o seed e inicia o sistema
+open http://localhost:5018    # 2. painel (a API fica em /api; a UI da API em /scalar/v1)
 ```
 
-O `demo.sh` mostra no terminal a senha do seed (`HELINHO_SEED_PASSWORD`). Ela não é escrita em nenhum documento: use a que o script exibir.
+Não é preciso copiar o `.env`: o `demo.sh` guarda as senhas em `.demo/` (ignorada pelo git). A senha do banco fica em `.demo/db-password` e a do seed em `.demo/seed-password`. Se `HELINHO_SEED_PASSWORD` estiver definida, ela vale e é gravada no arquivo; senão o script reaproveita o arquivo ou gera uma senha na primeira execução. **Toda execução mostra a senha em uso** no terminal. Ela não é escrita em nenhum documento.
 
 ## 2. Logins
 
