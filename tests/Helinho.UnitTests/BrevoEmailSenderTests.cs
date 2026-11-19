@@ -41,14 +41,16 @@ public class BrevoEmailSenderTests
     }
 
     private static async Task<(EmailSendResult Result, StubHandler Handler, CapturingLogger Logs)> SendAsync(
-        Func<CancellationToken, Task<HttpResponseMessage>> respond, CancellationToken cancellationToken)
+        Func<CancellationToken, Task<HttpResponseMessage>> respond, CancellationToken cancellationToken, TimeSpan? timeout = null)
     {
         var handler = new StubHandler(respond);
         var logs = new CapturingLogger();
         using var http = new HttpClient(handler);
         var options = new EmailOptions { ApiKey = ApiKey, SenderEmail = "nao-responda@example.org", SenderName = "Helinho Teste" };
-        var result = await new BrevoEmailSender(http, Options.Create(options), logs).SendAsync(Message, cancellationToken);
-        Assert.Equal(BrevoEmailSender.Timeout, http.Timeout);
+        var sender = new BrevoEmailSender(http, Options.Create(options), logs);
+        Assert.Equal(TimeSpan.FromSeconds(10), http.Timeout);
+        http.Timeout = timeout ?? http.Timeout; // só o teste de tempo esgotado encurta, para não esperar 10 s
+        var result = await sender.SendAsync(Message, cancellationToken);
 
         // Nada de chave, destinatário, assunto, corpo nem texto da resposta de erro em log, no resultado ou no ToString da mensagem.
         string[] secrets = [ApiKey, Message.Recipient, Message.Subject, "corpo-html-sintetico", Message.TextBody, ProviderEcho];
@@ -105,7 +107,9 @@ public class BrevoEmailSenderTests
         var (result, _, logs) = await SendAsync(Respond((HttpStatusCode)status, code.Length > 0 ? Error(code) : "<html>erro</html>"), Ct);
 
         Assert.Equal(new EmailSendResult(expected, ErrorCode: expectedCode), result);
-        Assert.Contains($"HTTP {status}", Assert.Single(logs.Lines), StringComparison.Ordinal);
+        var line = Assert.Single(logs.Lines);
+        Assert.Contains($"HTTP {status}", line, StringComparison.Ordinal);
+        Assert.StartsWith(expected == EmailSendStatus.Sent ? "Information" : status == 404 ? "Error" : "Warning", line, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -122,8 +126,15 @@ public class BrevoEmailSenderTests
     [Fact]
     public async Task Tempo_esgotado_e_falha_de_rede_sao_transitorios()
     {
-        // HttpClient.Timeout chega ao chamador como TaskCanceledException sem o token dele cancelado.
-        var (timeout, _, _) = await SendAsync(_ => throw new TaskCanceledException("tempo", new TimeoutException()), Ct);
+        // A resposta nunca chega: quem interrompe é o tempo limite do HttpClient, não o token do chamador.
+        var (timeout, _, _) = await SendAsync(
+            async token =>
+            {
+                await Task.Delay(System.Threading.Timeout.Infinite, token);
+                return new HttpResponseMessage(HttpStatusCode.Created);
+            },
+            Ct,
+            TimeSpan.FromMilliseconds(50));
         var (network, _, _) = await SendAsync(_ => throw new HttpRequestException(HttpRequestError.ConnectionError), Ct);
 
         Assert.Equal(new EmailSendResult(EmailSendStatus.TransientFailure, ErrorCode: "timeout"), timeout);

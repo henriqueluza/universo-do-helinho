@@ -64,7 +64,13 @@ public sealed partial class BrevoEmailSender : IEmailSender
             result = new(EmailSendStatus.TransientFailure, ErrorCode: $"network_{exception.HttpRequestError}".ToLowerInvariant());
         }
 
-        LogOutcome(_logger, result.Status == EmailSendStatus.Sent ? LogLevel.Information : LogLevel.Warning, result.Status, status, result.ErrorCode);
+        var level = result.Status switch
+        {
+            EmailSendStatus.Sent => LogLevel.Information,
+            EmailSendStatus.PermanentFailure when status != 400 => LogLevel.Error, // rota, método ou formato errados: defeito nosso
+            _ => LogLevel.Warning,
+        };
+        LogOutcome(_logger, level, result.Status, status, result.ErrorCode);
         return result;
     }
 
