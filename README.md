@@ -17,7 +17,7 @@ cp .env.example .env     # defina POSTGRES_PASSWORD; nunca commite o .env
 bash scripts/demo.sh     # sobe o banco, aplica a migração, roda o seed e inicia o sistema
 ```
 
-Painel em `http://localhost:5018`; API em `/api`. Passo a passo da apresentação, logins do seed e chamadas à API: [`docs/demo/roteiro-apresentacao.md`](docs/demo/roteiro-apresentacao.md).
+Painel em `http://localhost:5018`; API em `/api`. Saúde: `GET /health` (o processo está vivo; não consulta o banco) e `GET /health/ready` (200 se o banco responde, 503 se não; teto de 3 s), ambas anônimas. Passo a passo da apresentação, logins do seed e chamadas à API: [`docs/demo/roteiro-apresentacao.md`](docs/demo/roteiro-apresentacao.md).
 
 ## Configuração do login da API
 
