@@ -1,3 +1,180 @@
+/* =====================================================================
+   Tema Recreio (docs/design/TEMA-PARA-IA.md). Este arquivo tem 3 partes:
+   1) ordem das camadas e Bootstrap dentro da camada "bootstrap";
+   2) tokens e base do Recreio (copiados da preview, valores intactos);
+   3) tema antigo, na camada "legado" (REMOVER na limpeza, quando a última
+      tela for portada). Components, screens e motion chegam nos próximos PRs.
+   Por que camadas: CSS sem camada vence qualquer regra em @layer; por isso
+   o Bootstrap entra por @import ... layer(bootstrap) (o <link> saiu dos
+   layouts) e o legado fica em @layer legado, abaixo de tokens/base.
+   ===================================================================== */
+@layer bootstrap, legado;
+@layer tokens, base, components, screens, motion;
+@import url("../lib/bootstrap/bootstrap.min.css") layer(bootstrap);
+
+/* Fontes do Recreio (autohospedadas; origem e licença em /fonts/LICENSE.md). */
+@font-face { font-family: "Nunito"; font-style: normal; font-weight: 500 900; font-display: swap; src: url("../fonts/nunito-latin-wght-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Baloo 2"; font-style: normal; font-weight: 700 800; font-display: swap; src: url("../fonts/baloo-2-latin-wght-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+/* ---- Recreio: tokens e base (de recreio.css e telas.css) ---- */
+@layer tokens {
+  :root {
+    color-scheme: light;
+    /* marca */
+    --fundhas-blue: oklch(0.44 0.13 250);   /* #005497 */
+    --fundhas-yellow: oklch(0.87 0.175 90); /* #FFCD06 */
+
+    /* palco */
+    --stage: oklch(1 0 0);
+    --canvas: oklch(0.985 0.004 240);
+    --sky: oklch(0.955 0.035 232);          /* céu claro do ícone do jogo */
+    --sky-deep: oklch(0.8 0.115 232);
+    --sunny: oklch(0.97 0.06 92);
+    --hill: oklch(0.9 0.09 145);
+    --rule: oklch(0.92 0.012 245);          /* réguas de 2px */
+    --rule-strong: oklch(0.86 0.016 245);
+    --control: oklch(0.62 0.02 250);
+
+    /* texto */
+    --ink: oklch(0.29 0.045 255);
+    --ink-2: oklch(0.5 0.025 255);
+    --ink-3: oklch(0.54 0.02 255);
+
+    /* ação: azul FUNDHAS com lábio */
+    --action: var(--fundhas-blue);
+    --action-lip: oklch(0.34 0.11 252);
+    --action-hover: oklch(0.48 0.135 250);
+    --on-action: oklch(1 0 0);
+    --select-bg: oklch(0.95 0.04 235);
+    --select-line: oklch(0.72 0.12 240);
+    --select-ink: oklch(0.4 0.13 250);
+    --star: var(--fundhas-yellow);
+    --focus: oklch(0.55 0.16 250);
+
+    /* estados */
+    --ok: oklch(0.6 0.16 145);   --ok-bg: oklch(0.95 0.06 145);  --ok-ink: oklch(0.4 0.11 145);
+    --bad: oklch(0.6 0.2 25);    --bad-bg: oklch(0.955 0.035 25); --bad-ink: oklch(0.45 0.16 25);
+    --warn-bg: oklch(0.96 0.07 90); --warn-ink: oklch(0.45 0.1 70);
+    --neutral-bg: oklch(0.95 0.01 250); --neutral-ink: oklch(0.42 0.03 255);
+
+    /* tipos de quiz = personagens */
+    --q-amb: oklch(0.62 0.16 145);  --q-amb-bg: oklch(0.955 0.05 145); --q-amb-ink: oklch(0.4 0.11 145);  /* Flora */
+    --q-con: oklch(0.6 0.14 240);   --q-con-bg: oklch(0.95 0.04 240);  --q-con-ink: oklch(0.4 0.12 250);  /* Byte */
+    --q-cul: oklch(0.58 0.17 310);  --q-cul-bg: oklch(0.955 0.04 310); --q-cul-ink: oklch(0.42 0.15 310); /* Luna */
+    --q-esp: oklch(0.7 0.17 50);    --q-esp-bg: oklch(0.96 0.05 60);   --q-esp-ink: oklch(0.47 0.13 45);  /* Max */
+    --q-div: oklch(0.65 0.11 190);  --q-div-bg: oklch(0.955 0.04 190); --q-div-ink: oklch(0.42 0.08 195); /* Lia */
+
+    /* cores dos ladrilhos do menu (leque da FUNDHAS + jogo) */
+    --tile-1: oklch(0.6 0.15 245); --tile-2: oklch(0.65 0.17 145); --tile-3: oklch(0.72 0.17 55);
+    --tile-4: oklch(0.56 0.17 310); --tile-5: oklch(0.6 0.15 65); --tile-6: oklch(0.65 0.11 195);
+    --tile-7: oklch(0.47 0.15 355); --tile-8: oklch(0.55 0.04 255); --tile-9: oklch(0.52 0.15 280);
+
+    /* fonte */
+    --font: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-display: "Baloo 2", "Nunito", system-ui, sans-serif;
+    --fs-xs: .75rem; --fs-sm: .8125rem; --fs-md: .9375rem; --fs-lg: 1.0625rem; --fs-xl: 1.375rem;
+    --fs-title: clamp(1.75rem, 1.3rem + 1.3vw, 2.375rem);
+    --fs-hero: clamp(2.6rem, 1.8rem + 3vw, 4.25rem);
+
+    /* espaço, forma */
+    --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px;
+    --r-sm: 8px; --r-md: 12px; --r-lg: 20px; --r-xl: 28px; --r-pill: 999px;
+    --h-control-sm: 36px; --h-control: 40px; --h-control-lg: 48px; --lip: 3px;
+    --rail-width: 244px;
+
+    --shadow-float: 0 2px 0 var(--rule), 0 16px 40px oklch(0.29 0.045 255 / .1);
+    --ease: cubic-bezier(.2,.8,.2,1); --ease-out: cubic-bezier(.19,1,.22,1); --ease-pop: cubic-bezier(.34,1.56,.64,1);
+    --dur-fast: 100ms; --dur: 160ms; --dur-slow: 320ms; --dur-enter: 640ms; --stagger: 55ms;
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --stage: oklch(0.215 0.045 270);
+    --canvas: oklch(0.18 0.045 272);
+    --sky: oklch(0.27 0.07 268);
+    --sky-deep: oklch(0.45 0.12 262);
+    --sunny: oklch(0.3 0.05 90);
+    --hill: oklch(0.32 0.07 160);
+    --rule: oklch(0.3 0.045 270);
+    --rule-strong: oklch(0.38 0.05 270);
+    --control: oklch(0.55 0.04 265);
+    --ink: oklch(0.96 0.01 260);
+    --ink-2: oklch(0.78 0.03 260);
+    --ink-3: oklch(0.66 0.03 260);
+    --action: oklch(0.87 0.165 90);
+    --action-lip: oklch(0.68 0.14 75);
+    --action-hover: oklch(0.91 0.16 92);
+    --on-action: oklch(0.24 0.06 270);
+    --select-bg: oklch(0.3 0.07 262);
+    --select-line: oklch(0.55 0.13 255);
+    --select-ink: oklch(0.9 0.05 245);
+    --focus: oklch(0.87 0.165 90);
+    --ok-bg: oklch(0.32 0.07 145); --ok-ink: oklch(0.88 0.11 145);
+    --bad-bg: oklch(0.32 0.08 25);  --bad-ink: oklch(0.88 0.08 25);
+    --warn-bg: oklch(0.33 0.06 85); --warn-ink: oklch(0.9 0.1 85);
+    --neutral-bg: oklch(0.3 0.04 268); --neutral-ink: oklch(0.88 0.02 260);
+    --q-amb: oklch(0.74 0.15 145); --q-amb-bg: oklch(0.3 0.06 150); --q-amb-ink: oklch(0.9 0.09 145);
+    --q-con: oklch(0.74 0.12 240); --q-con-bg: oklch(0.3 0.06 245); --q-con-ink: oklch(0.9 0.06 240);
+    --q-cul: oklch(0.74 0.13 310); --q-cul-bg: oklch(0.31 0.07 310); --q-cul-ink: oklch(0.9 0.06 310);
+    --q-esp: oklch(0.79 0.14 55);  --q-esp-bg: oklch(0.32 0.06 50);  --q-esp-ink: oklch(0.91 0.07 60);
+    --q-div: oklch(0.76 0.1 190);  --q-div-bg: oklch(0.3 0.05 195);  --q-div-ink: oklch(0.9 0.06 190);
+    --shadow-float: 0 2px 0 var(--rule), 0 20px 48px oklch(0 0 0 / .45);
+  }
+  @media (prefers-reduced-motion: reduce) { :root { --dur-fast: 0ms; --dur: 0ms; --dur-slow: 0ms; --dur-enter: 0ms; --stagger: 0ms; } }
+}
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; font: 500 var(--fs-md)/1.5 var(--font); color: var(--ink); background: var(--canvas); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--star); color: oklch(0.25 0.05 255); }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: var(--r-sm); }
+  h1, h2, h3, p { margin: 0; }
+  h1, h2 { text-wrap: balance; }
+  h1 { font-family: var(--font-display); font-size: var(--fs-title); font-weight: 800; line-height: 1.05; letter-spacing: -0.01em; }
+  h2 { font-size: var(--fs-lg); font-weight: 800; letter-spacing: -0.005em; }
+  p { text-wrap: pretty; }
+  img { display: block; max-width: 100%; height: auto; }
+  .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  [hidden] { display: none !important; }
+}
+
+@layer base {
+  .only-dark { display: none !important; }
+  :root[data-theme="dark"] .only-dark { display: block !important; }
+  :root[data-theme="dark"] .only-light { display: none !important; }
+}
+
+@layer tokens {
+  :root {
+    --data: oklch(0.55 0.15 250);
+    --data-ref: oklch(0.64 0.02 255);
+    --data-wash: oklch(from var(--data) l c h / .12);
+    --grid: var(--rule);
+  }
+  :root[data-theme="dark"] {
+    --data: oklch(0.78 0.11 240);
+    --data-ref: oklch(0.6 0.03 265);
+    --data-wash: oklch(from var(--data) l c h / .14);
+  }
+}
+
+@layer tokens {
+  :root { --ai: oklch(0.55 0.17 295); --ai-bg: oklch(0.955 0.04 295); --ai-ink: oklch(0.42 0.16 295); }
+  :root[data-theme="dark"] { --ai: oklch(0.75 0.13 295); --ai-bg: oklch(0.31 0.07 295); --ai-ink: oklch(0.9 0.07 295); }
+}
+
+/* ---- PONTE do legado (remover junto com o legado) ----
+   A base do Recreio zera a margem de h1/h2/p e define o tamanho do h1, e camada
+   vence especificidade: sem isto, os títulos do tema antigo perderiam o espaço. */
+@layer components {
+  .page-title { margin-bottom: var(--gap); }
+  .section-title { margin-bottom: 12px; }
+  .auth-card .page-title { font-size: var(--fs-section); margin-bottom: 16px; }
+}
+
+/* ---- LEGADO: tema antigo, intacto, a remover na limpeza do Recreio ---- */
+@layer legado {
 /* Tema do painel: tokens de docs/design/DESIGN.md (seção 9). Carregar depois do Bootstrap. */
 @font-face { font-family: "DM Sans"; font-weight: 400; font-style: normal; font-display: swap; src: url("../fonts/dm-sans-latin-400-normal.woff2") format("woff2"); }
 @font-face { font-family: "DM Sans"; font-weight: 500; font-style: normal; font-display: swap; src: url("../fonts/dm-sans-latin-500-normal.woff2") format("woff2"); }
@@ -191,4 +368,5 @@ body { font-variant-numeric: tabular-nums; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+}
 }
