@@ -59,8 +59,11 @@
 @if (Model.Result.Total == 0)
 {
     <section class="panel panel-pad" id="alunos-vazio" aria-label="Lista de alunos">
-        <p class="mb-1 fw-semibold">Nenhum aluno encontrado.</p>
-        <p class="mb-0">Ajuste a turma ou a faixa etária@(Model.IsMaster ? " ou a unidade" : "") para ver os alunos.</p>
+        <div class="empty">
+            <img src="~/img/cara-helinho.webp" alt="" width="117" height="120" />
+            <b>Nenhum aluno encontrado.</b>
+            <p>Ajuste a turma ou a faixa etária@(Model.IsMaster ? " ou a unidade" : "") para ver os alunos.</p>
+        </div>
     </section>
 }
 else

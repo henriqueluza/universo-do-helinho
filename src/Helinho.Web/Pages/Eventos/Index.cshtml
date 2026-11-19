@@ -25,8 +25,11 @@
 <section class="panel panel-pad" aria-label="Eventos">
     @if (Model.Events.Count == 0)
     {
-        <p><b>Nenhum evento cadastrado.</b></p>
-        <p class="sub">Use o formulário abaixo para criar o primeiro evento.</p>
+        <div class="empty">
+            <img src="~/img/cara-helinho.webp" alt="" width="117" height="120" />
+            <b>Nenhum evento cadastrado.</b>
+            <p>Use o formulário abaixo para criar o primeiro evento.</p>
+        </div>
     }
     else
     {
