@@ -127,6 +127,38 @@ public class DashboardTrendsTests(PostgresFixture postgres) : IAsyncLifetime
         Assert.Equal((true, 0), (semUnidade.IsEmpty, semUnidade.ActiveStudents.Value));
     }
 
+    /// <summary>
+    /// T1 do ADR-0001: o contexto abre como Master (filtro global de Student sem restringir), então só o escopo explícito
+    /// de <c>GetDashboard.ScopedStudents</c> separa as unidades. Sem ele, administrador veria as duas e os dois testes falham.
+    /// </summary>
+    [Fact]
+    public async Task Escopo_de_unidade_em_Application_vale_sem_o_filtro_global_nos_blocos_novos()
+    {
+        var (ct, clock, pedeB) = (TestContext.Current.CancellationToken, new FixedClock(Now), new DashboardQuery(null, 7, _unitB.Id));
+        await using var db = NewContext(new FakeUser(RoleNames.Master, null));
+
+        var daUnidadeA = await GetDashboardTrends.HandleAsync(db, new FakeUser(RoleNames.Admin, _unitA.Id), clock, pedeB, ct);
+        var semUnidade = await GetDashboardTrends.HandleAsync(db, new FakeUser(RoleNames.Admin, null), clock, pedeB, ct);
+
+        Assert.Equal(new Indicator(4, 2, new Trend(TrendDirection.Up, "+100%")), daUnidadeA.Answers);
+        Assert.Equal(new Indicator(2, 2, Flat), daUnidadeA.ActiveStudents);
+        Assert.Equal((true, 0), (semUnidade.IsEmpty, semUnidade.ActiveStudents.Value));
+    }
+
+    [Fact]
+    public async Task Escopo_de_unidade_em_Application_vale_sem_o_filtro_global_no_Dashboard_atual()
+    {
+        var (ct, clock, pedeB) = (TestContext.Current.CancellationToken, new FixedClock(Now), new DashboardQuery(null, 7, _unitB.Id));
+        await using var db = NewContext(new FakeUser(RoleNames.Master, null));
+
+        var daUnidadeA = await GetDashboard.HandleAsync(db, new FakeUser(RoleNames.Admin, _unitA.Id), clock, pedeB, ct);
+        var semUnidade = await GetDashboard.HandleAsync(db, new FakeUser(RoleNames.Admin, null), clock, pedeB, ct);
+
+        Assert.Equal((2, 6), (daUnidadeA.ActiveStudents, daUnidadeA.Answers)); // janela corrida de 7 × 24 h: 5 da Ana e 1 da Bia
+        Assert.Equal(["Ana", "Bia"], daUnidadeA.Recent.Select(r => r.StudentName).Distinct().Order());
+        Assert.Equal((0, 0, 0), (semUnidade.ActiveStudents, semUnidade.Answers, semUnidade.Recent.Count));
+    }
+
     [Fact]
     public async Task Master_restringe_todos_os_blocos_pelo_filtro_de_unidade()
     {
