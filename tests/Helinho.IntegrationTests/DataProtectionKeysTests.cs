@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Helinho.IntegrationTests;
 
@@ -67,6 +68,7 @@ public class DataProtectionKeysTests(PostgresFixture postgres)
 
         await using var redeploy = Redeploy(factory);
         Assert.Equal("valor-sintetico", Protector(redeploy.Services).Unprotect(payload));
+        Assert.Equal("universo-do-helinho", redeploy.Services.GetRequiredService<IOptions<DataProtectionOptions>>().Value.ApplicationDiscriminator);
         Assert.NotEmpty(await StoredKeysAsync(factory, delete: true));
 
         // Controle negativo: sem as linhas da tabela, uma instância nova não lê o valor — as chaves vêm só do banco.
