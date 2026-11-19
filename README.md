@@ -19,6 +19,17 @@ bash scripts/demo.sh     # sobe o banco, aplica a migração, roda o seed e inic
 
 Painel em `http://localhost:5018`; API em `/api`. Passo a passo da apresentação, logins do seed e chamadas à API: [`docs/demo/roteiro-apresentacao.md`](docs/demo/roteiro-apresentacao.md).
 
+## Configuração do banco: `migrate`, `seed` e `Seed__Enabled`
+
+Aplicar migração e gravar dados sintéticos são passos separados. Os dois comandos encerram o processo ao terminar, sem subir o servidor:
+
+| Comando | O que faz | Código de saída |
+|---|---|---|
+| `dotnet run --project src/Helinho.Web -- migrate` | Aplica as migrações. Com `Seed__Enabled=true`, roda o seed em seguida; sem a flag, não toca em dados | `0` |
+| `dotnet run --project src/Helinho.Web -- seed` | Uso local: aplica as migrações e roda o seed, mas só com `Seed__Enabled=true`; sem a flag, recusa e não grava nada | `0`, ou `1` quando recusado |
+
+`Seed__Enabled` (chave `Seed:Enabled`) vem **desligada por padrão**: um ambiente que só define a string de conexão nunca recebe dados sintéticos. Ela é ligada em `appsettings.Development.json` e pelo `scripts/demo.sh`, então o fluxo local não muda. O seed é idempotente (rodar de novo não duplica dados) e exige `HELINHO_SEED_PASSWORD`. No deploy, `migrate` é o comando de pré-deploy.
+
 ## Configuração do login da API
 
 `POST /api/login` aceita matrícula, usuário ou e-mail e devolve um token opaco Bearer (256 bits; só o hash SHA-256 fica no banco). Falha de credencial responde `401 invalid_credentials` (uniforme); aluno não aprovado, admin e master respondem `403 forbidden`. Chaves opcionais da seção `Api:Auth` (em `appsettings` ou variável de ambiente com `__`, ex.: `Api__Auth__TokenLifetime`):
