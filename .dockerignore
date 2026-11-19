@@ -1,9 +1,9 @@
 # Contexto de build mínimo: a imagem só precisa de src/ e dos arquivos de build da raiz.
 
-# Segredos e estado local
-.env
-.env.*
-.demo/
+# Segredos e estado local (em qualquer nível, não só na raiz)
+**/.env
+**/.env.*
+**/.demo/
 
 # Controle de versão, automação e kit de agentes
 .git
