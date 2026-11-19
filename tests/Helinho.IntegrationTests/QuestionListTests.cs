@@ -110,12 +110,11 @@ public class QuestionListTests(PostgresFixture postgres) : IAsyncLifetime
         Assert.DoesNotContain("questoes-vazio", html, StringComparison.Ordinal);
         Assert.Contains("Pergunta ambiental aprovada?", html, StringComparison.Ordinal);
         Assert.Contains("Pergunta esportiva rascunho?", html, StringComparison.Ordinal);
-        Assert.Contains("tag tag-type amb", html, StringComparison.Ordinal);
-        Assert.Contains("/>Ambiental<span", html, StringComparison.Ordinal);
+        Assert.Contains(">Ambiental</span>", html, StringComparison.Ordinal);
         Assert.Contains("6–7 anos", html, StringComparison.Ordinal);
         Assert.Contains("11–12 anos", html, StringComparison.Ordinal);
-        Assert.Contains("tag-ok\">Aprovada</span>", html, StringComparison.Ordinal);
-        Assert.Contains("tag-draft\">Rascunho</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Aprovada</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Rascunho</span>", html, StringComparison.Ordinal);
     }
 
     [Fact]

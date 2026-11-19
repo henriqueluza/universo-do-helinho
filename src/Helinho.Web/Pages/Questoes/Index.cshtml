@@ -5,129 +5,117 @@
 @{
     ViewData["Title"] = "Questões";
 }
-<div class="page-head">
-    <p class="sub">Toda questão nasce como rascunho e só chega ao jogo depois de aprovada.</p>
-    <div class="page-actions">
-        <a class="btn btn-primary" asp-page="Editar"><svg aria-hidden="true"><use href="#i-plus"/></svg>Nova questão</a>
-    </div>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="page-title mb-0">Questões</h1>
+    <a class="btn btn-primary" asp-page="Editar">Nova questão</a>
 </div>
 
 @if (Model.Saved is not null)
 {
-    <div class="note ok" role="status"><svg aria-hidden="true"><use href="#i-ok"/></svg><span>@Model.Saved</span></div>
+    <div class="alert alert-success" role="status">@Model.Saved</div>
 }
 
-<form method="get" class="filters-bar" aria-label="Filtros de questões">
-    <div class="field">
-        <label for="tipo">Tipo de quiz</label>
-        <select id="tipo" name="tipo" class="select">
+<form method="get" class="card-panel dash-filters mb-4" aria-label="Filtros de questões">
+    <div class="dash-selects">
+        <label class="muted" for="tipo">Tipo de quiz</label>
+        <select id="tipo" name="tipo" class="form-select">
             <option value="">Todos</option>
             @foreach (var t in Enum.GetValues<QuizType>())
             {
                 <option value="@t" selected="@(t == Model.Tipo)">@IndexModel.QuizLabel(t)</option>
             }
         </select>
-    </div>
-    <div class="field">
-        <label for="faixa">Faixa etária</label>
-        <select id="faixa" name="faixa" class="select">
+        <label class="muted" for="faixa">Faixa etária</label>
+        <select id="faixa" name="faixa" class="form-select">
             <option value="">Todas</option>
             @foreach (var b in Enum.GetValues<AgeBand>())
             {
                 <option value="@b" selected="@(b == Model.Faixa)">@IndexModel.BandLabel(b)</option>
             }
         </select>
-    </div>
-    <div class="field">
-        <label for="status">Status</label>
-        <select id="status" name="status" class="select">
+        <label class="muted" for="status">Status</label>
+        <select id="status" name="status" class="form-select">
             <option value="">Todos</option>
             @foreach (var s in Enum.GetValues<QuestionStatus>())
             {
                 <option value="@s" selected="@(s == Model.Status)">@IndexModel.StatusLabel(s)</option>
             }
         </select>
+        <button type="submit" class="btn btn-outline-secondary">Aplicar</button>
+        @if (Model.HasFilters)
+        {
+            <a class="btn btn-outline-secondary" href="@Url.Page("/Questoes/Index")">Limpar filtros</a>
+        }
     </div>
-    <button type="submit" class="btn">Aplicar</button>
-    @if (Model.HasFilters)
-    {
-        <a class="link" href="@Url.Page("/Questoes/Index")">Limpar filtros</a>
-    }
 </form>
 
 @if (Model.Result.Total == 0)
 {
-    <section class="panel panel-pad" id="questoes-vazio" aria-label="Banco de questões">
-        <div class="empty">
-            @if (Model.HasFilters)
-            {
-                <b>Nenhuma questão encontrada.</b>
-                <p>Ajuste o tipo de quiz, a faixa etária ou o status para ver outras questões.</p>
-            }
-            else
-            {
-                <b>Nenhuma questão cadastrada.</b>
-                <p>Crie a primeira questão. Ela nasce como rascunho e só chega ao jogo depois de aprovada.</p>
-                <a class="btn btn-primary" asp-page="Editar"><svg aria-hidden="true"><use href="#i-plus"/></svg>Nova questão</a>
-            }
-        </div>
-    </section>
+    <div class="card-panel" id="questoes-vazio">
+        @if (Model.HasFilters)
+        {
+            <p class="mb-1 fw-semibold">Nenhuma questão encontrada.</p>
+            <p class="muted mb-0">Ajuste o tipo de quiz, a faixa etária ou o status para ver outras questões.</p>
+        }
+        else
+        {
+            <p class="mb-1 fw-semibold">Nenhuma questão cadastrada.</p>
+            <p class="muted mb-0">Crie a primeira questão. Ela nasce como rascunho e só chega ao jogo depois de aprovada.</p>
+        }
+    </div>
 }
 else
 {
-    <section class="panel panel-pad overflow-hidden" aria-label="Banco de questões">
-        <div class="table-wrap">
-            <table class="table">
-                <caption class="visually-hidden">Questões cadastradas</caption>
-                <thead>
-                    <tr><th scope="col">Enunciado</th><th scope="col">Tipo de quiz</th><th scope="col">Faixa etária</th><th scope="col">Status</th><th scope="col" class="actions">Ações</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var q in Model.Result.Items)
-                    {
-                        var face = IndexModel.QuizFace(q.QuizType);
-                        <tr>
-                            <th scope="row"><div class="clip">@q.Statement</div></th>
-                            <td><span class="tag tag-type @IndexModel.QuizClass(q.QuizType)"><img src="~/img/@face.File" width="@face.Width" height="@face.Height" alt="" />@IndexModel.QuizLabel(q.QuizType)<span class="visually-hidden"> (personagem @IndexModel.QuizCharacter(q.QuizType))</span></span></td>
-                            <td>@IndexModel.BandLabel(q.AgeBand)</td>
-                            <td>
-                                @if (q.Status == QuestionStatus.Approved)
-                                {
-                                    <span class="tag tag-ok">Aprovada</span>
-                                }
-                                else
-                                {
-                                    <span class="tag tag-draft">Rascunho</span>
-                                }
-                            </td>
-                            <td class="actions">
-                                <div class="d-flex justify-content-end align-items-center gap-2">
-                                    <a class="link-btn" asp-page="Editar" asp-route-id="@q.Id">Editar<span class="visually-hidden"> questão: @q.Statement</span></a>
-                                    @if (q.Status == QuestionStatus.Draft)
-                                    {
-                                        <form method="post" asp-page-handler="Aprovar" asp-route-id="@q.Id" asp-route-tipo="@Model.Tipo" asp-route-faixa="@Model.Faixa" asp-route-status="@Model.Status" asp-route-pagina="@Model.Pagina">
-                                            <button class="btn btn-sm btn-primary" type="submit">Aprovar<span class="visually-hidden"> questão: @q.Statement</span></button>
-                                        </form>
-                                    }
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-        <div class="pager">
-            <span>@Model.Result.Total questões · página @Model.Result.Page de @Model.Result.TotalPages</span>
-            <nav aria-label="Paginação">
-                @if (Model.Result.Page > 1)
+    <div class="card-panel p-0">
+        <table class="table mb-0">
+            <caption class="visually-hidden">Questões cadastradas</caption>
+            <thead>
+                <tr><th scope="col">Enunciado</th><th scope="col">Tipo de quiz</th><th scope="col">Faixa etária</th><th scope="col">Status</th><th scope="col">Ações</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var q in Model.Result.Items)
                 {
-                    <a class="btn btn-sm" rel="prev" href="@Model.PageLink(Model.Result.Page - 1)">Anterior</a>
+                    <tr>
+                        <td>@q.Statement</td>
+                        <td><span class="badge type-badge quiz-@q.QuizType.ToString().ToLowerInvariant()">@IndexModel.QuizLabel(q.QuizType)</span></td>
+                        <td>@IndexModel.BandLabel(q.AgeBand)</td>
+                        <td>
+                            @if (q.Status == QuestionStatus.Approved)
+                            {
+                                <span class="badge badge-ok">Aprovada</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-draft">Rascunho</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-2">
+                                <a class="btn btn-sm btn-outline-secondary" asp-page="Editar" asp-route-id="@q.Id">Editar<span class="visually-hidden"> questão: @q.Statement</span></a>
+                                @if (q.Status == QuestionStatus.Draft)
+                                {
+                                    <form method="post" asp-page-handler="Aprovar" asp-route-id="@q.Id" asp-route-tipo="@Model.Tipo" asp-route-faixa="@Model.Faixa" asp-route-status="@Model.Status" asp-route-pagina="@Model.Pagina">
+                                        <button class="btn btn-sm btn-primary" type="submit">Aprovar<span class="visually-hidden"> questão: @q.Statement</span></button>
+                                    </form>
+                                }
+                            </div>
+                        </td>
+                    </tr>
                 }
-                @if (Model.Result.Page < Model.Result.TotalPages)
-                {
-                    <a class="btn btn-sm" rel="next" href="@Model.PageLink(Model.Result.Page + 1)">Próxima</a>
-                }
-            </nav>
-        </div>
-    </section>
+            </tbody>
+        </table>
+    </div>
+    <nav class="d-flex align-items-center justify-content-between mt-3" aria-label="Paginação">
+        <span class="muted">@Model.Result.Total questões · página @Model.Result.Page de @Model.Result.TotalPages</span>
+        <span class="seg">
+            @if (Model.Result.Page > 1)
+            {
+                <a class="seg-item" rel="prev" href="@Model.PageLink(Model.Result.Page - 1)">Anterior</a>
+            }
+            @if (Model.Result.Page < Model.Result.TotalPages)
+            {
+                <a class="seg-item" rel="next" href="@Model.PageLink(Model.Result.Page + 1)">Próxima</a>
+            }
+        </span>
+    </nav>
 }

@@ -67,12 +67,12 @@
             <div class="theme-pick">
                 @foreach (var t in quizTypes)
                 {
-                    var face = IndexModel.QuizFace(t);
-                    <label class="tp @IndexModel.QuizClass(t)">
+                    var face = QuizPresentation.Face(t);
+                    <label class="tp @QuizPresentation.CssClass(t)">
                         <input type="radio" name="Input.QuizType" value="@t" id="@(t == quizTypes[0] ? "Input_QuizType" : "Input_QuizType_" + t)" checked="@(quiz == t)" aria-invalid="@Bad("QuizType")" aria-describedby="@Desc("QuizType")" />
                         <img src="~/img/@face.File" width="@face.Width" height="@face.Height" alt="" />
                         <b>@IndexModel.QuizLabel(t)</b>
-                        <small>@IndexModel.QuizCharacter(t)</small>
+                        <small>@QuizPresentation.Character(t)</small>
                     </label>
                 }
             </div>
@@ -158,12 +158,12 @@
     <aside class="maker-preview" aria-labelledby="t-prev-q">
         <p class="pv-label"><span id="t-prev-q">Como o aluno vê</span><span>mostra o que está no formulário</span></p>
         @* Ilustração: repete o que o formulário já diz, então fica fora da leitura de tela. *@
-        <div class="phone @(quiz is { } qt ? IndexModel.QuizClass(qt) : "")" aria-hidden="true">
+        <div class="phone @(quiz is { } qt ? QuizPresentation.CssClass(qt) : "")" aria-hidden="true">
             <div class="screen">
                 <div class="gq-head">
                     @if (quiz is { } pt)
                     {
-                        var pface = IndexModel.QuizFace(pt);
+                        var pface = QuizPresentation.Face(pt);
                         <img src="~/img/@pface.File" width="@pface.Width" height="@pface.Height" alt="" />
                         <span>@IndexModel.QuizLabel(pt)</span>
                     }
