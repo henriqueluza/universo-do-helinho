@@ -70,6 +70,33 @@ public partial class PainelSemStyleInlineTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public void Tema_corrige_resumo_de_erros_tabela_legenda_selo_e_celular()
+    {
+        var css = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "Helinho.Web", "wwwroot", "css", "theme.css"));
+
+        Assert.DoesNotMatch(@"\.alert \{[^}]*max-width: 400px", css); // resumo de erros ocupa a largura do formulário
+        Assert.Matches(@"\.table thead th \{ background: none; border-bottom: 0;", css);
+        Assert.Matches(@"\.table td, \.table tbody th \{[^}]*border-bottom: 0;", css);
+        Assert.Matches(@"\.field \{ display: grid; align-content: start;", css);
+        Assert.Contains(".alts legend, .field-legend {", css);
+        Assert.Matches(@"\.phone \{ --q: var\(--action\); --qb: var\(--select-bg\); --qi: var\(--select-ink\); \}", css);
+        Assert.Matches(@"\.badge-card img \{[^}]*object-fit: contain;", css);
+        Assert.Matches(@"\.panel-pad \{ padding: var\(--sp-4\); \}", css);
+    }
+
+    [Fact]
+    public void Marcacao_nao_usa_utilitarios_do_bootstrap_como_contorno()
+    {
+        var pages = Path.Combine(FindRepositoryRoot(), "src", "Helinho.Web", "Pages");
+        var achados = Directory.EnumerateFiles(pages, "*.cshtml", SearchOption.AllDirectories)
+            .Where(f => Regex.IsMatch(File.ReadAllText(f), @"class=""[^""]*\b(fw-bold|overflow-hidden)\b"))
+            .Select(f => Path.GetRelativePath(pages, f))
+            .ToList();
+
+        Assert.True(achados.Count == 0, "Use as classes do tema, não utilitários do Bootstrap: " + string.Join(", ", achados));
+    }
+
+    [Fact]
     public void Verificador_pega_o_contorno_que_o_teste_existe_para_barrar()
     {
         Assert.NotEmpty(Violacoes("x", """<section style="min-width:0"></section>"""));

@@ -102,7 +102,7 @@
             @if (subtitleError is not null) { <p id="Input_Subtitle-erro" class="field-error">@subtitleError</p> }
         </div>
         <fieldset class="field full" aria-describedby="@(typeError is null ? null : "Input_QuizType-erro")">
-            <legend class="fw-bold">Tipo de quiz <span class="req">(obrigatório)</span></legend>
+            <legend class="field-legend">Tipo de quiz <span class="req">(obrigatório)</span></legend>
             <div class="theme-pick">
                 @foreach (var t in Enum.GetValues<QuizType>())
                 {
