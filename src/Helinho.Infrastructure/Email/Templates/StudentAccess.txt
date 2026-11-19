@@ -1,0 +1,14 @@
+Acesso ao jogo Universo do Helinho
+Falta definir a senha do jogo. O link vale por {{validade}}.
+
+Olá. Você recebeu esta mensagem por ser responsável por {{aluno}}, que agora tem acesso ao Universo do Helinho, o jogo educativo da FUNDHAS.
+
+Para entrar no jogo, {{aluno}} usa a matrícula {{matricula}} e uma senha que você define agora, neste link:
+
+{{link}}
+
+A página que vai abrir fica em {{painel}}. Depois de abrir, confira esse endereço na barra do navegador antes de digitar a senha.
+
+O link vale por {{validade}} e só pode ser usado uma vez. Se o prazo passar, peça um novo link na unidade da FUNDHAS.
+
+Se você não é responsável por {{aluno}}, ignore esta mensagem e, se puder, avise a FUNDHAS pelo contato abaixo. Na dúvida, não use o link e fale com a unidade da FUNDHAS.
