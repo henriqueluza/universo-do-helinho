@@ -31,9 +31,7 @@ public sealed record Trend(TrendDirection Direction, string Text)
 
     private static Trend Signed(int delta, string one, string many) => delta == 0
         ? new Trend(TrendDirection.Flat, Stable)
-        : new Trend(
-            delta > 0 ? TrendDirection.Up : TrendDirection.Down,
-            $"{(delta > 0 ? "+" : "−")}{Math.Abs(delta)}{(Math.Abs(delta) == 1 ? one : many)}");
+        : new Trend(delta > 0 ? TrendDirection.Up : TrendDirection.Down, $"{(delta > 0 ? "+" : "−")}{Math.Abs(delta)}{(Math.Abs(delta) == 1 ? one : many)}");
 }
 
 /// <summary>Um número do período, o mesmo número no período anterior e a variação. Taxa sem respostas é nula.</summary>
@@ -86,11 +84,7 @@ public static class GetDashboardTrends
                       select new { StudentId = s.Id, qs.QuizType, a.IsCorrect, a.AnsweredAt };
 
         var cells = await answers
-            .GroupBy(x => new
-            {
-                Day = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(x.AnsweredAt.UtcDateTime, TimeZoneId)),
-                x.QuizType,
-            })
+            .GroupBy(x => new { Day = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(x.AnsweredAt.UtcDateTime, TimeZoneId)), x.QuizType })
             .Select(g => new { g.Key.Day, g.Key.QuizType, Total = g.Count(), Correct = g.Count(x => x.IsCorrect) })
             .ToListAsync(cancellationToken);
         var active = await answers

@@ -18,6 +18,7 @@ public class TrendTests
     [InlineData(49, 50, TrendDirection.Down, "−1 pt")]
     [InlineData(50, 50, TrendDirection.Flat, Trend.Stable)]
     [InlineData(null, 50, TrendDirection.None, Trend.NoData)]
+    [InlineData(null, null, TrendDirection.None, Trend.NoData)]
     [InlineData(50, null, TrendDirection.None, Trend.NoBaseline)]
     public void Variacao_de_taxa_em_pontos(int? current, int? previous, TrendDirection direction, string text) =>
         Assert.Equal(new Trend(direction, text), Trend.OfPoints(current, previous));

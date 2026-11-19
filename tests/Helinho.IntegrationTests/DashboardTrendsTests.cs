@@ -31,9 +31,9 @@ public class DashboardTrendsTests(PostgresFixture postgres) : IAsyncLifetime
         public Guid? UnitId => unitId;
         public bool IsInRole(string r) => r == role;
     }
-    private sealed class FixedClock : IClock
+    private sealed class FixedClock(DateTimeOffset now) : IClock
     {
-        public DateTimeOffset UtcNow => Now;
+        public DateTimeOffset UtcNow => now;
     }
 
     public async ValueTask InitializeAsync()
@@ -84,7 +84,10 @@ public class DashboardTrendsTests(PostgresFixture postgres) : IAsyncLifetime
     public async Task Respostas_por_dia_usam_o_dia_civil_de_Brasilia_e_alinham_o_periodo_anterior()
     {
         var r = await RunAsync(RoleNames.Master, null, new DashboardQuery(null, 7, null));
+        var late = await RunAsync(RoleNames.Master, null, new DashboardQuery(null, 7, null), At(11, 9, 23, 30)); // já é dia 10 em UTC
 
+        Assert.Equal((new DateOnly(2026, 11, 3), new DateOnly(2026, 11, 9)), (late.From, late.To)); // "hoje" é o dia de Brasília
+        Assert.Equal(new Indicator(5, 4, new Trend(TrendDirection.Up, "+25%")), late.Answers);
         Assert.Equal([1, 0, 0, 0, 2, 1, 3], r.AnswersByDay.Select(d => d.Answers));
         Assert.Equal([1, 0, 0, 0, 1, 1, 2], r.AnswersByDay.Select(d => d.Correct));
         Assert.Equal([1, 0, 2, 0, 0, 0, 1], r.AnswersByDay.Select(d => d.PreviousAnswers));
@@ -174,11 +177,11 @@ public class DashboardTrendsTests(PostgresFixture postgres) : IAsyncLifetime
         Assert.Contains("count(DISTINCT", _sql[1], StringComparison.OrdinalIgnoreCase);
     }
 
-    private async Task<DashboardTrends> RunAsync(string role, Guid? unitId, DashboardQuery query)
+    private async Task<DashboardTrends> RunAsync(string role, Guid? unitId, DashboardQuery query, DateTimeOffset? now = null)
     {
         var user = new FakeUser(role, unitId);
         await using var db = NewContext(user);
-        return await GetDashboardTrends.HandleAsync(db, user, new FixedClock(), query, TestContext.Current.CancellationToken);
+        return await GetDashboardTrends.HandleAsync(db, user, new FixedClock(now ?? Now), query, TestContext.Current.CancellationToken);
     }
 
     private static DateTimeOffset At(int month, int day, int hour, int minute = 0) =>
