@@ -62,6 +62,24 @@ public partial class TemaTelasCssTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Seletores_e_movimento_do_Painel_ficam_nas_camadas_certas()
+    {
+        var css = await CssAsync();
+        var screens = Layer(css, "screens");
+        var motion = Layer(css, "motion");
+
+        foreach (var selector in new[] { ".scene {", ".kpis {", ".kpi {", ".linechart {", ".dtable {", ".rank {", ".heat {", ".cast {", ".feed {", ".tip {", ".empty {" })
+        {
+            Assert.Contains(selector, screens);
+        }
+
+        foreach (var keyframes in new[] { "@keyframes wipe", "@keyframes grow-x", "@keyframes cell-in", "@keyframes shimmer" })
+        {
+            Assert.Contains(keyframes, motion);
+        }
+    }
+
+    [Fact]
     public async Task Nao_ha_seletor_de_IA_nem_o_token_lilas_em_uso()
     {
         var css = await CssAsync();
