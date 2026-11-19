@@ -6,107 +6,119 @@
 }
 @if (TempData["Aviso"] is string aviso)
 {
-    <div class="alert alert-success" role="status">@aviso</div>
+    <div class="note ok" role="status"><svg aria-hidden="true"><use href="#i-ok"/></svg><span>@aviso</span></div>
 }
-@if (Model.IsAdmin)
-{
-    <p><a class="btn btn-primary" href="@Url.Page("/Alunos/Novo")">Novo aluno</a></p>
-}
-<form method="get" class="card-panel dash-filters mb-4" aria-label="Filtros de alunos">
-    <div class="dash-selects">
-        <label class="muted" for="faixa">Faixa etária</label>
-        <select id="faixa" name="faixa" class="form-select">
+<div class="page-head">
+    <p class="sub">Cadastro dos alunos@(Model.IsMaster ? "" : " da unidade"). Dados pessoais ficam só na edição, nunca na lista.</p>
+    @if (Model.IsAdmin)
+    {
+        <div class="page-actions"><a class="btn btn-primary" href="@Url.Page("/Alunos/Novo")"><svg aria-hidden="true"><use href="#i-plus"/></svg>Novo aluno</a></div>
+    }
+</div>
+<form method="get" class="filters-bar" aria-label="Filtros de alunos">
+    <div class="field">
+        <label for="faixa">Faixa etária</label>
+        <select id="faixa" name="faixa" class="select">
             <option value="">Todas</option>
             @foreach (var band in Enum.GetValues<AgeBand>())
             {
                 <option value="@band" selected="@(Model.Faixa == band)">@IndexModel.BandLabel(band) anos</option>
             }
         </select>
-        <label class="muted" for="turma">Turma</label>
-        <select id="turma" name="turma" class="form-select">
+    </div>
+    <div class="field">
+        <label for="turma">Turma</label>
+        <select id="turma" name="turma" class="select">
             <option value="">Todas</option>
             @foreach (var c in Model.Result.Classes)
             {
                 <option value="@c" selected="@(c == Model.Turma)">@c</option>
             }
         </select>
-        @if (Model.IsMaster)
-        {
-            <label class="muted" for="unidade">Unidade</label>
-            <select id="unidade" name="unidade" class="form-select">
+    </div>
+    @if (Model.IsMaster)
+    {
+        <div class="field">
+            <label for="unidade">Unidade</label>
+            <select id="unidade" name="unidade" class="select">
                 <option value="">Todas as unidades</option>
                 @foreach (var u in Model.Result.Units)
                 {
                     <option value="@u.Id" selected="@(u.Id == Model.Unidade)">@u.Name</option>
                 }
             </select>
-        }
-        <button type="submit" class="btn btn-outline-secondary">Aplicar</button>
-        @if (Model.HasFilters)
-        {
-            <a class="btn btn-outline-secondary" href="@Url.Page("/Alunos/Index")">Limpar filtros</a>
-        }
-    </div>
+        </div>
+    }
+    <button type="submit" class="btn">Aplicar</button>
+    @if (Model.HasFilters)
+    {
+        <a class="link" href="@Url.Page("/Alunos/Index")">Limpar filtros</a>
+    }
 </form>
 
 @if (Model.Result.Total == 0)
 {
-    <div class="card-panel" id="alunos-vazio">
+    <section class="panel panel-pad" id="alunos-vazio" aria-label="Lista de alunos">
         <p class="mb-1 fw-semibold">Nenhum aluno encontrado.</p>
-        <p class="muted mb-0">Ajuste a turma ou a faixa etária@(Model.IsMaster ? " ou a unidade" : "") para ver os alunos.</p>
-    </div>
+        <p class="mb-0">Ajuste a turma ou a faixa etária@(Model.IsMaster ? " ou a unidade" : "") para ver os alunos.</p>
+    </section>
 }
 else
 {
-    <div class="card-panel p-0">
-        <table class="table mb-0">
-            <caption class="visually-hidden">Alunos cadastrados</caption>
-            <thead>
-                <tr>
-                    <th scope="col">Nome</th><th scope="col">Matrícula</th><th scope="col">Unidade</th>
-                    <th scope="col">Turma</th><th scope="col">Faixa etária</th><th scope="col">Aprovação do responsável</th>
-                    @if (Model.IsAdmin) { <th scope="col"><span class="visually-hidden">Ações</span></th> }
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var s in Model.Result.Rows)
-                {
+    <section class="panel panel-pad" aria-label="Lista de alunos">
+        <div class="table-wrap">
+            <table class="table">
+                <caption class="visually-hidden">Alunos cadastrados</caption>
+                <thead>
                     <tr>
-                        <td>@s.FullName</td>
-                        <td>@s.Enrollment</td>
-                        <td>@s.UnitName</td>
-                        <td>@s.ClassName</td>
-                        <td>@(s.Band is null ? "—" : $"{IndexModel.BandLabel(s.Band)} anos")</td>
-                        <td>
-                            @if (s.GuardianApproved)
-                            {
-                                <span class="badge badge-ok">Aprovado</span>
-                            }
-                            else
-                            {
-                                <span class="badge badge-miss">Pendente</span>
-                            }
-                        </td>
-                        @if (Model.IsAdmin)
-                        {
-                            <td><a href="@Url.Page("/Alunos/Editar", new { id = s.Id })" aria-label="Editar @s.FullName">Editar</a></td>
-                        }
+                        <th scope="col">Nome</th><th scope="col">Matrícula</th><th scope="col">Unidade</th>
+                        <th scope="col">Turma</th><th scope="col">Faixa etária</th><th scope="col">Aprovação do responsável</th>
+                        @if (Model.IsAdmin) { <th scope="col" class="actions">Ações</th> }
                     </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-    <nav class="dash-filters mt-3" aria-label="Paginação de alunos">
-        <p class="muted mb-0" id="alunos-resumo">@Model.Result.Total @(Model.Result.Total == 1 ? "aluno" : "alunos") · página @Model.Result.Page de @Model.Result.TotalPages</p>
-        <div class="dash-selects">
-            @if (Model.Result.Page > 1)
+                </thead>
+                <tbody>
+                    @foreach (var s in Model.Result.Rows)
+                    {
+                        <tr>
+                            <th scope="row">@s.FullName</th>
+                            <td>@s.Enrollment</td>
+                            <td>@s.UnitName</td>
+                            <td>@s.ClassName</td>
+                            <td>@(s.Band is null ? "—" : $"{IndexModel.BandLabel(s.Band)} anos")</td>
+                            <td>
+                                @if (s.GuardianApproved)
+                                {
+                                    <span class="tag tag-ok">Aprovado</span>
+                                }
+                                else
+                                {
+                                    <span class="tag tag-bad">Pendente</span>
+                                }
+                            </td>
+                            @if (Model.IsAdmin)
+                            {
+                                <td class="actions"><a class="link-btn" href="@Url.Page("/Alunos/Editar", new { id = s.Id })" aria-label="Editar @s.FullName">Editar</a></td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="pager">
+            <span id="alunos-resumo">@Model.Result.Total @(Model.Result.Total == 1 ? "aluno" : "alunos") · página @Model.Result.Page de @Model.Result.TotalPages</span>
+            @if (Model.Result.TotalPages > 1)
             {
-                <a class="btn btn-outline-secondary" rel="prev" href="@Model.PageLink(Model.Result.Page - 1)">Anterior</a>
-            }
-            @if (Model.Result.Page < Model.Result.TotalPages)
-            {
-                <a class="btn btn-outline-secondary" rel="next" href="@Model.PageLink(Model.Result.Page + 1)">Próxima</a>
+                <nav aria-label="Paginação de alunos">
+                    @if (Model.Result.Page > 1)
+                    {
+                        <a class="btn btn-sm" rel="prev" href="@Model.PageLink(Model.Result.Page - 1)">Anterior</a>
+                    }
+                    @if (Model.Result.Page < Model.Result.TotalPages)
+                    {
+                        <a class="btn btn-sm" rel="next" href="@Model.PageLink(Model.Result.Page + 1)">Próxima</a>
+                    }
+                </nav>
             }
         </div>
-    </nav>
+    </section>
 }
