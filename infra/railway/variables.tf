@@ -1,4 +1,6 @@
 # Segredo nunca tem valor real em `default` (`null` ou vazio = não definido) e leva `sensitive = true`.
+# `nullable = false`: `null` explícito vale o padrão e não escapa das validações. Só `workspace_id` e
+# `seed_password` aceitam `null`, que neles quer dizer "não definido".
 
 variable "workspace_id" {
   description = "Id do workspace da Railway. Obrigatório se o token enxergar mais de um workspace."
@@ -12,7 +14,8 @@ variable "ambientes" {
     seed_enabled = optional(bool, false)
     subdominio   = optional(string) # padrão: helinho-<ambiente>; precisa ser único em up.railway.app
   }))
-  default = { homologacao = { seed_enabled = true } }
+  default  = { homologacao = { seed_enabled = true } }
+  nullable = false
 
   validation {
     condition     = alltrue([for nome in keys(var.ambientes) : contains(["homologacao", "producao"], nome)])
@@ -28,36 +31,42 @@ variable "repositorio" {
   description = "Repositório GitHub do serviço web, no formato dono/nome."
   type        = string
   default     = "henriqueluza/universo-do-helinho"
+  nullable    = false
 }
 
 variable "branch" {
   description = "Branch que a Railway implanta."
   type        = string
   default     = "main"
+  nullable    = false
 }
 
 variable "auto_deploy" {
   description = "Implantar a cada push na branch. Desligado, a publicação é manual (Deploy Latest Commit no painel)."
   type        = bool
   default     = false
+  nullable    = false
 }
 
 variable "regiao" {
   description = "Região da Railway do serviço web e do banco."
   type        = string
   default     = "us-east4-eqdc4a"
+  nullable    = false
 }
 
 variable "serverless" {
   description = "Deixar o serviço web dormir quando ocioso."
   type        = bool
   default     = false
+  nullable    = false
 }
 
 variable "postgres_imagem" {
   description = "Imagem oficial do PostgreSQL 17, com a minor fixada."
   type        = string
   default     = "postgres:17.12"
+  nullable    = false
 
   validation {
     condition     = can(regex("^postgres:17(\\.[0-9]+)?$", var.postgres_imagem))
@@ -95,7 +104,8 @@ variable "variaveis_web" {
     Ai__Provider       = optional(string, "Fake")
     Ai__Model          = optional(string, "")
   })
-  default = {}
+  default  = {}
+  nullable = false
 }
 
 variable "brevo_api_key" {
@@ -103,6 +113,7 @@ variable "brevo_api_key" {
   type        = string
   sensitive   = true
   default     = ""
+  nullable    = false
 
   validation {
     condition     = contains(["Fake", "Brevo"], var.variaveis_web.Email__Provider) && (var.variaveis_web.Email__Provider == "Fake" || var.brevo_api_key != "")
@@ -115,6 +126,7 @@ variable "ai_api_key" {
   type        = string
   sensitive   = true
   default     = ""
+  nullable    = false
 
   validation {
     condition     = var.variaveis_web.Ai__Provider == "Fake" || var.ai_api_key != ""

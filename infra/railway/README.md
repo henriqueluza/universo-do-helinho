@@ -101,6 +101,8 @@ O `plan` falha, antes de falar com a Railway, quando:
 - `Ai__Provider` é diferente de `Fake` sem `ai_api_key`;
 - `postgres_imagem` não é `postgres:17` ou `postgres:17.<minor>`.
 
+`null` explícito vale o padrão da variável (`nullable = false`) e passa pelas mesmas validações. Só `workspace_id` e `seed_password` aceitam `null`, que neles quer dizer "não definido".
+
 ## Saídas
 
 | Saída | Conteúdo |
@@ -141,9 +143,25 @@ Provider `terraform-community-providers/railway` 0.6.3, conferido no código da 
 
 O serviço `Postgres` tem `prevent_destroy`. Destruir a homologação de propósito exige remover essa linha em um commit; o runbook descreve.
 
+**O `prevent_destroy` não protege o volume contra edição do serviço.** No provider 0.6.3 o volume é um bloco do `railway_service`, não um recurso próprio: remover o bloco `volume` do serviço `Postgres` é uma atualização no lugar, e nela o provider apaga o volume (e os dados do banco) sem recriar o serviço. No `plan` isso aparece como atualização no lugar do serviço, com o `volume` removido, e não como destruição. Nunca aplique um plano que remova esse bloco.
+
+## Antes do primeiro `apply`
+
+O healthcheck do serviço web aponta para `/health/ready`, rota criada pelo PR #104. **Esse PR precisa estar na `main` antes do primeiro `apply`:** sem ele a rota não existe (a `main` só tem `/health`), o healthcheck não recebe 200 dentro dos 120 s e todo deploy do `helinho-web` falha.
+
+O pre-deploy `tini -- dotnet Helinho.Web.dll migrate` depende do Dockerfile (PR #105) e do comando `migrate` (PR #102), que já estão na `main`.
+
 ## Estado
 
-O estado guarda em texto a senha do banco e `seed_password`. Ele é local, fica fora do git (`.gitignore`) e precisa de backup cifrado depois de cada `apply` (ADR-0002 §10.3, decisão D2).
+O estado (`terraform.tfstate`) guarda **em texto**:
+
+- a senha do PostgreSQL (`random_password.postgres` e a variável `POSTGRES_PASSWORD`);
+- a senha do seed (`HELINHO_SEED_PASSWORD`);
+- as chaves da Brevo e do provedor de IA (`Brevo__ApiKey`, `Ai__ApiKey`), quando definidas.
+
+Ele é local, fica fora do git (`.gitignore`) e precisa de backup cifrado depois de cada `apply` (ADR-0002 §10.3, decisão D2). Quem lê o arquivo lê todos esses segredos.
+
+O plano salvo com `terraform plan -out=<arquivo>` guarda os mesmos valores. O `.gitignore` bloqueia `*.tfplan` e `tfplan`: use um desses nomes e apague o arquivo depois do `apply`.
 
 ## Atualizar um provider
 

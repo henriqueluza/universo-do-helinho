@@ -95,3 +95,31 @@ run "recusa_provedor_real_sem_chave" {
 
   expect_failures = [var.brevo_api_key, var.ai_api_key]
 }
+
+# `null` explícito não escapa da validação: com `nullable = false` vale o padrão vazio.
+run "recusa_chave_nula_com_provedor_real" {
+  command = plan
+
+  variables {
+    variaveis_web = { Email__Provider = "Brevo", Ai__Provider = "Real" }
+    brevo_api_key = null
+    ai_api_key    = null
+  }
+
+  expect_failures = [var.brevo_api_key, var.ai_api_key]
+}
+
+run "nulo_explicito_vale_o_padrao" {
+  command = plan
+
+  variables {
+    ambientes   = null
+    regiao      = null
+    auto_deploy = null
+  }
+
+  assert {
+    condition     = keys(output.ambientes) == ["homologacao"]
+    error_message = "`null` explícito deve cair no padrão, não em erro nem em valor vazio."
+  }
+}
