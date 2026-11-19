@@ -99,13 +99,21 @@ const calmo = () => reduz.matches;
 (() => {
   const main = document.querySelector('.main');
   if (!main || !('IntersectionObserver' in window) || calmo()) return;
+  // As duas primeiras seções (cabeçalho e indicadores) nunca entram com efeito; das demais, só as que
+  // começam abaixo de 90% da altura da tela.
+  const FIXAS = 2, DOBRA = .9;
   const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('vis'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -12% 0px' });
-  const pendentes = [...main.children].filter((el, i) => i >= 2 && el.getBoundingClientRect().top > innerHeight * .9);
+  const pendentes = [...main.children].filter((el, i) => i >= FIXAS && el.getBoundingClientRect().top > innerHeight * DOBRA);
   if (!pendentes.length) return;
   raiz.classList.add('js');
   pendentes.forEach((el) => { el.classList.add('reveal'); io.observe(el); });
   // Saltos de rolagem (End, âncora) pulam seções sem cruzar o observador: o que ficou acima da tela é revelado.
-  addEventListener('scroll', () => pendentes.forEach((el) => { if (el.getBoundingClientRect().bottom < 0) { el.classList.add('vis'); io.unobserve(el); } }), { passive: true });
+  // Quando todas já entraram, o ouvinte sai.
+  const aoRolar = () => {
+    pendentes.forEach((el) => { if (el.getBoundingClientRect().bottom < 0) { el.classList.add('vis'); io.unobserve(el); } });
+    if (pendentes.every((el) => el.classList.contains('vis'))) removeEventListener('scroll', aoRolar);
+  };
+  addEventListener('scroll', aoRolar, { passive: true });
   // Impressão e "reduzir movimento" ligado depois do carregamento: tudo visível.
   const mostrarTudo = () => pendentes.forEach((el) => el.classList.add('vis'));
   addEventListener('beforeprint', mostrarTudo);
@@ -150,7 +158,8 @@ const calmo = () => reduz.matches;
   };
   const esconder = () => tip.classList.remove('on');
   addEventListener('scroll', esconder, { passive: true });
-  addEventListener('keydown', (e) => { if (e.key === 'Escape') esconder(); });
+  // Esc fecha a dica e tira a mira (.hover) dos gráficos de linha (WCAG 1.4.13).
+  addEventListener('keydown', (e) => { if (e.key === 'Escape') { esconder(); graficos.forEach((b) => b.classList.remove('hover')); } });
 
   // [data-tip="Título|linha|linha"]: mouse e foco do teclado.
   dicas.forEach((alvo) => {
@@ -239,7 +248,11 @@ const calmo = () => reduz.matches;
       e.preventDefault(); focar(idx + k);
     });
     desenhar();
-    setTimeout(() => { box.dataset.visto = '1'; }, 2200);
+    // A entrada do gráfico no CSS termina em ~2 s (.lc-today: 1,4 s de espera + 600 ms). Depois disso,
+    // os redesenhos marcam data-desenhado e o CSS não repete a animação.
+    const FIM_DA_ENTRADA_MS = 2200;
+    setTimeout(() => { box.dataset.visto = '1'; }, FIM_DA_ENTRADA_MS);
+    if (!('ResizeObserver' in window)) return;
     let w = box.clientWidth;
     new ResizeObserver(() => { if (box.clientWidth !== w) { w = box.clientWidth; desenhar(); } }).observe(box);
   });
