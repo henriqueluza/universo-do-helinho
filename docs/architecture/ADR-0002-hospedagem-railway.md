@@ -1,7 +1,9 @@
 # ADR-0002 — Hospedagem na Railway, gerenciada por Terraform
 
 **Data:** 18/11/2026 · **Status:** proposto (aguarda o Henrique; ver seção 12) · **Decisor:** Henrique
-**Base:** ADR-0001 §6 (hospedagem ficou para ADR próprio), Issue #93, skill `devops-standards`, respostas da contratante C04, C13, C15 e C19.
+**Base:** ADR-0001 §6 (hospedagem ficou para ADR próprio), Issue #93, skill `devops-standards`, respostas da contratante C04, C13, C14, C15 e C19.
+
+Os códigos C04, C13, C14, C15 e C19 são itens do Q&A com a contratante, "Perguntas e Respostas — Universo do Hélinho", mantido pelo Henrique fora do repositório.
 
 Este ADR substitui a seção 6 do ADR-0001 ("Deploy planejado para a fase final").
 
@@ -169,7 +171,7 @@ Detalhes que a Issue do Terraform precisa respeitar:
 - Variáveis do serviço: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `PGDATA` e os espelhos `PGHOST=${{RAILWAY_PRIVATE_DOMAIN}}`, `PGPORT=5432`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`.
 - Senha gerada por `random_password` (provider `hashicorp/random`, sem caracteres especiais para não quebrar a connection string), nunca digitada nem escrita em arquivo. A alternativa `TF_VAR_postgres_password` obriga o Henrique a guardar e exportar mais um segredo a cada `apply`.
 - **Sem `railway_service_domain` e sem `railway_tcp_proxy` no banco.** O acesso é só pela rede privada do ambiente (WireGuard entre serviços).
-- No serviço web: `ConnectionStrings__Default = Host=${{Postgres.PGHOST}};Port=${{Postgres.PGPORT}};Database=${{Postgres.PGDATABASE}};Username=${{Postgres.PGUSER}};Password=${{Postgres.PGPASSWORD}}`. A senha não aparece na variável do web: a Railway resolve a referência no deploy, e o provider lê as variáveis sem renderizar. Em HCL, `${{` precisa ser escrito `$${{` para não virar interpolação do Terraform.
+- No serviço web: `ConnectionStrings__Default = Host=${{Postgres.PGHOST}};Port=${{Postgres.PGPORT}};Database=${{Postgres.PGDATABASE}};Username=${{Postgres.PGUSER}};Password=${{Postgres.PGPASSWORD}}`. A senha não é escrita no Terraform nem fica nessa entrada do estado: a Railway resolve a referência no deploy, e o provider lê as variáveis sem renderizar. O valor resolvido, porém, contém a senha do banco, então a variável é tratada como **sensível** (seção 10.1). Em HCL, `${{` precisa ser escrito `$${{` para não virar interpolação do Terraform.
 - A referência entre serviços também ordena o deploy: o web espera o banco quando os dois sobem juntos.
 - Serviço com volume tem uma pequena indisponibilidade a cada redeploy e não aceita réplicas. Isso vale para o banco e é aceito.
 
@@ -191,7 +193,7 @@ Contrato entre a imagem e a plataforma: **o Terraform define `PORT=8080` no serv
 
 ### 7.2 Onde fica cada configuração: `railway.toml` não entra
 
-A documentação da Railway, em 18/11/2026, diz que o Config as Code (`railway.json` / `railway.toml`) está **descontinuado**: serviços novos não podem aderir e os arquivos existentes deixam de ser lidos em **01/12/2026**. O substituto oficial é o Infrastructure as Code nativo (`.railway/railway.ts`, seção 13).
+A documentação da Railway, em 18/11/2026, diz que o Config as Code (`railway.json` / `railway.toml`) está **descontinuado**: serviços novos não podem aderir e os arquivos existentes deixam de ser lidos em **01/12/2026**. O substituto oficial é o Infrastructure as Code nativo (`.railway/railway.ts`, comparado na seção 12, D5).
 
 Por isso **não haverá `railway.toml`**. As configurações que ele carregaria ficam no `railway_service` do Terraform, que as suporta desde a 0.6.3:
 
@@ -244,6 +246,8 @@ Consequências para a aplicação:
 - **Proxies conhecidos:** como não há faixa publicada, as listas de proxies e redes conhecidas ficam vazias e o limite de saltos é 1. A confiança se apoia na topologia: o contêiner só recebe tráfego da borda e da rede privada do ambiente, onde só existem serviços nossos, e nenhum serviço tem TCP proxy. Se um serviço de terceiro entrar no ambiente, isso é revisto.
 - **HSTS** fora de `Development`, sem `preload` enquanto o domínio for `*.up.railway.app`.
 - **Redirecionamento HTTPS** fora de `Development`, com as rotas de saúde de fora (7.4).
+- **Testes da Issue #97:** um `X-Real-IP` forjado pelo cliente é coberto por teste, e `X-Forwarded-For` e `X-Forwarded-Host` vindos do cliente são ignorados pela aplicação.
+- **Limite dessa confiança:** ela depende da topologia da Railway, em que a aplicação só é alcançável pela borda, que sobrescreve esses cabeçalhos. Isso ainda **não foi verificado em ambiente real**; a conferência entra no primeiro deploy.
 - Tudo entra por `Composition/`, sem editar `Program.cs`.
 
 ## 9. Chaves do Data Protection
@@ -267,7 +271,7 @@ Sem persistência, cada deploy gera chaves novas: o cookie do painel cai, os tok
 |---|---|---|
 | `ASPNETCORE_ENVIRONMENT` | `Staging` | não |
 | `PORT` | `8080` | não |
-| `ConnectionStrings__Default` | referência ao `Postgres` (seção 6) | não (sem senha literal) |
+| `ConnectionStrings__Default` | referência ao `Postgres` (seção 6) | sim (o valor resolvido contém a senha do banco, mesmo sem senha literal no Terraform) |
 | `Seed__Enabled` | `true` | não |
 | `HELINHO_SEED_PASSWORD` | `TF_VAR_*`, só em homologação | sim |
 | `Api__Auth__*` | padrões do README | não |
@@ -278,7 +282,7 @@ Sem persistência, cada deploy gera chaves novas: o cookie do painel cai, os tok
 
 As variáveis das Sprints 3 e 4 já nascem declaradas no Terraform com valor padrão vazio. O módulo só envia à Railway as que tiverem valor, para não depender de a API aceitar variável vazia. `App__PublicBaseUrl` pode ser derivada do domínio do serviço quando a Sprint 3 precisar.
 
-Toda variável sensível é `sensitive = true` e vem de `TF_VAR_*` ou de `*.tfvars` fora do git. O `.gitignore` bloqueia `*.tfstate*`, `.terraform/` e `*.tfvars` (menos `*.tfvars.example`); o `.terraform.lock.hcl` é commitado.
+Toda variável sensível é `sensitive = true` e vem de `TF_VAR_*` ou de `*.tfvars` fora do git. `ConnectionStrings__Default` é montada dentro do módulo, mas também é sensível: não vai para `output` sem `sensitive = true`, não aparece em log e não é copiada para exemplo. O `.gitignore` bloqueia `*.tfstate*`, `.terraform/` e `*.tfvars` (menos `*.tfvars.example`); o `.terraform.lock.hcl` é commitado.
 
 ### 10.2 Token
 

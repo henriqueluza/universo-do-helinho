@@ -2,6 +2,7 @@
 
 **Consultado em:** 18/11/2026 · **Fontes:** https://railway.com/pricing e https://docs.railway.com/pricing/plans
 **Decisão de hospedagem:** `docs/architecture/ADR-0002-hospedagem-railway.md`
+**Códigos C04, C13, C14, C15 e C19:** itens do Q&A com a contratante, "Perguntas e Respostas — Universo do Hélinho", mantido pelo Henrique fora do repositório.
 
 Valores em dólar americano, sem impostos, IOF nem câmbio. São **estimativas**: a contratante não informou volume de usuários (C13) e o sistema ainda não rodou na Railway. Meça na primeira semana e corrija a tabela de premissas.
 
