@@ -54,7 +54,7 @@ Tudo tem padrão, menos `seed_password`. Valores sem segredo vão em `terraform.
 | `RAILWAY_TOKEN` (ambiente, não é variável do Terraform) | sim | sim | token de **workspace** criado no painel da Railway | — |
 | `seed_password` | sim, enquanto algum ambiente tiver `seed_enabled` | sim | `TF_VAR_seed_password`; você escolhe (16+ caracteres, com minúscula, maiúscula, dígito e símbolo) | sem padrão |
 | `workspace_id` | só se o token enxergar mais de um workspace | não | painel da Railway | `null` |
-| `ambientes` | não | não | `terraform.tfvars` | só `homologacao` (`Staging`, seed ligado) |
+| `ambientes` | não | não | `terraform.tfvars` | só `homologacao`, com seed ligado |
 | `repositorio` | não | não | `terraform.tfvars` | este repositório |
 | `branch` | não | não | `terraform.tfvars` | `main` |
 | `auto_deploy` | não | não | `terraform.tfvars` | `false` |
@@ -71,7 +71,7 @@ A senha do banco não é variável: o Terraform gera.
 
 | Variável na Railway | Valor | Origem |
 |---|---|---|
-| `ASPNETCORE_ENVIRONMENT` | `Staging` em homologação | `ambientes.<nome>.aspnetcore_environment` (`Staging` ou `Production`; `Development` é recusado) |
+| `ASPNETCORE_ENVIRONMENT` | `Staging` em `homologacao`, `Production` em `producao` | fixo pelo nome do ambiente (`main.tf`); não há como pedir `Development` |
 | `PORT` | `8080` | fixo; é a porta do domínio e do healthcheck |
 | `Proxy__TrustForwardedHeaders` | `true` | fixo |
 | `ConnectionStrings__Default` | `Host=${{Postgres.PGHOST}};Port=…;Database=…;Username=…;Password=${{Postgres.PGPASSWORD}};Timeout=5;Command Timeout=30` | montada no módulo por referência; a Railway resolve no deploy. O valor resolvido contém a senha do banco |
@@ -91,7 +91,7 @@ O provider marca todo valor de variável como sensível: o `plan` mostra os nome
 O `plan` falha, antes de falar com a Railway, quando:
 
 - algum ambiente diferente de `homologacao` tem `seed_enabled = true`;
-- o nome do ambiente não é `homologacao` nem `producao`, ou `aspnetcore_environment` não é `Staging` nem `Production`;
+- o nome do ambiente não é `homologacao` nem `producao`;
 - o seed está ligado e `seed_password` está ausente ou é fraca;
 - `Email__Provider` não é `Fake` nem `Brevo`, ou é `Brevo` sem `brevo_api_key`;
 - `Ai__Provider` é diferente de `Fake` sem `ai_api_key`;

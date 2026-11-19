@@ -11,8 +11,8 @@
 # Um projeto Railway por chave. Produção nasce desligada: só existe se a chave `producao` for acrescentada
 # (antes, leia "Produção" no README). O seed só é aceito em homologacao; o subdomínio é único em up.railway.app.
 # ambientes = {
-#   homologacao = { aspnetcore_environment = "Staging", seed_enabled = true, subdominio = "helinho-homologacao" }
-#   producao    = { aspnetcore_environment = "Production" }
+#   homologacao = { seed_enabled = true, subdominio = "helinho-homologacao" } # roda como Staging
+#   producao    = {}                                                          # roda como Production
 # }
 
 # repositorio     = "dono/repositorio"

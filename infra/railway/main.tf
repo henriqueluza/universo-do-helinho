@@ -1,3 +1,8 @@
+locals {
+  # O modo da aplicação segue o nome do ambiente: não há como pedir Development nem seed em modo Production.
+  aspnetcore_environment = { homologacao = "Staging", producao = "Production" }
+}
+
 # Um projeto Railway por ambiente (ADR-0002 §5.2): o provider só lê serviço e volume no ambiente padrão do projeto.
 module "ambiente" {
   source   = "./modules/ambiente"
@@ -5,7 +10,7 @@ module "ambiente" {
 
   nome                   = each.key
   workspace_id           = var.workspace_id
-  aspnetcore_environment = each.value.aspnetcore_environment
+  aspnetcore_environment = local.aspnetcore_environment[each.key]
   subdominio             = coalesce(each.value.subdominio, "helinho-${each.key}")
   repositorio            = var.repositorio
   branch                 = var.branch

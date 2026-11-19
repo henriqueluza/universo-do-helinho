@@ -9,15 +9,14 @@ variable "workspace_id" {
 variable "ambientes" {
   description = "Ambientes a criar: um projeto Railway por chave. `producao` nasce desligada e só existe se for acrescentada aqui."
   type = map(object({
-    aspnetcore_environment = string
-    seed_enabled           = optional(bool, false)
-    subdominio             = optional(string) # padrão: helinho-<ambiente>; precisa ser único em up.railway.app
+    seed_enabled = optional(bool, false)
+    subdominio   = optional(string) # padrão: helinho-<ambiente>; precisa ser único em up.railway.app
   }))
-  default = { homologacao = { aspnetcore_environment = "Staging", seed_enabled = true } }
+  default = { homologacao = { seed_enabled = true } }
 
   validation {
-    condition     = alltrue([for nome, a in var.ambientes : contains(["homologacao", "producao"], nome) && contains(["Staging", "Production"], a.aspnetcore_environment)])
-    error_message = "Ambientes aceitos: homologacao e producao, com aspnetcore_environment Staging ou Production (nunca Development)."
+    condition     = alltrue([for nome in keys(var.ambientes) : contains(["homologacao", "producao"], nome)])
+    error_message = "Ambientes aceitos: homologacao e producao."
   }
   validation {
     condition     = alltrue([for nome, a in var.ambientes : nome == "homologacao" || !a.seed_enabled])
