@@ -1,0 +1,27 @@
+# Contexto de build mínimo: a imagem só precisa de src/ e dos arquivos de build da raiz.
+
+# Segredos e estado local (em qualquer nível, não só na raiz)
+**/.env
+**/.env.*
+**/.demo/
+
+# Controle de versão, automação e kit de agentes
+.git
+.github/
+.claude/
+.agents/
+.mcp.json
+.gitleaks.toml
+
+# Saídas de build locais (trazem caminhos da máquina e quebram o restore da imagem)
+**/bin/
+**/obj/
+**/TestResults/
+
+# Fora da imagem: testes, documentação, infra e apoio local
+tests/
+docs/
+infra/
+scripts/
+compose.yaml
+*.md

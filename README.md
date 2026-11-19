@@ -19,6 +19,21 @@ bash scripts/demo.sh     # sobe o banco, aplica a migração, roda o seed e inic
 
 Painel em `http://localhost:5018`; API em `/api`. Passo a passo da apresentação, logins do seed e chamadas à API: [`docs/demo/roteiro-apresentacao.md`](docs/demo/roteiro-apresentacao.md).
 
+## Imagem Docker
+
+O `Dockerfile` da raiz gera a imagem que a hospedagem constrói (multi-stage, usuário sem privilégios, sem SDK). O processo escuta em `0.0.0.0:$PORT` (8080 se `PORT` não existir) e repassa argumentos ao binário (`seed`).
+
+```bash
+docker build -t helinho-web .
+docker compose up -d --wait db     # banco local publicado em 127.0.0.1:5432
+docker run --rm -p 8080:8080 \
+  -e ConnectionStrings__Default="Host=host.docker.internal;Port=5432;Database=helinho;Username=helinho;Password=$POSTGRES_PASSWORD" \
+  helinho-web                      # acrescente `migrate` ao final para aplicar as migrações
+curl http://localhost:8080/health
+```
+
+`host.docker.internal` vale no Docker Desktop. Segredos entram só por variável de ambiente em tempo de execução; nada vai para a imagem.
+
 ## Configuração do banco: `migrate`, `seed` e `Seed__Enabled`
 
 Aplicar migração e gravar dados sintéticos são passos separados. Os dois comandos encerram o processo ao terminar, sem subir o servidor:
