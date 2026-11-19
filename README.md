@@ -19,6 +19,21 @@ bash scripts/demo.sh     # sobe o banco, aplica a migração, roda o seed e inic
 
 Painel em `http://localhost:5018`; API em `/api`. Passo a passo da apresentação, logins do seed e chamadas à API: [`docs/demo/roteiro-apresentacao.md`](docs/demo/roteiro-apresentacao.md).
 
+## Imagem Docker
+
+O `Dockerfile` da raiz gera a imagem que a hospedagem constrói (multi-stage, usuário sem privilégios, sem SDK). O processo escuta em `0.0.0.0:$PORT` (8080 se `PORT` não existir) e repassa argumentos ao binário (`seed`).
+
+```bash
+docker build -t helinho-web .
+docker compose up -d --wait db     # banco local publicado em 127.0.0.1:5432
+docker run --rm -p 8080:8080 \
+  -e ConnectionStrings__Default="Host=host.docker.internal;Port=5432;Database=helinho;Username=helinho;Password=$POSTGRES_PASSWORD" \
+  helinho-web                      # acrescente `seed` ao final para migrar e popular o banco
+curl http://localhost:8080/health
+```
+
+`host.docker.internal` vale no Docker Desktop. Segredos entram só por variável de ambiente em tempo de execução; nada vai para a imagem.
+
 ## Configuração do login da API
 
 `POST /api/login` aceita matrícula, usuário ou e-mail e devolve um token opaco Bearer (256 bits; só o hash SHA-256 fica no banco). Falha de credencial responde `401 invalid_credentials` (uniforme); aluno não aprovado, admin e master respondem `403 forbidden`. Chaves opcionais da seção `Api:Auth` (em `appsettings` ou variável de ambiente com `__`, ex.: `Api__Auth__TokenLifetime`):
