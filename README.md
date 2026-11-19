@@ -19,6 +19,8 @@ bash scripts/demo.sh     # sobe o banco, aplica a migração, roda o seed e inic
 
 Painel em `http://localhost:5018`; API em `/api`. Saúde: `GET /health` (o processo está vivo; não consulta o banco) e `GET /health/ready` (200 se o banco responde, 503 se não; teto de 3 s), ambas anônimas. Passo a passo da apresentação, logins do seed e chamadas à API: [`docs/demo/roteiro-apresentacao.md`](docs/demo/roteiro-apresentacao.md).
 
+Logs: fora de `Development` o console sai em JSON, uma linha por evento, com timestamp em UTC e sem escopos (`Logging:Console` em `appsettings.json`); em `Development` continua o formato legível. SQL do EF Core e requisições do ASP.NET Core só aparecem a partir de `Warning`.
+
 ## Imagem Docker
 
 O `Dockerfile` da raiz gera a imagem que a hospedagem constrói (multi-stage, usuário sem privilégios, sem SDK). O processo escuta em `0.0.0.0:$PORT` (8080 se `PORT` não existir) e repassa argumentos ao binário (`seed`).
