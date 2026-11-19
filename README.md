@@ -85,6 +85,7 @@ Para ela enxergar o esquema e o IP reais, ligue a seção `Proxy` (variável de 
 A homologação roda na Railway e é descrita pelo Terraform de `infra/railway/`. **Só o Henrique** cria token, roda `terraform plan` e `apply` e publica; agentes e o CI não fazem deploy.
 
 - Passo a passo (token, `apply`, primeiro deploy, rollback, backup, rotação e destruição): [`docs/operations/railway-runbook.md`](docs/operations/railway-runbook.md)
+- Envio real de e-mails (conta Brevo, domínio, remetente, chave de API e variáveis na Railway): [`docs/operations/brevo-runbook.md`](docs/operations/brevo-runbook.md)
 - O que está no ar, URLs e usuários sintéticos de teste (sem senha): [`docs/operations/ambientes.md`](docs/operations/ambientes.md)
 - Decisão de hospedagem e custos: `docs/architecture/ADR-0002-hospedagem-railway.md` e `docs/operations/custos.md`
 
