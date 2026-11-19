@@ -31,6 +31,27 @@ Painel em `http://localhost:5018`; API em `/api`. Passo a passo da apresentaçã
 | `LoginRateLimit` | `10` | Requisições a `/api/login` por IP por janela |
 | `LoginRateWindow` | `00:01:00` | Janela do limite de taxa |
 
+## Atrás do proxy (Railway): HTTPS, HSTS e IP do cliente
+
+A Railway termina o TLS e entrega a requisição em HTTP ao contêiner. Fora de `Development` (`ASPNETCORE_ENVIRONMENT` diferente de `Development`) a aplicação sempre:
+
+- redireciona HTTP para HTTPS (307), **menos** as rotas sob `/health`, que o healthcheck da plataforma chama em HTTP puro;
+- envia `Strict-Transport-Security: max-age=31536000` nas respostas HTTPS;
+- marca todo cookie como `Secure` (painel, antiforgery, TempData).
+
+Para ela enxergar o esquema e o IP reais, ligue a seção `Proxy` (variável de ambiente com `__`):
+
+| Chave | Variável de ambiente | Padrão | Efeito |
+|---|---|---|---|
+| `Proxy:TrustForwardedHeaders` | `Proxy__TrustForwardedHeaders` | `false` | Confia em `X-Forwarded-Proto` (esquema) e no cabeçalho de IP abaixo. **Ligue (`true`) na Railway**; nunca onde a aplicação é alcançável sem passar pelo proxy |
+| `Proxy:ClientIpHeader` | `Proxy__ClientIpHeader` | `X-Real-IP` | Cabeçalho de onde sai o IP do cliente (limite de taxa do login). Só o último valor é usado |
+
+- Fora de `Development` com `Proxy:TrustForwardedHeaders` desligado, toda requisição parece HTTP e entra em laço de redirecionamento: é o sinal de que a chave faltou.
+- Não use `ASPNETCORE_FORWARDEDHEADERS_ENABLED`: ela liga o middleware do framework lendo `X-Forwarded-For`, que a Railway não documenta.
+- A porta do redirecionamento é 443; `ASPNETCORE_HTTPS_PORT` a substitui.
+- `AllowedHosts` (chave do ASP.NET Core, hoje `*`) pode restringir os hosts aceitos; se for definida, inclua `healthcheck.railway.app`, o host do healthcheck.
+- O serviço não deve ter TCP Proxy público, e os demais serviços do mesmo projeto Railway alcançam o contêiner pela rede privada sem passar pela borda: eles são confiáveis por definição.
+
 ## Como testar
 
 ```bash
