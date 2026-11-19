@@ -62,7 +62,7 @@ public class DashboardAttentionTests(PostgresFixture postgres) : IAsyncLifetime
         Add(db, jade, QuizType.Conhecimento, 0, 4, At(11, 10, 9)); // 4 respostas: abaixo do mínimo, não alerta
         Add(db, NewStudent(db, _unitB, "Caio", "5A", older), QuizType.Esportivo, 7, 3, At(10, 30, 10)); // período anterior: 70%
         Add(db, gui, QuizType.Esportivo, 16, 9, At(11, 9, 23, 30)); // 64%: alerta
-        Add(db, gui, QuizType.Ambiental, 13, 7, At(11, 8, 8)); // 65% exatos: não alerta
+        Add(db, gui, QuizType.Ambiental, 20, 11, At(11, 8, 8)); // 64,5%: a tela mostra 65%, não alerta
         Add(db, gui, QuizType.Cultural, 10, 0, At(11, 10, 8));
         Add(db, NewStudent(db, _unitC, "Iara", "5A", young), QuizType.Ambiental, 5, 0, At(11, 10, 8)); // unidade sem nada a alertar
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -78,8 +78,10 @@ public class DashboardAttentionTests(PostgresFixture postgres) : IAsyncLifetime
     public async Task Master_ve_o_agregado_das_unidades_na_ordem_de_gravidade()
     {
         var r = await RunAsync(RoleNames.Master, null, new DashboardQuery(null, 7, null));
+        var month = await RunAsync(RoleNames.Master, null, new DashboardQuery(null, 30, null));
 
         Assert.Equal([IdleB, NoHistory, Sports("−6 pts")], r.Alerts); // Cultural no agregado: 13 de 15 = 87%
+        Assert.Equal([IdleB, NoHistory], month.Alerts); // "sem jogar" segue sendo 7 dias; Esportivo em 30 dias: 23 de 35 = 66%
         Assert.Equal([AttentionTarget.Students, AttentionTarget.Performance, AttentionTarget.Performance], r.Alerts.Select(a => a.Target));
     }
 
@@ -120,7 +122,7 @@ public class DashboardAttentionTests(PostgresFixture postgres) : IAsyncLifetime
         var b = await RunAsync(RoleNames.Master, null, new DashboardQuery(null, 7, _unitB.Id));
         var young = await RunAsync(RoleNames.Master, null, new DashboardQuery(AgeBand.Age6To7, 7, null));
 
-        Assert.Equal([IdleB, Sports("−6 pts")], b.Alerts); // Ambiental da unidade B: 13 de 20 = 65% exatos, sem alerta
+        Assert.Equal([IdleB, Sports("−6 pts")], b.Alerts); // Ambiental da unidade B: 20 de 31 = 65% na tela, sem alerta
         Assert.Equal([IdleA, NoHistory, Sports(Trend.NoBaseline)], young.Alerts); // os 12 anos saem: turma 5A da B e o período anterior
     }
 
