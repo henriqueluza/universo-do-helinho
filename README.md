@@ -19,6 +19,8 @@ bash scripts/demo.sh     # sobe o banco, aplica a migração, roda o seed e inic
 
 Painel em `http://localhost:5018`; API em `/api`. Passo a passo da apresentação, logins do seed e chamadas à API: [`docs/demo/roteiro-apresentacao.md`](docs/demo/roteiro-apresentacao.md).
 
+Logs: fora de `Development` o console sai em JSON, uma linha por evento, com timestamp em UTC e sem escopos (`Logging:Console` em `appsettings.json`); em `Development` continua o formato legível. SQL do EF Core e requisições do ASP.NET Core só aparecem a partir de `Warning`.
+
 ## Configuração do login da API
 
 `POST /api/login` aceita matrícula, usuário ou e-mail e devolve um token opaco Bearer (256 bits; só o hash SHA-256 fica no banco). Falha de credencial responde `401 invalid_credentials` (uniforme); aluno não aprovado, admin e master respondem `403 forbidden`. Chaves opcionais da seção `Api:Auth` (em `appsettings` ou variável de ambiente com `__`, ex.: `Api__Auth__TokenLifetime`):
