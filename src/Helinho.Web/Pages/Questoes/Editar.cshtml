@@ -23,13 +23,12 @@
     var explanation = Model.Input.Explanation?.Trim();
     if (explanation is { Length: > 160 }) { explanation = explanation[..160] + "…"; }
     var correct = Model.Input.Correct;
-    var filled = optionValues.All(v => !string.IsNullOrWhiteSpace(v));
     var checklist = new (string Label, bool Done)[]
     {
         ("Tema escolhido", quiz is not null),
         ("Faixa etária", age is not null),
         ("Enunciado escrito", !string.IsNullOrWhiteSpace(statement)),
-        ("4 alternativas preenchidas", filled),
+        ("4 alternativas preenchidas", optionValues.All(v => !string.IsNullOrWhiteSpace(v))),
         ("Alternativa correta marcada", correct is >= 0 and <= 3),
     };
 }
