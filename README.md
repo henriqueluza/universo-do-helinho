@@ -2,7 +2,7 @@
 
 Painel administrativo (Razor Pages + Bootstrap) e API do jogo Unity (Minimal APIs sob `/api`) num único host ASP.NET Core, em C# / .NET 10.
 
-> **Aviso:** todos os dados (seed, testes, exemplos) são **sintéticos**; não há dado pessoal real. O **deploy é da fase final** do projeto: este repositório roda apenas localmente.
+> **Aviso:** todos os dados (seed, testes, exemplos) são **sintéticos**; não há dado pessoal real. O único ambiente hospedado é a **homologação**, publicada só pelo Henrique (seção [Deploy](#deploy)); produção está desligada.
 
 ## Pré-requisitos
 
@@ -78,6 +78,16 @@ Para ela enxergar o esquema e o IP reais, ligue a seção `Proxy` (variável de 
 - `AllowedHosts` (chave do ASP.NET Core, hoje `*`) pode restringir os hosts aceitos; se for definida, inclua `healthcheck.railway.app`, o host do healthcheck.
 - O serviço não deve ter TCP Proxy público, e os demais serviços do mesmo projeto Railway alcançam o contêiner pela rede privada sem passar pela borda: eles são confiáveis por definição.
 
+## Deploy
+
+A homologação roda na Railway e é descrita pelo Terraform de `infra/railway/`. **Só o Henrique** cria token, roda `terraform plan` e `apply` e publica; agentes e o CI não fazem deploy.
+
+- Passo a passo (token, `apply`, primeiro deploy, rollback, backup, rotação e destruição): [`docs/operations/railway-runbook.md`](docs/operations/railway-runbook.md)
+- O que está no ar, URLs e usuários sintéticos de teste (sem senha): [`docs/operations/ambientes.md`](docs/operations/ambientes.md)
+- Decisão de hospedagem e custos: `docs/architecture/ADR-0002-hospedagem-railway.md` e `docs/operations/custos.md`
+
+Publicar uma versão: merge na `main` e, no painel da Railway, serviço `helinho-web` → `Cmd+K` → **Deploy Latest Commit**. Push na `main` não publica sozinho. Produção está desligada.
+
 ## Como testar
 
 ```bash
@@ -97,7 +107,7 @@ dotnet list package --vulnerable --include-transitive
 | `src/Helinho.Infrastructure` | EF Core/Npgsql, Identity, adaptadores |
 | `src/Helinho.Web` | Host: Razor Pages do painel e Minimal APIs em `/api` |
 | `tests/Helinho.UnitTests`, `IntegrationTests`, `ArchitectureTests` | Testes (NetArchTest.Rules valida as camadas) |
-| `docs/` | Arquitetura, contexto, produto, design, demo e handoffs |
+| `docs/` | Arquitetura, contexto, produto, design, demo, operações e handoffs |
 | `scripts/` | Scripts de apoio (demo, tamanho de PR) |
 | `compose.yaml` | PostgreSQL local |
 
