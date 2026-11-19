@@ -27,8 +27,8 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
     [GeneratedRegex(@"@import\s+url\(""\.\./lib/bootstrap/bootstrap\.min\.css""\)\s+layer\(bootstrap\)\s*;")]
     private static partial Regex BootstrapImport();
 
-    // O CSS só busca recurso por url(...) ou @import "...": nenhum dos dois pode apontar para fora (http:, https: ou //).
-    [GeneratedRegex(@"(?:url\(\s*|@import\s+)[""']?\s*(?:https?:)?//", RegexOptions.IgnoreCase)]
+    // O CSS busca recurso por url(...), image-set("...") ou @import "...": nenhum pode apontar para fora (http:, https: ou //).
+    [GeneratedRegex(@"(?:url\(\s*|image-set\(\s*|@import\s+)[""']?\s*(?:https?:)?//", RegexOptions.IgnoreCase)]
     private static partial Regex ExternalResource();
 
     [Fact]
@@ -129,6 +129,8 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
     [InlineData("@font-face { src: url(\"//cdn.example/f.woff2\"); }")]
     [InlineData("@import \"https://cdn.example/a.css\";")]
     [InlineData("@import url(https://cdn.example/a.css) layer(x);")]
+    [InlineData("a { background: URL(HTTPS://cdn.example/x.png); }")]
+    [InlineData("a { background-image: image-set(\"https://cdn.example/x.png\" 1x); }")]
     public void Detector_de_recurso_externo_pega_url_e_import_para_fora(string css) =>
         Assert.NotEmpty(ExternalResource().Matches(css));
 
