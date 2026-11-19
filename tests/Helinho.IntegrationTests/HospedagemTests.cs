@@ -21,6 +21,7 @@ public class HospedagemTests(PostgresFixture postgres)
     private const string Password = "Senha-Sintetica-1";
     private const string ClientA = "203.0.113.10";
     private const string ClientB = "203.0.113.20";
+    private const string Forged = "198.51.100.7";
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private WebApplicationFactory<Program> CreateFactory(string environment, bool trustProxy, int rateLimit = 1000) =>
@@ -41,21 +42,24 @@ public class HospedagemTests(PostgresFixture postgres)
     }
 
     /// <summary>Requisição como o proxy a entrega: HTTP puro, com o esquema e o IP do cliente em cabeçalhos.</summary>
-    private static HttpRequestMessage Proxied(HttpMethod method, string path, string? proto = "https", string? clientIp = null)
+    private static HttpRequestMessage Proxied(HttpMethod method, string path, string? proto = "https", params string[] realIp)
     {
         var request = new HttpRequestMessage(method, path);
         if (proto is not null) request.Headers.Add("X-Forwarded-Proto", proto);
-        if (clientIp is not null) request.Headers.Add("X-Real-IP", clientIp);
+        if (realIp.Length > 0) request.Headers.Add("X-Real-IP", realIp);
         return request;
     }
 
-    private static async Task<HttpStatusCode> ApiLoginAsync(HttpClient client, string clientIp, string? forgedForwardedFor = null)
+    /// <summary>Login inválido na API. Mais de um valor em <paramref name="realIp"/> simula o cabeçalho duplicado: o do cliente e, por último, o da borda.</summary>
+    private static async Task<HttpStatusCode> ApiLoginAsync(HttpClient client, string? forgedForwardedFor, params string[] realIp)
     {
-        using var request = Proxied(HttpMethod.Post, "/api/login", clientIp: clientIp);
+        using var request = Proxied(HttpMethod.Post, "/api/login", realIp: realIp);
         request.Content = JsonContent.Create(new { login = "inexistente", password = "errada" });
         if (forgedForwardedFor is not null) request.Headers.Add("X-Forwarded-For", forgedForwardedFor);
         return (await client.SendAsync(request, Ct)).StatusCode;
     }
+
+    private static Task<HttpStatusCode> ApiLoginAsync(HttpClient client, string realIp) => ApiLoginAsync(client, null, realIp);
 
     private static bool IsSecure(HttpResponseMessage response, string cookieName) =>
         response.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith(cookieName + "=", StringComparison.Ordinal))
@@ -67,7 +71,10 @@ public class HospedagemTests(PostgresFixture postgres)
         await using var factory = CreateFactory(Environments.Production, trustProxy: true);
         using var client = CreateClient(factory);
 
-        var panel = await client.GetAsync("/entrar", Ct);
+        // X-Forwarded-Host é do cliente e não é processado: o destino do redirecionamento sai do Host real.
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/entrar");
+        request.Headers.Add("X-Forwarded-Host", "malicioso.exemplo.test");
+        var panel = await client.SendAsync(request, Ct);
         var health = await client.GetAsync("/health", Ct);
         var ready = await client.GetAsync("/health/ready", Ct);
 
@@ -163,15 +170,15 @@ public class HospedagemTests(PostgresFixture postgres)
         }
 
         Assert.Equal(HttpStatusCode.TooManyRequests, await ApiLoginAsync(client, ClientA));
-        // X-Forwarded-For é do cliente: forjá-lo não troca de balde.
-        Assert.Equal(HttpStatusCode.TooManyRequests, await ApiLoginAsync(client, ClientA, forgedForwardedFor: "198.51.100.7"));
-        // Só o último valor (o escrito pela borda) conta: um valor injetado antes dele também não troca de balde.
-        Assert.Equal(HttpStatusCode.TooManyRequests, await ApiLoginAsync(client, $"198.51.100.7, {ClientA}"));
+        // X-Forwarded-For é do cliente e não é lido: forjá-lo não troca de balde.
+        Assert.Equal(HttpStatusCode.TooManyRequests, await ApiLoginAsync(client, forgedForwardedFor: Forged, ClientA));
+        // X-Real-IP forjado pelo cliente: só o último valor (o escrito pela borda) conta, então também não troca de balde.
+        Assert.Equal(HttpStatusCode.TooManyRequests, await ApiLoginAsync(client, null, Forged, ClientA));
         Assert.Equal(HttpStatusCode.Unauthorized, await ApiLoginAsync(client, ClientB));
     }
 
     [Fact]
-    public async Task Com_a_confianca_desligada_o_IP_encaminhado_nao_particiona_o_limite_de_taxa()
+    public async Task Com_a_confianca_desligada_X_Real_IP_forjado_nao_troca_de_balde_no_limite_de_taxa()
     {
         await using var factory = CreateFactory(Environments.Development, trustProxy: false, rateLimit: 3);
         await SeedAsync(factory);
