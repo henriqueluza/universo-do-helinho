@@ -34,6 +34,6 @@ EXPOSE 8080
 
 # A Railway injeta PORT em tempo de execução; sem PORT vale 8080. ASPNETCORE_HTTP_PORTS faz o Kestrel
 # escutar em todas as interfaces (0.0.0.0 e [::]). O tini repassa o SIGTERM ao dotnet e "$@" repassa os
-# argumentos: `docker run <imagem> seed`. A Railway substitui o ENTRYPOINT no pre-deploy; lá o comando
+# argumentos: `docker run <imagem> migrate`. A Railway substitui o ENTRYPOINT no pre-deploy; lá o comando
 # é `tini -- dotnet Helinho.Web.dll migrate`.
 ENTRYPOINT ["/usr/bin/tini", "--", "/bin/sh", "-c", "ASPNETCORE_HTTP_PORTS=\"${PORT:-8080}\" exec dotnet Helinho.Web.dll \"$@\"", "helinho"]

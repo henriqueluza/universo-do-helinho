@@ -28,11 +28,22 @@ docker build -t helinho-web .
 docker compose up -d --wait db     # banco local publicado em 127.0.0.1:5432
 docker run --rm -p 8080:8080 \
   -e ConnectionStrings__Default="Host=host.docker.internal;Port=5432;Database=helinho;Username=helinho;Password=$POSTGRES_PASSWORD" \
-  helinho-web                      # acrescente `seed` ao final para migrar e popular o banco
+  helinho-web                      # acrescente `migrate` ao final para aplicar as migrações
 curl http://localhost:8080/health
 ```
 
 `host.docker.internal` vale no Docker Desktop. Segredos entram só por variável de ambiente em tempo de execução; nada vai para a imagem.
+
+## Configuração do banco: `migrate`, `seed` e `Seed__Enabled`
+
+Aplicar migração e gravar dados sintéticos são passos separados. Os dois comandos encerram o processo ao terminar, sem subir o servidor:
+
+| Comando | O que faz | Código de saída |
+|---|---|---|
+| `dotnet run --project src/Helinho.Web -- migrate` | Aplica as migrações. Com `Seed__Enabled=true`, roda o seed em seguida; sem a flag, não toca em dados | `0` |
+| `dotnet run --project src/Helinho.Web -- seed` | Uso local: aplica as migrações e roda o seed, mas só com `Seed__Enabled=true`; sem a flag, recusa e não grava nada | `0`, ou `1` quando recusado |
+
+`Seed__Enabled` (chave `Seed:Enabled`) vem **desligada por padrão**: um ambiente que só define a string de conexão nunca recebe dados sintéticos. Ela é ligada em `appsettings.Development.json` e pelo `scripts/demo.sh`, então o fluxo local não muda. O seed é idempotente (rodar de novo não duplica dados) e exige `HELINHO_SEED_PASSWORD`. No deploy, `migrate` é o comando de pré-deploy.
 
 ## Configuração do login da API
 
