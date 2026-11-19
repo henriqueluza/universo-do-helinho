@@ -986,15 +986,3 @@
     .chart-table[open] .tscroll { animation: rise 360ms var(--ease-out); }
   }
 }
-
-/* PONTE (remover com o legado): o .auth do Recreio tem duas colunas (marca + formulário);
-   a marcação antiga só tem o cartão. Fica em screens para vencer o .auth de screens acima. */
-@layer screens {
-  .auth:not(:has(.auth-scene)) { grid-template-columns: minmax(0, 1fr); place-items: center; padding: 16px; }
-  /* o .auth do legado centraliza e põe 16px; a cena do Recreio ocupa a coluna inteira */
-  .auth:has(.auth-scene) { place-items: stretch; padding: 0; }
-  /* a ponte do legado dá margem inferior a todo .page-title; no Recreio o espaço vem do gap/.sub */
-  .page-head .page-title, .profile .page-title, .auth-card .page-title, .bare-card .page-title, .scene .page-title { margin-bottom: 0; }
-  /* o .kpi do Recreio termina no minigráfico (sem padding inferior); o cartão antigo não tem minigráfico */
-  .kpi:not(:has(.spark)) { padding-bottom: var(--sp-5); }
-}
