@@ -13,7 +13,7 @@ Regras deste repositório (somam-se a `~/.codex/AGENTS.md`; os padrões detalhad
 - **Framework:** ASP.NET Core, um único host: Razor Pages + Bootstrap (painel) e Minimal APIs sob `/api` (API do jogo Unity).
 - **Banco:** PostgreSQL com EF Core (Npgsql); local via `compose.yaml`; testes com Testcontainers.
 - **Identidade:** ASP.NET Core Identity; cookie no painel, token opaco Bearer na API.
-- **Hospedagem:** deploy planejado para a fase final. Não crie Dockerfile de produção, CD nem configuração de provedor sem Issue própria.
+- **Hospedagem:** Railway, gerenciada por Terraform em `infra/` (ADR em `docs/architecture/ADR-0002-hospedagem-railway.md`; custos em `docs/operations/custos.md`). `terraform plan`, `apply`, deploy e criação de recurso, conta ou token são só do Henrique; agentes escrevem o código e rodam `fmt`, `init -backend=false`, `validate` e `tflint`. Dockerfile, `railway.toml` e Terraform entram cada um por Issue própria (o ADR-0002 registra que a Railway descontinuou o `railway.toml`: não crie esse arquivo sem decisão do Henrique).
 - **Nível de arquitetura:** `clean` (ADR em `docs/architecture/ADR-0001-stack.md`): `Helinho.Domain`, `Helinho.Application`, `Helinho.Infrastructure`, `Helinho.Web`; teste de arquitetura com NetArchTest.Rules.
 - **Contexto obrigatório antes de implementar:** `docs/context/rotas-api.md` (contrato do jogo e as 8 regras do JsonUtility), `docs/context/propostas-contrato-api.md` (P1–P16) e `docs/product/PRD.md`.
 - **Dados:** só dados sintéticos em seed, testes e exemplos. Nunca dado pessoal real.
@@ -26,13 +26,7 @@ Regras deste repositório (somam-se a `~/.codex/AGENTS.md`; os padrões detalhad
 
 ## Proibido
 - Merge em main, deploy, `git push --force`, remover/pular testes para o CI passar, editar `.github/workflows` sem autorização explícita, ler `.env`/segredos.
-
-## Sprint do MVP (regra temporária — até a demonstração de 10/11/2026)
-
-- **Orçamento de tamanho: 800 linhas por PR** (o limite em que o CI reprova), em vez das 400 de `size:m`. Entre 400 e 800 linhas, abra o PR normalmente e registre o tamanho na seção Escopo; **não pare, não aplique `needs-human` e não crie sub-Issues por causa do tamanho**. Acima de 800, divida em dois PRs em sequência na mesma Issue-mãe (crie as sub-Issues e siga para a primeira), sem esperar decisão humana.
-- **Revisão:** PR entre 400 e 800 linhas **não é achado bloqueante** neste sprint. Continua bloqueante PR que mistura propósitos.
-- Migrações do EF Core (`**/Migrations/*.cs`) são código gerado e não contam no tamanho.
-- Depois da demonstração esta seção é removida e volta a valer o orçamento de `size:m`.
+- **Autorização vigente (Henrique, Sprint 1):** criar `.github/workflows/infra.yml` com `terraform fmt -check`, `terraform init -backend=false`, `terraform validate` e `tflint`. Esse workflow não roda `plan` nem `apply`, não lê segredo e só dispara em PR que toca `infra/**`. Nenhum outro workflow muda.
 
 ## Design no sprint do MVP (protocolo reduzido — decisão do Henrique em 10/11/2026)
 
