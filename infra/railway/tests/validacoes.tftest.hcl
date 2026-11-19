@@ -80,7 +80,7 @@ run "recusa_senha_fraca" {
   command = plan
 
   variables {
-    seed_password = "senhafraca"
+    seed_password = "fraca"
   }
 
   expect_failures = [var.seed_password]

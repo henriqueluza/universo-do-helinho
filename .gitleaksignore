@@ -1,0 +1,3 @@
+# Falso positivo: valor sintético e propositalmente inválido do caso "recusa_senha_fraca" (Issue #109), já trocado.
+# O commit some no squash do PR; esta linha pode sair depois do merge.
+df54c55f03597165d56eb747246c242722932703:infra/railway/tests/validacoes.tftest.hcl:hashicorp-tf-password:83
