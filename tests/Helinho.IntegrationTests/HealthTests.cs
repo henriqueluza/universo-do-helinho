@@ -53,8 +53,7 @@ public class HealthTests(PostgresFixture postgres)
         var health = await client.GetAsync("/health", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, ready.StatusCode);
-        // Corpo exato: nada de exceção, connection string ou host.
-        Assert.Equal(Unavailable, await ready.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(Unavailable, await ready.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)); // corpo exato: sem exceção, connection string ou host
         Assert.Equal(HttpStatusCode.OK, health.StatusCode);
         Assert.Equal(Ok, await health.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
@@ -62,9 +61,8 @@ public class HealthTests(PostgresFixture postgres)
     [Fact]
     public async Task Banco_que_nao_responde_ready_devolve_503_no_tempo_limite()
     {
-        // Aceita a conexão TCP e nunca responde ao protocolo: só o tempo limite da rota encerra a consulta.
         using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
+        listener.Start(); // aceita a conexão TCP e nunca responde ao protocolo: só o tempo limite da rota encerra a consulta
         await using var factory = new HelinhoWebFactory(postgres);
         using var client = ClientWithDatabaseAt(factory, ((IPEndPoint)listener.LocalEndpoint).Port, connectTimeoutSeconds: 60);
 
