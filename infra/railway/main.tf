@@ -1,2 +1,20 @@
-# Recursos da Railway (projeto, ambiente, serviço, banco, variáveis).
-# Este arquivo nasce vazio: os recursos entram em Issue própria.
+# Um projeto Railway por ambiente (ADR-0002 §5.2): o provider só lê serviço e volume no ambiente padrão do projeto.
+module "ambiente" {
+  source   = "./modules/ambiente"
+  for_each = var.ambientes
+
+  nome                   = each.key
+  workspace_id           = var.workspace_id
+  aspnetcore_environment = each.value.aspnetcore_environment
+  subdominio             = coalesce(each.value.subdominio, "helinho-${each.key}")
+  repositorio            = var.repositorio
+  branch                 = var.branch
+  auto_deploy            = var.auto_deploy
+  regiao                 = var.regiao
+  serverless             = var.serverless
+  postgres_imagem        = var.postgres_imagem
+  seed_enabled           = each.value.seed_enabled
+  seed_password          = each.value.seed_enabled ? var.seed_password : null
+  variaveis_web          = var.variaveis_web
+  segredos_web           = { Brevo__ApiKey = var.brevo_api_key, Ai__ApiKey = var.ai_api_key }
+}
