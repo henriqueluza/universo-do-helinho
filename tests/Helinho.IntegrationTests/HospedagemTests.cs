@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Helinho.Domain;
 using Helinho.Infrastructure.Persistence;
 using Helinho.Infrastructure.Seeding;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -68,7 +69,9 @@ public class HospedagemTests(PostgresFixture postgres)
     [Fact]
     public async Task Fora_de_Development_http_redireciona_para_https_e_as_rotas_de_saude_nao()
     {
-        await using var factory = CreateFactory(Environments.Production, trustProxy: true);
+        // /health/ready nasce na Issue #96: até lá, uma rota de teste ocupa o lugar dela, depois do filtro da área.
+        await using var factory = CreateFactory(Environments.Production, trustProxy: true)
+            .WithWebHostBuilder(b => b.ConfigureServices(s => s.AddTransient<IStartupFilter, ProbeRoutes>()));
         using var client = CreateClient(factory);
 
         // X-Forwarded-Host é do cliente e não é processado: o destino do redirecionamento sai do Host real.
@@ -77,13 +80,15 @@ public class HospedagemTests(PostgresFixture postgres)
         var panel = await client.SendAsync(request, Ct);
         var health = await client.GetAsync("/health", Ct);
         var ready = await client.GetAsync("/health/ready", Ct);
+        var probe = await client.GetAsync("/sonda", Ct);
 
         Assert.Equal(HttpStatusCode.TemporaryRedirect, panel.StatusCode);
         Assert.Equal($"https://{Host}/entrar", panel.Headers.Location!.OriginalString);
         Assert.False(panel.Headers.Contains("Strict-Transport-Security"));
         Assert.Equal(HttpStatusCode.OK, health.StatusCode);
-        // /health/ready nasce na Issue #96; aqui só importa que o prefixo não é redirecionado.
-        Assert.False((int)ready.StatusCode is >= 300 and < 400);
+        Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
+        // A mesma rota de teste fora do prefixo é redirecionada: o 200 acima vem da exceção de /health, não da rota.
+        Assert.Equal(HttpStatusCode.TemporaryRedirect, probe.StatusCode);
     }
 
     [Fact]
@@ -128,8 +133,8 @@ public class HospedagemTests(PostgresFixture postgres)
     }
 
     /// <summary>
-    /// Em Development o cookie do painel segue o esquema da requisição (SameAsRequest): ele só sai Secure se o
-    /// esquema já estiver corrigido quando a autenticação roda, o que prova a ordem do pipeline.
+    /// Em Development o cookie do painel segue o esquema da requisição (SameAsRequest), então ele e o desafio do
+    /// cookie (emitido pelo middleware de autorização) só saem em https se o esquema já chegar corrigido até eles.
     /// </summary>
     [Theory]
     [InlineData("https", true)]
@@ -141,6 +146,8 @@ public class HospedagemTests(PostgresFixture postgres)
         var user = await CreateAdminAsync(factory);
         using var client = CreateClient(factory);
 
+        using var anonymous = Proxied(HttpMethod.Get, "/", proto);
+        var challenge = await client.SendAsync(anonymous, Ct);
         using var get = Proxied(HttpMethod.Get, "/entrar", proto);
         var html = await (await client.SendAsync(get, Ct)).Content.ReadAsStringAsync(Ct);
         var token = Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
@@ -153,6 +160,7 @@ public class HospedagemTests(PostgresFixture postgres)
         });
         var response = await client.SendAsync(post, Ct);
 
+        Assert.StartsWith($"{proto ?? "http"}://{Host}/entrar", challenge.Headers.Location!.OriginalString, StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal(secure, IsSecure(response, "helinho.panel"));
     }
@@ -190,6 +198,16 @@ public class HospedagemTests(PostgresFixture postgres)
         }
 
         Assert.Equal(HttpStatusCode.TooManyRequests, await ApiLoginAsync(client, ClientB));
+    }
+
+    private sealed class ProbeRoutes : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            app.Map("/health/ready", branch => branch.Run(_ => Task.CompletedTask));
+            app.Map("/sonda", branch => branch.Run(_ => Task.CompletedTask));
+            next(app);
+        };
     }
 
     private static async Task<string> CreateAdminAsync(WebApplicationFactory<Program> factory)
