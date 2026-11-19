@@ -35,7 +35,8 @@ public class PersistenceTests(PostgresFixture postgres)
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
 
         Assert.False(db.Database.HasPendingModelChanges());
-        Assert.Single(db.Database.GetMigrations());
+        // InitialCreate + AddDataProtectionKeys (Issue #103, ADR-0002 §9): a única exceção ao schema congelado.
+        Assert.Equal(2, db.Database.GetMigrations().Count());
     }
 
     [Fact]

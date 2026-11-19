@@ -1,6 +1,7 @@
 using Helinho.Application.Abstractions;
 using Helinho.Domain;
 using Helinho.Domain.Entities;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,7 @@ namespace Helinho.Infrastructure.Persistence;
 
 /// <summary>Contexto único do sistema: Identity + entidades do domínio.</summary>
 public partial class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser currentUser)
-    : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>(options), IAppDbContext
+    : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>(options), IAppDbContext, IDataProtectionKeyContext
 {
     // Propriedades do contexto: o EF as transforma em parâmetros do filtro global.
     private bool SeesAllUnits => currentUser.IsInRole(RoleNames.Master);
@@ -59,6 +60,9 @@ public partial class AppDbContext(DbContextOptions<AppDbContext> options, ICurre
     public DbSet<ApiSession> ApiSessions => Set<ApiSession>();
 
     public DbSet<PushToken> PushTokens => Set<PushToken>();
+
+    /// <summary>Chaves do Data Protection (ADR-0002 §9). Infraestrutura: fora de <see cref="IAppDbContext"/>, de DTOs e de rotas.</summary>
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
