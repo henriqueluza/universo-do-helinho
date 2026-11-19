@@ -72,6 +72,8 @@ Três fatos do código pesam nas decisões:
 | F17 | Data Protection: nome da aplicação, validade das chaves, contêiner | https://learn.microsoft.com/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-10.0 |
 | F18 | Limite de taxa em Razor Pages | Context7 `/dotnet/aspnetcore.docs`: `aspnetcore/performance/rate-limit.md` |
 | F19 | IP de saída fixo na Railway | https://docs.railway.com/networking/static-outbound-ips |
+| F20 | Recuperação de senha: resposta e tempo consistentes, token na URL, `no-referrer`, limite por conta, aviso depois da troca | https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html |
+| F21 | Política de senha padrão do Identity | Context7 `/dotnet/aspnetcore.docs`: `aspnetcore/security/authentication/identity-configuration.md` |
 
 O que não foi possível confirmar está na seção 17. A central de ajuda da Brevo (`help.brevo.com`) respondeu 403 à leitura automática; o que depende dela está marcado.
 
@@ -404,7 +406,7 @@ Tokens do Identity, protegidos pelo Data Protection. Conferido em F14: o token c
 Definir a senha passa por `UpdatePasswordHash`, que troca o carimbo de segurança (F14). O token usado, e qualquer outro emitido antes para a mesma conta, deixa de valer.
 
 - **Reenviar o convite invalida o anterior:** o reenvio troca o carimbo (`UpdateSecurityStampAsync`) antes de enfileirar, e cancela convites ainda pendentes da mesma conta.
-- **Pedir redefinição não troca o carimbo.** Se trocasse, qualquer pessoa derrubaria a sessão de um administrador só por digitar o e-mail dele. Vários links de redefinição podem coexistir por até 1 hora; o primeiro usado mata os outros.
+- **Pedir redefinição não troca o carimbo.** Se trocasse, qualquer pessoa derrubaria a sessão de um administrador só por digitar o e-mail dele. É também a orientação da OWASP: nada muda na conta antes de um token válido ser apresentado (F20). Vários links de redefinição podem coexistir por até 1 hora; o primeiro usado mata os outros.
 - Depois da troca, as outras sessões do painel caem em até 30 minutos, que é o intervalo padrão do validador de carimbo do cookie (F16).
 - **A redefinição não mexe no bloqueio da conta.** `ResetPasswordAsync` não limpa o bloqueio (F14), e o bloqueio é também o que define "administrador ativo" (`CriarAdministradorHandler.cs:52`). Conta bloqueada recebe o e-mail como qualquer outra e continua bloqueada até o prazo acabar.
 
@@ -414,6 +416,8 @@ Definir a senha passa por `UpdatePasswordHash`, que troca o carimbo de seguranç
 - Formato: `https://<base>/conta/definir-senha?usuario=<id>&token=<token>`. `usuario` é o **id** (UUID), não a matrícula nem o e-mail: nada de dado pessoal na URL. O token vai em Base64 seguro para URL.
 - **O `GET` não consome o token.** Filtros de e-mail abrem os links antes da pessoa; só o `POST` com a senha nova usa o token. A página põe o token em campo oculto, responde com `Referrer-Policy: no-referrer` e não carrega recurso de terceiros.
 - Token inválido ou vencido leva a uma saída clara ("pedir novo link"), com a mesma mensagem para qualquer causa.
+
+**Token na query string é exceção registrada.** A ASVS 5.0 (14.2.1, citada na skill `owasp-security`) pede que dado sensível não vá em URL. O guia de recuperação de senha da OWASP (F20) descreve justamente o token na query string, com uso único, validade curta, `no-referrer` e sem depender do cabeçalho `Host`, e é assim que o Identity trabalha. Mitigações adotadas: as desta seção, mais um script pequeno que tira o token da barra de endereço depois de carregar a página (`history.replaceState`), para ele não ficar no histórico do navegador. A aplicação não registra a URL das requisições (`Microsoft.AspNetCore` em `Warning`, `appsettings.json:5`); o registro de acesso da Railway é o item 11 da seção 17. Alternativa descartada: token no fragmento (`#`), que nunca chega ao servidor mas exige JavaScript para funcionar e depende de cada cliente e filtro de e-mail preservar o fragmento, com um público de responsáveis que não tem a quem recorrer se o link quebrar. Aceitar a exceção é decisão do Henrique (D13).
 
 ### 10.4 Dependência do Data Protection
 
@@ -459,7 +463,9 @@ Continuam elegíveis só contas `Master` e `Admin`. Aluno não pede redefiniçã
 
 ### 11.3 Página `/conta/definir-senha`
 
-Uma página só para convite, redefinição e acesso do aluno, na pasta `/Conta`, que já é anônima (`Panel.cs:57`). Política de senha do Identity, confirmação e erros no padrão `#resumo-erros`. O token é validado contra os dois provedores; nada na URL diz o tipo. Depois de definir a senha, enfileira o aviso "sua senha foi alterada" (para o responsável, no caso do aluno). Limite por IP no `POST`: 10 a cada 15 minutos.
+Uma página só para convite, redefinição e acesso do aluno, na pasta `/Conta`, que já é anônima (`Panel.cs:57`). Política de senha do Identity, confirmação e erros no padrão `#resumo-erros`. O token é validado contra os dois provedores; nada na URL diz o tipo. Depois de definir a senha, enfileira o aviso "sua senha foi alterada" (para o responsável, no caso do aluno) e manda para a tela de entrar: **não faz login automático** (F20). Limite por IP no `POST`: 10 a cada 15 minutos.
+
+A política de senha em vigor é a padrão do Identity: 6 caracteres, com maiúscula, minúscula, dígito e símbolo (F21; `Panel.cs` não a altera). A ASVS 5.0 pede o contrário em dois pontos: mínimo de 8 e nenhuma regra de composição (6.2.1 e 6.2.5), além de recusar senhas comuns (6.2.4). Esta sprint **não muda a política**: mudá-la mexe no seed, nos testes e na mensagem de erro de todas as telas, e é assunto próprio (D14).
 
 ### 11.4 Acesso do aluno, para o responsável (`PROPOSTA`)
 
@@ -581,8 +587,10 @@ O plano gratuito comporta cerca de **150 alunos liberados por dia**. O ADR-0001 
 | D10 | Renderizador | **Modelo com substituição** (8.2) | Razor de e-mail |
 | D11 | Cancelar convite e e-mail único entre contas do painel | **Incluir na Issue do convite** (11.2) | deixar para depois e corrigir e-mail errado direto no banco |
 | D12 | Envio automático ao aprovar o aluno | **Sim, além do botão** (11.4) | só pelo botão |
+| D13 | Token do link na query string, exceção à ASVS 14.2.1 | **Aceitar, com as mitigações da seção 10.3** (é o padrão do Identity e do guia da OWASP) | token no fragmento (`#`), com JavaScript obrigatório |
+| D14 | Política de senha (hoje 6 caracteres com regras de composição) | **Não mudar nesta sprint; abrir Issue própria** para alinhar à ASVS (mínimo 8, sem composição, lista de senhas comuns) | mudar junto com a página de definir senha |
 
-D4, D5, D6, D9 e D12 dependem também do Marcos; as perguntas estão em `docs/context/pendencias.md`. O código nasce com a recomendação marcada `PROPOSTA`, e trocar qualquer uma delas não pede migração (D5 inclusive: a coluna é anulável).
+D4, D5, D6, D9, D12 e D14 dependem também do Marcos; as perguntas estão em `docs/context/pendencias.md`. O código nasce com a recomendação marcada `PROPOSTA`, e trocar qualquer uma delas não pede migração (D5 inclusive: a coluna é anulável).
 
 **O que não depende destas decisões e pode andar em paralelo:** adaptador HTTP com as opções e a validação na subida, renderizador e modelos, provedores de token e a página `/conta/definir-senha`, variáveis do Terraform e runbook.
 
@@ -603,7 +611,7 @@ D4, D5, D6, D9 e D12 dependem também do Marcos; as perguntas estão em `docs/co
 
 ## 18. Plano de Issues da sprint
 
-**Só as Issues 1 e 2 geram migração. Nenhuma acrescenta pacote.**
+**Só as Issues 1 e 2 geram migração. Nenhuma acrescenta pacote.** As duas migrações só acrescentam (uma tabela nova e uma coluna anulável): a versão anterior da aplicação continua funcionando sobre o banco migrado, como pede a `devops-standards`.
 
 | # | Issue | Tipo | Depende de |
 |---|---|---|---|
@@ -645,6 +653,7 @@ A Issue 13 (#184) é defeito que já existe na `main` e independe da sprint; est
 | Razor de e-mail; biblioteca de modelos | seção 8.2 |
 | `AddDefaultTokenProviders` | seção 10.1 |
 | Token próprio (aleatório, com hash em tabela) | mais uma migração e mais código nosso em caminho sensível, para refazer o que o Identity entrega |
+| Token do link no fragmento da URL | seção 10.3 |
 | Segredo do webhook na URL; lista de IPs da Brevo | seção 12; as faixas mudam e são mais um item a manter |
 | E-mail do responsável único, ou como login do aluno | seção 9 |
 | Senha provisória do aluno definida pelo administrador | seção 11.4 |
@@ -658,6 +667,7 @@ A Issue 13 (#184) é defeito que já existe na `main` e independe da sprint; est
 - Um mecanismo de fila para e-mail e para os trabalhos de IA da Sprint 4.
 - Sem chave, tudo continua funcionando com o envio fake; com configuração pela metade, a aplicação recusa subir em vez de falhar no primeiro e-mail.
 - Uma chave errada ou uma cota esgotada não queima a fila.
+- Há um freio simples: voltar `Email__Provider` para `Fake` desliga o envio real sem mudar código.
 
 **Negativas e riscos**
 

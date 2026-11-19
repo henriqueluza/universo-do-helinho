@@ -20,7 +20,7 @@ Perguntas que o Henrique leva ao Marcos (contratante). Enquanto não houver resp
 | M10 | O que vai no rodapé dos e-mails: nome oficial da instituição, endereço e canal de contato? | Todo e-mail precisa identificar quem envia e dar um contato | Nome "FUNDHAS" e um marcador de contato a preencher (ADR-0003 §8.3) | C15 | |
 | M11 | Ao marcar a aprovação do responsável, o e-mail de acesso deve sair sozinho, ou só quando o administrador clicar em "Enviar acesso"? Quem registra essa aprovação? | Envio automático evita esquecimento; envio manual evita e-mail antes da hora | Sai sozinho quando a aprovação é marcada, e o botão continua existindo para reenviar (ADR-0003 §11.4) | A01 | |
 | M12 | A Brevo é aceita como fornecedor para tratar o e-mail do responsável e o primeiro nome do aluno? | Os dados passam por servidores fora do Brasil (Brevo e Railway). Antes de dado real, isso pede contrato de tratamento de dados e registro | Só dado sintético até a resposta | C14, C20 | |
-| M13 | A regra de senha dos alunos pode ser mais simples que a dos administradores? | A regra atual (maiúscula, minúscula, número e símbolo) é difícil para crianças de 6 a 14 anos, mesmo com o responsável definindo | A mesma regra para todos | — | |
+| M13 | A regra de senha dos alunos pode ser diferente da dos administradores? | A regra atual (6 caracteres, com maiúscula, minúscula, número e símbolo) é difícil para crianças de 6 a 14 anos, mesmo com o responsável definindo. A recomendação de segurança atual é outra: senha mais longa e sem exigir tipos de caractere | A mesma regra de hoje para todos, sem mudança nesta sprint (ADR-0003 §11.3, D14) | — | |
 
 ## O que o Henrique precisa ter em mãos para ligar o envio real
 
