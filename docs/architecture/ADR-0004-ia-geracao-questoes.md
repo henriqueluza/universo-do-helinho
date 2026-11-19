@@ -1,7 +1,7 @@
 # ADR-0004 — IA na geração de rascunhos de questões
 
 **Data:** 19/11/2026 · **Status:** proposto (aguarda o Henrique; ver seção 16) · **Decisor:** Henrique
-**Issue:** #177 · **Base:** ADR-0001 (stack, portas e fakes, risco R3), PRD (B6 e seção 6), `docs/design/GUIA-DE-EVOLUCAO.md` §3.3 e §3.3.1
+**Issue:** #177 · **Base:** ADR-0001 (stack, portas e fakes, risco R3), ADR-0003 (fila `QueueJobs`, ainda proposto, PR #185), PRD (B6 e seção 6), `docs/design/GUIA-DE-EVOLUCAO.md` §3.3 e §3.3.1
 
 **Nível de arquitetura:** `clean` (ADR-0001, seção 3). Este ADR não muda o nível.
 
@@ -23,7 +23,7 @@ A geração por IA está no PRD como "fora do MVP, dentro do contrato" (PRD, se�
 
 **Três fatos do código que condicionam este ADR:**
 
-1. **Não existe fila nem `BackgroundService` em `main`.** O ADR-0001 chegou a escrever que "não há caso para consistência eventual, cache distribuído ou fila" (ADR-0001, seção 1, "Dados"). As Sprints 3 e 4 mudam isso: o envio de e-mail e a geração por IA são trabalhos demorados e sujeitos a falha de terceiros. A fila persistente é decidida no ADR-0003 (Issue #176), que estava em escrita quando este ADR foi fechado; a seção 10 diz o que a IA exige dela.
+1. **Não existe fila nem `BackgroundService` em `main`.** O ADR-0001 diz, em `docs/architecture/ADR-0001-stack.md:23`: "Um PostgreSQL único resolve; não há caso para consistência eventual, cache distribuído ou fila." As Sprints 3 e 4 trazem o caso que não existia: o envio de e-mail e a geração por IA são trabalhos demorados e sujeitos a falha de terceiros. A fila persistente é decidida no **ADR-0003** (Issue #176, PR #185): uma tabela genérica `QueueJobs` no mesmo PostgreSQL. Este ADR não cria fila; a seção 10 confronta o que a IA precisa com o que o ADR-0003 propõe e lista os ajustes pedidos a ele.
 2. **Não existe tabela de auditoria.** O PRD deixa "auditoria completa" fora do escopo. "Quem gerou, quem aprovou e quem descartou" fica nas próprias tabelas da IA (seção 9), sem módulo de auditoria novo.
 3. **`Question` não tem data de criação nem autor.** A proveniência entra por migração (seção 9).
 
@@ -55,6 +55,7 @@ A geração por IA está no PRD como "fora do MVP, dentro do contrato" (PRD, se�
 | F22 | `https://genai.owasp.org/llm-top-10/` | OWASP Top 10 para aplicações com LLM (edição 2025, a publicada na data) |
 | F23 | skill `claude-api` do Claude Code (tabela de modelos em cache de 03/11/2026) e guia de C# da mesma skill | conferência cruzada de modelo, preço e forma do SDK |
 | F24 | skill `owasp-security` do repositório (`.claude/skills/owasp-security/SKILL.md`) | lista de riscos de LLM usada pela revisão da casa |
+| F25 | ADR-0003, lido em `origin/issue-176-adr-emails-brevo:docs/architecture/ADR-0003-emails-brevo.md` (PR #185, status "proposto") | fila `QueueJobs`, trabalhador e o que ele prevê para a Sprint 4 |
 
 **Como ler estas fontes.** F1, F2, F4, F6, F7, F8, F10 e F11 foram lidas no texto integral da página. F3 e F13 foram lidas no texto integral, por busca nos trechos relevantes. F5 e F9 foram lidas em duas partes (a primeira parte resumida pela ferramenta de leitura, a segunda integral). **F12 e F14 a F22 chegaram como resumo feito pela ferramenta de leitura**, não como texto integral: os números vindos delas (preços da OpenAI e do Google, prazos de retenção, datas) precisam ser conferidos por uma pessoa na página antes de irem à contratante. A seção 18 lista o que não foi possível confirmar.
 
@@ -69,7 +70,7 @@ A geração por IA está no PRD como "fora do MVP, dentro do contrato" (PRD, se�
 | Saída do modelo | Dado não confiável: análise estrita, validação e deduplicação em `Application`, iguais para qualquer provedor; nunca `Html.Raw` (seção 8). |
 | Onde vivem os rascunhos | **Tabela de sugestões ligada ao job.** A sugestão só vira `Question` quando alguém aprova ou edita e salva (seção 9). |
 | Proveniência | `Question.Origin` (`Team` \| `Ai`), `AiJobId`, `PromptVersion`, `GeneratedAt`, por migração em Issue própria. Origem IA nunca volta a `Team` (seção 9). |
-| Fila | Reaproveitar a fila persistente do ADR-0003, com os requisitos da seção 10. Se ela não existir, fila genérica em Issue e migração próprias. |
+| Fila | Usar a `QueueJobs` do ADR-0003, com o tipo `ai.question-drafts` e um tratador, sem migração de fila nesta sprint. Sete ajustes pedidos ao ADR-0003 (seção 10.4). |
 | Privacidade | Nenhum dado de aluno, administrador ou unidade vai ao provedor. Invariante com teste (seção 11). |
 | Ameaças | Injeção de prompt e demais riscos de LLM tratados na seção 12; pior caso = rascunho ruim que a pessoa descarta. |
 | Custos | Cota por administrador, teto global, máximo de 20 por pedido, registro de uso por job, limite de gasto no console do provedor (seção 13). |
@@ -104,7 +105,9 @@ public sealed record QuestionDraftBatch(
     string PromptVersion,
     AiUsage Usage);
 
-public sealed record AiUsage(string Provider, string Model, int InputTokens, int OutputTokens, TimeSpan Duration);
+public sealed record AiUsage(
+    string Provider, string Model, int InputTokens, int OutputTokens, TimeSpan Duration,
+    string? ProviderRequestId = null);          // o `request-id` do provedor, quando houver
 ```
 
 Regras:
@@ -172,7 +175,7 @@ Em `src/Helinho.Infrastructure/Fakes/`, como os fakes de e-mail e push.
 5. Prazo: o token de cancelamento recebido, com teto de `Ai__TimeoutSeconds`.
 6. **Tentativas: só 429 e 5xx (incluindo 529)**, no máximo duas repetições, com espera exponencial e `retry-after` quando vier, sempre dentro do prazo total. **Não repete:** 400, 401, 402, 403, 404, 413; o 429 de teto de gasto (`enforced_spend_limit_reached`, que não tem `retry-after`); o 400 de limite de gasto próprio; e recusa.
 7. Mapeia a resposta: `stop_reason = "end_turn"` → analisa o JSON com o analisador comum (seção 8); `"max_tokens"` → `InvalidOutput`; `"refusal"` → `Refused`; 401/403/404 → `Misconfigured`; 429 → `RateLimited`; 5xx, 529 e limite de gasto → `ProviderUnavailable`; cancelamento pelo prazo → `Timeout`.
-8. Preenche `AiUsage` com `model` e `usage` da resposta e a duração medida.
+8. Preenche `AiUsage` com `model` e `usage` da resposta, a duração medida e o `request-id` do cabeçalho de resposta.
 
 ### 6.3 Esquema de saída
 
@@ -328,30 +331,98 @@ Essa tabela **é o registro de uso por job** que a Issue pede (tokens, modelo, q
 
 Uma questão de origem IA continua "IA" depois de editada. Para o selo distinguir "Sugerida pela IA" de "Editada a partir da IA" é preciso saber se houve edição humana, e isso **não sai das quatro colunas da Issue**: a sugestão registra a edição feita na entrada, mas não uma edição posterior de uma questão já aprovada. A recomendação é uma quinta coluna, `AiEditedAt` (data e hora, nula), preenchida por `Question.Update` quando `Origin == Ai`, **na mesma migração**, para não abrir uma segunda migração se a proposta do selo for aceita. É a decisão D5.
 
-## 10. Fila: o que a IA exige do ADR-0003
+## 10. Fila: a `QueueJobs` do ADR-0003
 
-Quando este ADR foi fechado, a branch `issue-176-adr-emails-brevo` ainda não existia no remoto; não foi possível ler o ADR-0003. O que segue são **requisitos para ele**. Quem aceitar os dois ADRs confere se batem.
+A fila é decidida no **ADR-0003** (PR #185, `docs/architecture/ADR-0003-emails-brevo.md`, seções 5 e 6), lido na branch `issue-176-adr-emails-brevo` em 19/11/2026, ainda com status "proposto". Este ADR não cria fila: usa a dele. As referências abaixo são às seções do ADR-0003.
 
-| # | Requisito | Por quê |
-|---|---|---|
-| Q1 | Tabela de jobs genérica, com `Kind` (texto) e `Payload` pequeno; um manipulador por `Kind`, registrado por DI | A IA entra como um `Kind` novo, sem migração na fila |
-| Q2 | **Um job por pedido**; o identificador é devolvido a quem enfileirou | A tela consulta o andamento por identificador |
-| Q3 | Estados `Pending` → `Processing` → `Succeeded` \| `Failed`, com `Attempts`, `MaxAttempts` por `Kind` e `AvailableAt` para a espera entre tentativas | Para a IA, `MaxAttempts = 2`: a segunda existe para o processo que morreu no meio, não para insistir em saída ruim |
-| Q4 | Reserva com `FOR UPDATE SKIP LOCKED` e prazo de posse (`LockedUntil`); job cuja posse venceu volta à fila | Deploy ou queda no meio da geração não pode deixar a tela em "gerando" para sempre |
-| Q5 | O manipulador recebe `CancellationToken` e roda em escopo de DI próprio | O prazo de `Ai__TimeoutSeconds` precisa cancelar a chamada |
-| Q6 | O manipulador pode gravar seu resultado e concluir o job **na mesma transação** | Tentativa repetida não pode duplicar sugestões |
-| Q7 | Falha registra um **código curto**, nunca corpo de requisição, texto gerado ou dado pessoal | Regra de log da casa |
-| Q8 | O `Payload` da IA carrega só o identificador do `AiGenerationJob` | Assunto e parâmetros ficam em uma tabela só |
-| Q9 | Intervalo de varredura de poucos segundos e um trabalhador por instância bastam | Volume de dezenas de jobs por dia |
-| Q10 | Sem dependência nova (nada de Hangfire, Quartz ou serviço de mensageria) | Contrato congelado; um PostgreSQL já resolve |
+### 10.1 O que o ADR-0003 propõe
 
-**Fonte da verdade para a tela.** O estado que a tela mostra é o de `AiGenerationJobs`; a linha da fila é só o transporte. O manipulador `ProcessAiDraftJob` lê o job, chama o gerador com o prazo, valida, grava as sugestões e os contadores e conclui, tudo em uma transação.
+- **Tabela genérica `QueueJobs`** (§5.1): `Id`, `Type`, `SubjectId`, `Payload` (jsonb, com versão), `Status` (`Pending`, `Processing`, `Succeeded`, `Failed`, `Cancelled`), `Attempts`, `NextAttemptAt`, `ExpiresAt`, `LastError` (código de vocabulário fechado), `IdempotencyKey` (única), `ExternalId`, `Feedback`, `FeedbackAt`, `CreatedAt`, `FinishedAt`.
+- **Portas:** `IJobQueue.Enqueue(...)`, que acrescenta a linha ao contexto **sem salvar** (§5.5); `IJobProcessor`, chamado em laço por um `BackgroundService` pequeno em `Web` (§6.1); um tratador `IJobHandler` por tipo, que devolve sucesso, repetir, falhar ou suspender.
+- **Captura** com `FOR UPDATE SKIP LOCKED`; `NextAttemptAt` faz também o papel de prazo de posse (2 minutos no e-mail); a tentativa é contada ao capturar (§6.1).
+- **Repetição** (§6.2): espera de `min(1 min × 2^(n−1), 60 min)`, teto de **8 tentativas** (`Fila__MaxAttempts`), `ExpiresAt` por tipo.
+- **Suspensão** (§6.3) para 401, 402 e 403: volta a `Pending` sem gastar tentativa, por 15 minutos, até `ExpiresAt`.
+- **Lote** de 10, nova consulta a cada 5 s com a fila vazia (§6.4); linhas em estado final apagadas 30 dias depois de `FinishedAt` (§5.6).
+- **Para a Sprint 4** (§6.5): tipo `ai.question-drafts` e um tratador, **sem migração nova para o mecanismo**; o prazo de posse da IA fica "definido pelo ADR-0004".
 
-**Tentativas em duas camadas, sem multiplicar.** As repetições por 429 e 5xx acontecem dentro do adaptador, dentro do prazo. A fila não repete um job de IA que falhou por `InvalidOutput`, `Refused`, `Misconfigured` ou `Timeout`: ele vira `Failed` e a pessoa decide pedir de novo.
+### 10.2 Como a IA usa a `QueueJobs`
 
-**Se a fila da Sprint 3 não estiver pronta** quando a Onda 2 começar: esta sprint cria a fila genérica (`BackgroundJobs` + `BackgroundService`) com os requisitos acima, **em Issue e migração próprias**, e o e-mail a adota depois. O que não se faz é o caminho curto de transformar `AiGenerationJobs` na própria fila: seriam duas filas no mesmo banco.
+| Peça | Valor para `ai.question-drafts` |
+|---|---|
+| `Type` | `ai.question-drafts` |
+| `SubjectId` | o identificador de quem pediu (como o ADR-0003 §6.5 propõe) |
+| `Payload` | `{"v":1,"aiJobId":"<id do AiGenerationJob>"}` e mais nada |
+| `IdempotencyKey` | `ai.question-drafts:<quem pediu>:<tipo>-<faixa>-<quantidade>-<resumo do assunto>:<janela de 2 min>`, no formato do ADR-0003 §5.4. O clique duplo cai na mesma chave; o índice único recusa a segunda linha e a tela leva ao pedido já criado. Pedidos diferentes da mesma pessoa têm chaves diferentes. |
+| `ExpiresAt` | criação + **10 minutos** |
+| Prazo de posse | `Ai__TimeoutSeconds` + 60 s (150 s com o padrão proposto): maior que o prazo da chamada, para que um tratador lento mas vivo não seja capturado de novo |
+| `ExternalId` | o `request-id` devolvido pelo provedor, quando houver (`AiUsage.ProviderRequestId`) |
+| `LastError` | códigos próprios: `ai_timeout`, `ai_unavailable`, `ai_rate_limited`, `ai_refused`, `ai_invalid_output`, `ai_misconfigured`, além de `expired` |
+| `Feedback`, `FeedbackAt`, estado `Cancelled` | não usados pela IA |
 
-Este ADR e o ADR-0003, juntos, substituem a frase do ADR-0001 de que não havia caso para fila.
+**Enfileirar.** `RequestAiDrafts` acrescenta o `AiGenerationJob` e chama `IJobQueue.Enqueue` no mesmo contexto; uma gravação só cria os dois, ou nenhum. É o padrão do ADR-0003 §5.5.
+
+**Processar.** O tratador `ProcessAiDraftJob` lê o `AiGenerationJob`, marca-o `Processing`, chama o gerador com o prazo de `Ai__TimeoutSeconds` (fora de transação, como o ADR-0003 §6.1 exige para chamadas externas), valida, acrescenta as sugestões e os contadores e devolve sucesso; resultado e conclusão do trabalho são gravados juntos (ADR-0003 §6.5).
+
+**O tratador da IA só devolve sucesso ou falha.** Não devolve "repetir" nem "suspender":
+
+- 429 e 5xx já são repetidos **dentro do adaptador**, no máximo duas vezes, dentro do prazo (seção 6.2). Repetir de novo pela fila, com espera de 1 a 60 minutos, deixaria a tela em "gerando" por até duas horas e poderia cobrar tokens a cada tentativa.
+- `InvalidOutput`, `Refused` e `Timeout` não melhoram repetindo a mesma requisição.
+- `Misconfigured` (401, 403) e limite de gasto não são suspensos: com uma pessoa esperando, o certo é falhar com a mensagem e deixar que ela peça de novo depois.
+
+A única repetição pela fila é a de **processo que morreu no meio**: a posse vence, a linha reaparece e o trabalho é capturado outra vez. O tratador é idempotente para esse caso: só grava se o `AiGenerationJob` ainda não estiver em estado final.
+
+**Fonte da verdade para a tela.** O que a tela consulta é `AiGenerationJobs`, não `QueueJobs`. Três motivos: as linhas da fila são apagadas 30 dias depois de terminadas, e `Question.AiJobId`, o registro de uso e a auditoria precisam durar mais; a fila não tem colunas para tokens, modelo e contadores; a cota é uma soma de `RequestedCount`. Por isso `Question.AiJobId` aponta para `AiGenerationJobs.Id`, nunca para `QueueJobs.Id`.
+
+**Progresso.** A `QueueJobs` não tem coluna de progresso e a IA não precisa de uma: há uma chamada por pedido, sem resultado parcial. O "progresso" da tela são os estados do `AiGenerationJob`: na fila (`Pending`), gerando (`Processing`), pronto ou falhou.
+
+**Reconciliação.** A fila pode encerrar um trabalho sem chamar o tratador (por `ExpiresAt` ou pelo teto de tentativas). Para o `AiGenerationJob` não ficar em "gerando" para sempre, a leitura do estado trata como `Failed` (`expired`) todo pedido não concluído há mais de 10 minutos e grava essa transição.
+
+### 10.3 Os requisitos da IA, um a um
+
+| # | Requisito da IA | `QueueJobs` (ADR-0003) | Situação |
+|---|---|---|---|
+| Q1 | Tabela genérica com tipo e parâmetros; um tratador por tipo | `Type`, `Payload` com versão, `IJobHandler` por tipo (§5.1, §6.1) | **Atendido** |
+| Q2 | Um trabalho por pedido, localizável por quem pediu | `Id` próprio; `Enqueue` na mesma gravação do pedido (§5.5). A tela usa o `Id` do `AiGenerationJob`, então não depende do `Id` da fila | **Atendido** |
+| Q3 | Estados, tentativas e espera **por tipo**; para a IA, no máximo 2 tentativas | Estados e `Attempts` existem; o teto é **um só** (`Fila__MaxAttempts` = 8) e a espera é de 1 a 60 min para todos os tipos (§6.2, §6.4) | **Atendido com ressalva** (ajuste A1) |
+| Q4 | `SKIP LOCKED` e prazo de posse; posse vencida devolve o trabalho | `SKIP LOCKED`; `NextAttemptAt` como posse; posse da IA "definida pelo ADR-0004" (§6.1, §6.5). O comando de captura usa um `@lease` para o lote inteiro, e o lote de 10 é capturado de uma vez | **Atendido com ressalva** (ajuste A4) |
+| Q5 | O tratador recebe `CancellationToken` e roda em escopo próprio | A assinatura de `IJobHandler` não está escrita; só os quatro resultados (§6.1) | **Atendido com ressalva** (ajuste A2) |
+| Q6 | Resultado e conclusão na mesma transação | Prometido em §6.5 ("grava os rascunhos na mesma transação que conclui o trabalho"); o mecanismo não está descrito | **Atendido com ressalva** (ajuste A3) |
+| Q7 | Falha com código curto, nunca corpo ou texto gerado | `LastError varchar(100)`, vocabulário fechado, "nunca mensagem livre" (§5.1) | **Atendido** |
+| Q8 | `Payload` da IA só com o identificador do pedido | O mecanismo permite; mas a tabela de §6.5 descreve o `Payload` da IA como "tipo de quiz, faixa etária, quantidade, assunto" | **Atendido com ressalva** (ajuste A5) |
+| Q9 | Varredura de poucos segundos; um trabalhador basta | Lote de 10; consulta a cada 5 s (§6.4) | **Atendido** |
+| Q10 | Sem dependência nova | Hangfire e Quartz descartados; sem pacote (§5.2) | **Atendido** |
+
+Nenhum requisito ficou **não atendido**: a `QueueJobs` serve à Sprint 4 sem migração para o mecanismo, como o ADR-0003 afirma. As ressalvas são de contrato e de parâmetros, não de tabela.
+
+### 10.4 Ajustes pedidos ao ADR-0003
+
+O ADR-0003 e a branch dele não foram editados. Os pedidos são para quem aceitar os dois ADRs.
+
+| # | Pedido | Por quê | Se não for aceito |
+|---|---|---|---|
+| A1 | **Tentativas e espera por tipo de trabalho.** Para `ai.question-drafts`: no máximo 2 tentativas, a segunda só para recuperar processo que morreu. | 8 tentativas com espera de 1 a 60 minutos servem a um e-mail; não servem a um pedido com prazo de 90 s e uma pessoa esperando, e cada tentativa pode cobrar tokens. | Contorno do lado da IA: o tratador só devolve sucesso ou falha, o `ExpiresAt` é de 10 minutos e o tratador recusa o trabalho quando `Attempts` passa de 2. Exige o A2. |
+| A2 | **Contrato de `IJobHandler` escrito:** recebe `Id`, `Type`, `SubjectId`, `Payload`, `Attempts` e `CancellationToken`, em escopo de DI próprio. | O prazo da IA é cancelamento; o contorno do A1 precisa de `Attempts`. | Sem `Attempts` e sem o token, o A1 não tem contorno. |
+| A3 | **Resultado e conclusão juntos, com mecanismo:** o que o tratador acrescentar ao contexto é salvo pelo processador na mesma gravação que muda o `Status`, como `Enqueue` já faz na entrada. | Sem isso, uma queda entre as duas gravações duplica sugestões ou deixa trabalho concluído sem resultado. | A IA mantém a checagem de estado final no tratador (seção 10.2), que evita a duplicata mas não a janela. |
+| A4 | **Prazo de posse por tipo e por item.** O comando de captura (§6.1) usa um `@lease` para o lote; a posse da IA é de 150 s e a do e-mail, de 2 min. E a posse precisa contar de modo que um trabalho demorado não vença a dos outros itens capturados no mesmo lote. | Um lote com uma chamada de IA de até 90 s na frente pode deixar vencer a posse dos e-mails que vêm atrás; eles seriam capturados de novo enquanto ainda estão na memória do trabalhador. | Capturar trabalhos de IA em lote de um, ou renovar a posse ao começar cada item. |
+| A5 | **Corrigir duas linhas da tabela de §6.5.** `Payload` da IA: só o identificador do pedido. "Classes de erro" da IA: o tratador devolve só sucesso ou falha; 429 e 5xx são repetidos pelo adaptador, e 401/402 não são suspensos. | O assunto é texto livre e pode trazer um nome; a regra do próprio ADR-0003 é `Payload` sem dado cadastral. Suspender deixaria a tela em "gerando" até o `ExpiresAt`. | A IA segue a seção 10.2 de qualquer forma; os dois textos ficariam em desacordo. |
+| A6 | **Aviso de falha final sem tratador.** Quando a fila encerra um trabalho por `expired` ou pelo teto de tentativas sem chamar o tratador, o dono do trabalho precisa saber (gancho opcional no tratador). | O `AiGenerationJob` ficaria em "gerando". | A reconciliação na leitura (seção 10.2) resolve sem mudar a fila. |
+| A7 | **Corrigir a citação do ADR-0001** em §5 ("O ADR-0001 já decidiu '`BackgroundService` + fila persistente no PostgreSQL, sem Redis'") e em §19, e declarar que o ADR-0003 revisa a frase do ADR-0001 sobre fila. | Seção 10.5. | — |
+
+A1, A2 e A4 são os que mudam o desenho do trabalhador; convém decidi-los antes da Issue 8 do ADR-0003 (o trabalhador).
+
+### 10.5 O que o ADR-0001 diz sobre fila
+
+O ADR-0001 usa a palavra "fila" **uma única vez**, em `docs/architecture/ADR-0001-stack.md:23`, no parágrafo "Dados" do *Architecture Board*:
+
+> "Um PostgreSQL único resolve; não há caso para consistência eventual, cache distribuído ou fila."
+
+Ele não contém a frase "`BackgroundService` + fila persistente no PostgreSQL, sem Redis". Essa frase vem do roteiro das sprints, que a atribui ao ADR-0001, e o ADR-0003 a repete na seção 5 e na seção 19. O que o ADR-0001 decide de fato para e-mail, push e IA é outra coisa: "E-mail, push e IA atrás de portas em `Application`, com implementação fake em `Infrastructure`" (`ADR-0001-stack.md:44`).
+
+As duas leituras não brigam no conteúdo: quando o ADR-0001 foi escrito, e-mail, push e IA eram fakes e não havia trabalho demorado nem dependente de terceiro. As Sprints 3 e 4 trazem esse caso, e a resposta do ADR-0003 (fila no próprio PostgreSQL, sem Redis e sem serviço de mensageria) mantém o "um PostgreSQL único resolve" do ADR-0001. **Quem revisa a frase da linha 23 é o ADR-0003**, ao decidir a fila; o ADR-0004 só a consome. O pedido A7 é para que o ADR-0003 diga isso com a citação correta.
+
+### 10.6 Se o ADR-0003 não for aceito como está
+
+A decisão D1 do ADR-0003 tem como alternativa `email_outbox` mais uma tabela irmã para IA. Só nesse caso a Sprint 4 precisa de fila própria (tabela de trabalhos e migração em Issue separada), com os requisitos Q1–Q10. Em nenhum caso `AiGenerationJobs` vira a própria fila: seriam dois mecanismos de captura e repetição no mesmo banco.
 
 ## 11. Privacidade
 
@@ -439,7 +510,7 @@ O desenho é o da entrega Recreio (`telas.html:271-296`, guia §3.3 e §3.3.1); 
 
 **Gerar em lote (`/questoes/ia`).**
 
-1. POST do formulário (tipo, faixa, quantidade, assunto) → valida, checa cota, cria o `AiGenerationJob` e o job da fila → **303** para `GET /questoes/ia/{jobId}`.
+1. POST do formulário (tipo, faixa, quantidade, assunto) → valida, checa cota, cria o `AiGenerationJob` e a linha em `QueueJobs` na mesma gravação → **303** para `GET /questoes/ia/{jobId}`.
 2. `GET /questoes/ia/{jobId}` renderiza pelo estado: `Pending`/`Processing` → "gerando"; `Succeeded` → cartões de revisão e "N de M revisadas"; `Succeeded` com zero válidas → estado vazio com o motivo; `Failed` → erro com mensagem por código e botão para pedir de novo.
 3. **Sem JavaScript:** o estado "gerando" traz o link "Atualizar" e, dentro de `<noscript>`, uma atualização automática da página a cada 5 segundos. Aprovar e Descartar são formulários POST; Editar é um link.
 4. **Com JavaScript:** *polling* simples em `GET /questoes/ia/{jobId}?handler=Status`, que devolve só estado e contadores, a cada 2 segundos, alongando até 5, por no máximo 2 minutos; ao chegar a estado final, a página recarrega. **Sem WebSocket e sem SSE.** Passado o tempo, o *polling* para e fica o link "Atualizar".
@@ -465,7 +536,7 @@ O desenho é o da entrega Recreio (`telas.html:271-296`, guia §3.3 e §3.3.1); 
 |---|---|---|---|
 | D1 | Provedor a propor à contratante | Claude Haiku pela API da Anthropic, em conta da contratante | `gpt-6-luna` (mesmo preço listado); Gemini Flash-Lite tem a restrição de idade nos termos |
 | D2 | Onde vivem os rascunhos | Tabela de sugestões (seção 9.1, opção A) | `Question` em rascunho desde a geração |
-| D3 | Fila | Reaproveitar a do ADR-0003 com os requisitos Q1–Q10 | Fila genérica própria desta sprint, em Issue e migração próprias |
+| D3 | Fila | Usar a `QueueJobs` do ADR-0003 (tipo `ai.question-drafts`, sem migração de fila), **com os ajustes A1–A7 da seção 10.4**; A1, A2 e A4 antes da Issue do trabalhador da Sprint 3 | Aceitar a `QueueJobs` sem os ajustes e usar os contornos da seção 10.4; fila própria só se a D1 do ADR-0003 for pela opção `email_outbox` + tabela irmã (seção 10.6) |
 | D4 | `HttpClient` ou SDK no adaptador | SDK oficial `Anthropic`, com Issue de dependência e auditoria; decisão formal no PR do adaptador | `HttpClient` tipado, sem pacote, em dois PRs |
 | D5 | Quinta coluna `AiEditedAt` na migração | Incluir, mesmo antes de a contratante aprovar o selo | Só as quatro colunas; o selo "Editada a partir da IA" fica sem dado se for aprovado depois |
 | D6 | Cotas e prazo | 60 por pessoa, 300 no total, janela de 24 h, prazo de 90 s | Outros valores (pendência IA-1) |
@@ -513,7 +584,7 @@ Enquanto não houver resposta, o sistema roda com `Fake` ou `Off`, e nada disso 
 7. **Preços e políticas da OpenAI e do Google**, e os prazos de F14: vieram como resumo da ferramenta de leitura (seção 2). Saída estruturada nesses dois provedores não foi verificada.
 8. **Se o SDK `Anthropic` para C# aceita um `HttpClient` ou `HttpMessageHandler` injetado**, o que define como o adaptador é testado sem rede.
 9. **A numeração "2026" do OWASP Top 10 para LLM** usada pela skill da casa: a página oficial mostrava a edição 2025 na data.
-10. **O ADR-0003**: não existia para leitura. Os requisitos Q1–Q10 precisam ser conferidos contra ele.
+10. **O ADR-0003 foi lido como proposta** (PR #185, ainda sem aceite). Se ele mudar na revisão, a seção 10 precisa ser conferida de novo. A assinatura de `IJobHandler` e o mecanismo de gravar resultado e conclusão juntos não estão escritos nele (ajustes A2 e A3).
 11. **Câmbio e impostos** sobre o gasto em dólar.
 
 ## 19. Plano de Issues da sprint
@@ -522,15 +593,14 @@ Enquanto não houver resposta, o sistema roda com `Fake` ou `Off`, e nada disso 
 
 | # | Issue | Onda | Depende de | Tamanho |
 |---|---|---|---|---|
-| 1 | **Migração:** proveniência em `Question` + `AiGenerationJobs` + `AiQuestionSuggestions` (**M**) | 1 | este ADR aceito; D2, D5 | m |
-| 1b | **Fila genérica** (`BackgroundJobs` + trabalhador), só se a da Sprint 3 não existir (**M**) | 1 | D3; ADR-0003 | m |
+| 1 | **Migração:** proveniência em `Question` + `AiGenerationJobs` + `AiQuestionSuggestions` (**M**) | 1 | este ADR aceito; D2, D5; **as duas migrações da Sprint 3 já em `main`** (ADR-0003, Issues 1 e 2: migrações em paralelo disputam o mesmo retrato do modelo) | m |
 | 2 | Porta `IQuestionDraftGenerator`, tipos, `AiOptions` validadas na subida, registro condicional `Off`/`Fake`, filtro 404 | 1 | este ADR | s |
 | 3 | `FakeQuestionDraftGenerator` + prompt v1 + `QuestionPromptBuilder` + testes de privacidade | 1 | 2 | m |
 | 4 | Analisador, validador e deduplicação + testes com saídas maliciosas | 1 | 2 | m |
 | 5 | UI estática de `/questoes/ia` (pedir e revisar) com dados do fake, sem trabalhador | 1 | 2, 3; telas de Questões da Sprint 2 | m |
 | 6 | Terraform: três variáveis novas e os dois ajustes da seção 14 | 1 | Issue #99 em `main` | xs |
 | 7 | `docs/operations/ia-runbook.md`: ligar o provedor, limite de gasto, desligar em emergência | 1 | este ADR | docs |
-| 8 | `RequestAiDrafts` (cota e job) + `ProcessAiDraftJob` (manipulador da fila) | 2 | 1, 3, 4, fila | m |
+| 8 | `RequestAiDrafts` (cota, pedido e `IJobQueue.Enqueue`) + `ProcessAiDraftJob` (tratador `IJobHandler` do tipo `ai.question-drafts`) + reconciliação de pedido vencido | 2 | 1, 3, 4; **ADR-0003, Issue 1 (`QueueJob` e `IJobQueue`) e Issue 8 (trabalhador e `IJobProcessor`)**; ajustes A1, A2 e A4 decididos | m |
 | 9 | `ApproveAiDraft`, `DiscardAiDraft` e edição a partir de sugestão (`SaveQuestion` com proveniência) | 2 | 1, 4 | m |
 | 10 | Ligar a UI do lote aos casos de uso: estados, *polling*, sem JavaScript | 2 | 5, 8, 9 | m |
 | 11 | `SuggestSingleDraft` + `.ai-help` no criador | 2 | 1, 3, 4 | m |
@@ -539,7 +609,7 @@ Enquanto não houver resposta, o sistema roda com `Fake` ou `Off`, e nada disso 
 | 14 | Teste de ponta a ponta com o fake + `scripts/demo.sh` | 3 | 8 a 12 | s |
 | — | **Depois da sprint:** Issue de dependência (se D4 = SDK) e PR do adaptador Anthropic | — | D1, D4, D8 | m (250 a 350 linhas com SDK; 400 a 500 com `HttpClient`, em dois PRs) |
 
-Só as Issues 1 e 1b geram migração. Nenhuma adiciona pacote. Nenhuma muda rota ou DTO da API do jogo. Cada PR passa por `review-pr`, com `security-reviewer` olhando os riscos da seção 12 e `ui-reviewer` comparando com a preview.
+**Só a Issue 1 gera migração.** A "fila genérica desta sprint" que constava de uma versão anterior deste plano deixou de existir: a `QueueJobs` da Sprint 3 atende (seção 10.3). Ela só volta, como Issue e migração próprias, no caso da seção 10.6. O teste de ponta a ponta (Issue 14) segue o padrão do ADR-0003: trabalhador desligado na fábrica de testes e chamada direta a `IJobProcessor`. Nenhuma adiciona pacote. Nenhuma muda rota ou DTO da API do jogo. Cada PR passa por `review-pr`, com `security-reviewer` olhando os riscos da seção 12 e `ui-reviewer` comparando com a preview.
 
 ## 20. Alternativas descartadas (resumo)
 
@@ -552,7 +622,9 @@ Só as Issues 1 e 1b geram migração. Nenhuma adiciona pacote. Nenhuma muda rot
 | WebSocket, SSE ou SignalR para o andamento | Infraestrutura nova para um estado que muda uma vez; *polling* resolve e funciona sem JavaScript |
 | Batch API do provedor (50% mais barata) | Assíncrona, com prazo de horas; o custo já é de centavos |
 | Cache de prompt | Economia desprezível neste volume; complexidade a mais no adaptador |
-| Hangfire ou Quartz para a fila | Dependência nova; um PostgreSQL já resolve |
+| Fila própria da IA, ou `AiGenerationJobs` como fila | O ADR-0003 já propõe a `QueueJobs`; dois mecanismos de captura e repetição no mesmo banco (seção 10) |
+| Guardar tipo, faixa, quantidade e assunto no `Payload` da fila e dispensar `AiGenerationJobs` | A fila é apagada 30 dias depois; proveniência, uso e cota precisam durar e ter colunas (seção 10.2) |
+| Repetição e suspensão pela fila para erros do provedor de IA | Seção 10.2: o adaptador já repete dentro do prazo; há uma pessoa esperando |
 | Tabela de uso separada | O job já é o registro de uso |
 | Tabela de auditoria genérica | Fora do escopo do PRD; as colunas das tabelas de IA bastam |
 | Similaridade aproximada na deduplicação | Seção 8 |
@@ -570,8 +642,9 @@ Só as Issues 1 e 1b geram migração. Nenhuma adiciona pacote. Nenhuma muda rot
 
 **Negativas e riscos**
 
-- Duas ou três tabelas novas e uma fila: mais superfície para manter em um projeto de um mantenedor.
-- A sprint depende de uma fila que outro ADR decide; se os requisitos não baterem, há retrabalho na Issue 8.
+- Duas tabelas novas e um tipo a mais na fila: mais superfície para manter em um projeto de um mantenedor.
+- A Onda 2 depende da fila e do trabalhador da Sprint 3 (ADR-0003, Issues 1 e 8) e de três ajustes pedidos a ele (A1, A2 e A4). Sem os ajustes, valem os contornos da seção 10.4, que deixam mais regra dentro do tratador da IA.
+- O estado do pedido vive em dois lugares (`AiGenerationJobs` e `QueueJobs`); a reconciliação da seção 10.2 existe por causa disso.
 - O fake prova o fluxo, não a qualidade. A qualidade em português só será conhecida com um provedor real e a amostra pedagógica.
 - As estimativas de custo e de prazo têm premissas não medidas (seção 18, itens 2 e 3).
 - A cota pode ser ultrapassada em um pedido por concorrência; o teto firme é o do console.
