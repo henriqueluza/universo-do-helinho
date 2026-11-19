@@ -121,5 +121,5 @@ public static class GetDashboardTrends
     internal static int? Percent(int correct, int total) =>
         total == 0 ? null : (int)Math.Round(100.0 * correct / total, MidpointRounding.AwayFromZero);
 
-    private static DateTimeOffset StartOf(DateOnly day) => BrasiliaTime.ToUtc(day.ToDateTime(TimeOnly.MinValue));
+    internal static DateTimeOffset StartOf(DateOnly day) => BrasiliaTime.ToUtc(day.ToDateTime(TimeOnly.MinValue));
 }
