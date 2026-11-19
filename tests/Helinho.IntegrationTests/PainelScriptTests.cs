@@ -17,6 +17,12 @@ public partial class PainelScriptTests(PostgresFixture postgres)
         return (response, await response.Content.ReadAsStringAsync(Ct));
     }
 
+    // O arquivo não muda durante a execução: os testes de conteúdo baixam uma vez só, em vez de subir
+    // o host e o banco a cada caso. Os testes da coleção rodam em sequência, sem corrida no cache.
+    private static string? corpoEmCache;
+
+    private async Task<string> GetBodyAsync() => corpoEmCache ??= (await GetScriptAsync()).Body;
+
     [Fact]
     public async Task Painel_js_e_servido_sem_login_como_javascript()
     {
@@ -46,7 +52,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [InlineData("matchMedia('(prefers-reduced-motion: reduce)')")]
     public async Task Painel_js_mantem_os_modulos_da_preview(string marcador)
     {
-        var (_, body) = await GetScriptAsync();
+        var body = await GetBodyAsync();
 
         Assert.Contains(marcador, body, StringComparison.Ordinal);
     }
@@ -54,7 +60,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [Fact]
     public async Task Dica_e_montada_por_textContent()
     {
-        var (_, body) = await GetScriptAsync();
+        var body = await GetBodyAsync();
 
         Assert.Matches(AtribuiTextContent(), body);
     }
@@ -62,7 +68,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [Fact]
     public async Task Tema_persiste_no_localStorage_sempre_dentro_de_try()
     {
-        var (_, body) = await GetScriptAsync();
+        var body = await GetBodyAsync();
 
         Assert.Contains("localStorage.getItem('tema')", body, StringComparison.Ordinal);
         Assert.Contains("localStorage.setItem('tema'", body, StringComparison.Ordinal);
@@ -79,7 +85,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [InlineData(".linechart[data-fonte]", "tab")]
     public async Task Modulo_sai_cedo_quando_o_elemento_nao_existe(string marcador, string variavel)
     {
-        var (_, body) = await GetScriptAsync();
+        var body = await GetBodyAsync();
 
         Assert.Matches($@"if \(!{Regex.Escape(variavel)}\b[^;{{]*\)\s*return;", Modulo(body, marcador));
     }
@@ -88,7 +94,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [Fact]
     public async Task Modulo_do_tema_nao_exige_o_botao()
     {
-        var (_, body) = await GetScriptAsync();
+        var body = await GetBodyAsync();
         var tema = Modulo(body, "startViewTransition");
 
         Assert.Contains("querySelectorAll('[data-tema]')", tema, StringComparison.Ordinal);
@@ -102,7 +108,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [InlineData("new IntersectionObserver")] // seções sem efeito de entrada
     public async Task Modulo_com_movimento_respeita_prefers_reduced_motion(string marcador)
     {
-        var (_, body) = await GetScriptAsync();
+        var body = await GetBodyAsync();
 
         Assert.Matches(CalmoLeReducaoDeMovimento(), body);
         Assert.Contains("calmo()", Modulo(body, marcador), StringComparison.Ordinal);
@@ -113,7 +119,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [Fact]
     public async Task Painel_js_so_oculta_o_que_ele_mesmo_revela()
     {
-        var (_, body) = await GetScriptAsync();
+        var body = await GetBodyAsync();
         var entrada = Modulo(body, "new IntersectionObserver");
 
         Assert.DoesNotMatch(Ocultacao(), body);
@@ -134,7 +140,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [InlineData("resumo-erros")]
     public async Task Painel_js_nao_contem_codigo_so_da_preview(string trecho)
     {
-        var (_, body) = await GetScriptAsync();
+        var body = await GetBodyAsync();
 
         Assert.DoesNotContain(trecho, body, StringComparison.Ordinal);
     }
@@ -154,7 +160,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [InlineData("setAttribute('style'")]
     public async Task Painel_js_nao_usa_apis_proibidas(string api)
     {
-        var (_, body) = await GetScriptAsync();
+        var body = await GetBodyAsync();
 
         Assert.DoesNotContain(api, body, StringComparison.Ordinal);
     }
@@ -162,7 +168,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [Fact]
     public async Task Painel_js_nao_usa_manipulador_inline_nem_armazenamento_alem_do_tema()
     {
-        var (_, body) = await GetScriptAsync();
+        var body = await GetBodyAsync();
 
         Assert.DoesNotMatch(ManipuladorInline(), body);
         Assert.DoesNotContain("sessionStorage", body, StringComparison.Ordinal);
@@ -178,6 +184,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [InlineData("el.onclick = f;")]
     [InlineData("el.setAttribute('onload', 'x()');")]
     [InlineData("el.setAttribute(\"onpointerenter\", s);")]
+    [InlineData("el['onblur'] = f;")]
     public void Detector_de_manipulador_inline_pega_qualquer_evento(string trecho) =>
         Assert.Matches(ManipuladorInline(), trecho);
 
@@ -192,7 +199,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     private static string Modulo(string body, string marcador) =>
         Assert.Single(InicioDeModulo().Split(body), m => m.Contains(marcador, StringComparison.Ordinal));
 
-    [GeneratedRegex(@"setAttribute\(\s*['""]on\w+|\.on[a-zA-Z]+\s*=(?!=)")]
+    [GeneratedRegex(@"setAttribute\(\s*['""]on\w+|\.on[a-zA-Z]+\s*=(?!=)|\[\s*['""]on\w+['""]\s*\]\s*=(?!=)")]
     private static partial Regex ManipuladorInline();
 
     [GeneratedRegex(@"^\(\(\) => \{\r?$", RegexOptions.Multiline)]
@@ -210,7 +217,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [GeneratedRegex(@"const reduz = matchMedia\('\(prefers-reduced-motion: reduce\)'\);\s*const calmo = \(\) => reduz\.matches;")]
     private static partial Regex CalmoLeReducaoDeMovimento();
 
-    [GeneratedRegex(@"\.hidden\s*=\s*true|setAttribute\(\s*['""]hidden|\.style\.(display|visibility|opacity)\b|classList\.(add|toggle)\(\s*['""](hidden|d-none|invisible|visually-hidden)")]
+    [GeneratedRegex(@"\.hidden\s*=(?!=)(?!\s*false\b)|setAttribute\(\s*['""]hidden|\.style\.(display|visibility|opacity)\b|classList\.(add|toggle)\(\s*['""](hidden|d-none|invisible|visually-hidden)")]
     private static partial Regex Ocultacao();
 
     [GeneratedRegex(@"classList\.add\('js'\)")]
