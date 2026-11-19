@@ -53,7 +53,9 @@ public partial class ContaRecreioTests(PostgresFixture postgres)
         Assert.Contains("name=\"__RequestVerificationToken\"", html);
         Assert.Equal(1, Regex.Count(html, "<h1\\b"));
         AssertImagensComDimensoes(html);
-        Assert.DoesNotContain("<script", html);
+        // #164 liga tema.js e painel.js (arquivos externos); script inline continua proibido.
+        Assert.Empty(Regex.Matches(html, @"<script\b(?![^>]*\ssrc=)"));
+        Assert.Contains("src=\"/js/painel.js", html);
         Assert.DoesNotContain("<noscript", html);
         Assert.DoesNotContain("onchange", html);
         Assert.DoesNotContain("--ai", html);
