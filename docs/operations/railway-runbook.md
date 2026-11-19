@@ -1,16 +1,16 @@
 # Runbook — homologação na Railway com Terraform
 
-**Para quem:** Henrique, sozinho, na própria máquina (macOS). **Escrito em:** 18/11/2026.
-**Descreve:** o Terraform de `infra/railway/` (PR #110, que chega à `main` pelo PR #100), o ADR-0002 (`docs/architecture/ADR-0002-hospedagem-railway.md`, PR #101) e o `Dockerfile` da raiz.
+**Para quem:** Henrique, sozinho, na própria máquina (macOS). **Escrito em:** 18/11/2026. **Revisto em:** 19/11/2026, depois da leitura "no papel" (Issue #117).
+**Descreve:** o Terraform de `infra/railway/` (PRs #110, #113 e #116, que chegam à `main` pelo PR #100), o ADR-0002 (`docs/architecture/ADR-0002-hospedagem-railway.md`, PR #101) e o `Dockerfile` da raiz.
 
-> **Nada deste runbook foi executado.** Nenhum agente rodou `plan`, `apply`, criou conta, token ou recurso. Os passos de painel foram conferidos na documentação da Railway em 18/11/2026 (seção [Fontes](#fontes); as marcas `[F1]`, `[F2]`… apontam para ela). Onde a documentação não dá o nome do botão, o texto diz "o nome pode variar". Onde um comportamento não pôde ser confirmado, o passo traz **Confira:** com o que fazer em cada caso; o índice desses pontos está em [Fatos não confirmados](#fatos-não-confirmados-e-onde-cada-um-é-tratado).
+> **Nada deste runbook foi executado.** Nenhum agente rodou `plan`, `apply`, criou conta, token ou recurso. Os passos de painel foram conferidos na documentação da Railway em 18 e 19/11/2026 (seção [Fontes](#fontes); as marcas `[F1]`, `[F2]`… apontam para ela). Onde a documentação não dá o nome do botão, o texto diz "o nome pode variar". Onde um comportamento não pôde ser confirmado, o passo traz **Confira:** com o que fazer em cada caso; o índice desses pontos está em [Fatos não confirmados](#fatos-não-confirmados-e-onde-cada-um-é-tratado).
 
 Só dados sintéticos em homologação. Produção não é ligada por este runbook.
 
 ## O caminho feliz em 10 linhas
 
 1. **Igor:** entrar no workspace da contratante na Railway como Admin e saber o plano (Hobby ou Pro) e o teto de gasto. → [Passo 1](#passo-1--o-que-pedir-ao-igor)
-2. **Repositório e ferramentas:** PRs #100 (Terraform), #101 (ADR), #104 (`/health/ready`) e o do Data Protection (Issue #103) mergeados na `main`; Terraform 1.16 ou 1.17 e `tflint` 0.66+. → [Passo 2](#passo-2--ferramentas-e-token-da-railway)
+2. **Repositório e ferramentas:** PRs #100 (Terraform), #101 (ADR) e #104 (`/health/ready`) mergeados na `main`; o do Data Protection (Issue #103) só se a decisão D4 for a opção A; Terraform 1.16 ou 1.17 e `tflint` 0.66+. → [Passo 2](#passo-2--ferramentas-e-token-da-railway)
 3. **Token:** criar um token de **workspace** em `railway.com/account/tokens` e guardar no gerenciador de senhas. → [2.5](#25-criar-o-token-de-workspace)
 4. **GitHub App:** instalar a app da Railway na conta do GitHub com acesso a `universo-do-helinho`. → [Passo 3](#passo-3--github-app-da-railway-no-repositório)
 5. **Entradas:** copiar `terraform.tfvars.example` para `terraform.tfvars`; `read -rs` de `RAILWAY_TOKEN` e `TF_VAR_seed_password` em um terminal só do Terraform. → [Passo 4](#passo-4--terraformtfvars-e-variáveis-de-ambiente)
@@ -27,8 +27,8 @@ Operação do dia a dia (publicar, rollback, backup, restore, rotação, destrui
 | Variável | Onde pegar | Onde colocar | Segredo? |
 |---|---|---|---|
 | `RAILWAY_TOKEN` | Você cria: `railway.com/account/tokens`, com o workspace da contratante selecionado ([2.5](#25-criar-o-token-de-workspace)) | Gerenciador de senhas. No uso: `read -rs` no terminal do Terraform. Nunca em arquivo, `tfvars`, CI ou chat | sim |
-| `TF_VAR_seed_password` | Você gera no gerenciador de senhas: 16 ou mais caracteres, com minúscula, maiúscula, dígito e símbolo | Gerenciador de senhas. No uso: `read -rs` no terminal do Terraform. O Terraform a grava na Railway como `HELINHO_SEED_PASSWORD` | sim |
-| `workspace_id` | Só se o token enxergar mais de um workspace ([5.5](#55-se-o-apply-falhar-no-meio)) | `infra/railway/terraform.tfvars` | não |
+| `TF_VAR_seed_password` | Você gera no gerenciador de senhas: mínimo de 16 caracteres (exigido pelo Terraform), recomendado 20 ou mais, com minúscula, maiúscula, dígito e símbolo | Gerenciador de senhas. No uso: `read -rs` no terminal do Terraform. O Terraform a grava na Railway como `HELINHO_SEED_PASSWORD` | sim |
+| `workspace_id` | Só se o token enxergar mais de um workspace, o que acontece com token de conta. Vem de `railway whoami --json`, no terminal da CLI ([5.5](#55-se-o-apply-falhar-no-meio)) | `infra/railway/terraform.tfvars` | não |
 | `ambientes`, `repositorio`, `branch`, `auto_deploy`, `regiao`, `serverless`, `postgres_imagem`, `variaveis_web` | Os padrões de `terraform.tfvars.example` já servem. Exceção provável: o subdomínio padrão `helinho-homologacao` é único em toda a Railway e pode estar ocupado; aí defina `ambientes.homologacao.subdominio` | `infra/railway/terraform.tfvars`, só se for mudar | não |
 | `TF_VAR_brevo_api_key` | Painel da Brevo, na Sprint 3 | Não defina agora | sim |
 | `TF_VAR_ai_api_key` | Painel do provedor de IA, na Sprint 4 | Não defina agora | sim |
@@ -40,7 +40,7 @@ Operação do dia a dia (publicar, rollback, backup, restore, rotação, destrui
 
 - **Dois terminais, nunca misturados.**
   - **Terminal do Terraform:** onde `RAILWAY_TOKEN` e `TF_VAR_seed_password` estão exportados. Só roda `terraform`, `curl`, `jq` e `age`. **Nunca rode a CLI `railway` nele:** a CLI lê `RAILWAY_TOKEN` como token de **projeto**, e o seu é de workspace [F3].
-  - **Terminal da CLI:** aberto à parte, sem `RAILWAY_TOKEN`, autenticado com `railway login`. Só é usado no [Passo 8](#passo-8--operação).
+  - **Terminal da CLI:** aberto à parte, sem `RAILWAY_TOKEN`, autenticado com `railway login`. É usado no [Passo 8](#passo-8--operação) e, se você precisar do id do workspace, no [5.5](#55-se-o-apply-falhar-no-meio).
 - Todos os comandos partem da **raiz do repositório**.
 - `<…>` é marcador: troque pelo seu valor. Nenhum exemplo traz segredo.
 - **✔ Confira:** é o resultado esperado. **Se der errado:** é a saída mais provável. **Confira:** (sem o ✔) marca comportamento que ninguém verificou ainda.
@@ -50,7 +50,7 @@ Operação do dia a dia (publicar, rollback, backup, restore, rotação, destrui
 
 ## Passo 1 — O que pedir ao Igor
 
-O Igor é o contato da contratante para a conta da Railway (C19). Mande as perguntas abaixo de uma vez e anote as respostas na tabela "Conta" de `docs/operations/ambientes.md`.
+O Igor é o contato da contratante para a conta da Railway (C19). Mande as perguntas abaixo de uma vez e anote as respostas na tabela "Conta e limites" de `docs/operations/ambientes.md`.
 
 1. **Convite para o workspace da contratante**, com o seu usuário da Railway, no papel **Admin**. O convite é feito em: engrenagem ao lado do nome do workspace → aba **People** [F16].
    - Por que Admin: o papel Member cria projeto, serviço, variável e volume, mas **não apaga** projeto nem serviço e não vê cobrança [F16]. Sem Admin você não consegue limpar um serviço órfão ([5.5](#55-se-o-apply-falhar-no-meio)), destruir o ambiente ([8.8](#88-destruir-o-ambiente)) nem configurar o alerta de gasto [F18].
@@ -71,14 +71,14 @@ O Igor é o contato da contratante para a conta da Railway (C19). Mande as pergu
 
 ### 2.1 Conferir que a `main` tem tudo
 
-**Pré-requisitos do primeiro `apply`, todos mergeados na `main`:**
+**Pré-requisitos do primeiro `apply`, mergeados na `main`:**
 
-| PR | O que traz | Sem ele |
-|---|---|---|
-| #100 | O Terraform de `infra/railway/` (o PR #110 já foi mergeado dentro da branch dele) | Não há o que aplicar |
-| #101 | ADR-0002 e `docs/operations/custos.md` | As decisões D1 a D3 não estão aceitas |
-| #104 | A rota `/health/ready` | O healthcheck do serviço aponta para ela: **o primeiro deploy falha no healthcheck** |
-| O da Issue #103 | Chaves do Data Protection no PostgreSQL (pacote e migração) | Cada deploy derruba as sessões do painel |
+| PR | O que traz | Obrigatório? | Sem ele |
+|---|---|---|---|
+| #100 | O Terraform de `infra/railway/` (os PRs #110, #113 e #116 já foram mergeados dentro da branch dele) | sim | Não há o que aplicar |
+| #101 | ADR-0002 e `docs/operations/custos.md` | sim | As decisões D1 a D3 não estão aceitas |
+| #104 | A rota `/health/ready` | sim | O healthcheck do serviço aponta para ela: **o primeiro deploy falha no healthcheck** |
+| O da Issue #103 | Chaves do Data Protection no PostgreSQL (pacote e migração) | **só se a decisão D4 do ADR-0002 for a opção A** | Cada deploy derruba as sessões do painel |
 
 Já estão na `main`: #102 (`migrate`), #105 (`Dockerfile`) e #106 (proxy).
 
@@ -104,17 +104,28 @@ grep -c '"/health/ready"' src/Helinho.Web/Composition/HealthEndpoint.cs
 
 **Se der errado:** imprime `0` ou falta arquivo → algum PR ainda não foi mergeado. **Pare aqui.** Sem a rota `/health/ready` (PR #104) o healthcheck da Railway nunca recebe 2xx e todo deploy falha depois de 120 segundos.
 
+**Data Protection: depende da decisão D4** (ADR-0002 §9 e §12), que é sua e pode ainda estar aberta. O PR da Issue #103 implementa a opção A e pode ser fechado sem merge se você escolher outra.
+
+| Decisão D4 | O que fazer aqui |
+|---|---|
+| **A** (tabela no PostgreSQL com o pacote oficial) | Espere o PR da Issue #103 entrar e confira com o `grep` abaixo |
+| **B** ou **C** (repositório próprio, ou volume no web) | A persistência chega por outro PR. O `grep` abaixo imprime `0` para sempre e não quer dizer nada; confira pelo PR da opção escolhida |
+| **D** (não persistir) | Siga. Cada deploy derruba as sessões do painel (todo mundo entra de novo), e isso passa a ser o comportamento esperado |
+| Ainda aberta | Você pode subir a homologação sem esperar: o sistema funciona, só desloga o painel a cada deploy. Registre em `docs/operations/ambientes.md`, na linha "Sessões do painel" |
+
+Só para a opção A:
+
 ```sh
 grep -c 'DataProtection.EntityFrameworkCore' Directory.Packages.props
 ```
 
 **✔ Confira:** imprime `1` (o PR da Issue #103 entrou).
 
-**Se der errado:** imprime `0` → o PR do Data Protection não foi mergeado. Espere por ele. Se você decidir subir a homologação mesmo assim, o sistema funciona, mas **cada deploy derruba as sessões do painel** (todo mundo precisa entrar de novo); registre a escolha em `docs/operations/ambientes.md`.
+**Se der errado:** imprime `0` com a D4 na opção A → o PR ainda não foi mergeado. Espere por ele, ou siga sabendo que cada deploy desloga o painel até ele entrar (a migração nova dele roda sozinha no pre-deploy do deploy seguinte).
 
 ### 2.2 Terraform na versão fixada
 
-`infra/railway/versions.tf` aceita `>= 1.16.0, < 1.18.0`. O CI usa a 1.17.2, que era a estável em 18/11/2026 [F19].
+`infra/railway/versions.tf` aceita `>= 1.16.0, < 1.18.0`. O workflow `infra` do CI, quando existir, usará a 1.17.2, que era a estável em 18/11/2026 [F19]; em 19/11/2026 ele ainda não estava na branch do PR #100.
 
 ```sh
 terraform version
@@ -228,7 +239,7 @@ git check-ignore -v infra/railway/terraform.tfvars
 
 ### 4.2 Gerar a senha do seed
 
-No gerenciador de senhas, gere uma senha de **20 caracteres ou mais, com minúscula, maiúscula, dígito e símbolo**, e salve em uma entrada própria (sugestão: "Helinho homologação — senha do seed"). O Terraform recusa senha com menos de 16 caracteres ou sem uma das quatro classes.
+No gerenciador de senhas, gere uma senha com **minúscula, maiúscula, dígito e símbolo**. O **mínimo é 16 caracteres**, exigido pelo Terraform, que recusa senha menor ou sem uma das quatro classes; o **recomendado é 20 ou mais**. Salve em uma entrada própria (sugestão: "Helinho homologação — senha do seed").
 
 Ela vale para **todos** os usuários sintéticos (master, administradores e alunos). Não reutilize senha de outro lugar.
 
@@ -290,11 +301,15 @@ terraform -chdir=infra/railway validate
 (cd infra/railway && tflint --init && tflint --recursive)
 ```
 
-**✔ Confira:** `Success! The configuration is valid.` e o `tflint` termina sem imprimir achados.
+```sh
+terraform -chdir=infra/railway test
+```
+
+**✔ Confira:** `Success! The configuration is valid.`; o `tflint` termina sem imprimir achados; e o `test` termina com `Success!` e `0 failed`. O `terraform test` usa providers simulados: só planeja em memória e não fala com a Railway, mesmo com `RAILWAY_TOKEN` exportado (`infra/railway/README.md`).
 
 ### 5.3 `plan`
 
-O arquivo de plano guarda os segredos em texto. Ele fica **fora do repositório**, em uma pasta só sua, e é apagado depois do `apply`. O `.gitignore` só passa a bloquear `*.tfplan` com a Issue #112; mesmo depois dela, mantenha o plano fora do repositório.
+O arquivo de plano guarda os segredos em texto. Ele fica **fora do repositório**, em uma pasta só sua, e é apagado depois do `apply`. O `.gitignore` já bloqueia `*.tfplan` e `tfplan` (PR #116), mas isso só impede o commit: o arquivo continuaria em claro dentro do repositório. Por isso o plano vai para `~/.helinho-infra/`, sempre com nome terminado em `.tfplan`.
 
 ```sh
 mkdir -p ~/.helinho-infra && chmod 700 ~/.helinho-infra
@@ -374,13 +389,45 @@ Compare com o painel e ache a linha do seu erro:
 
 | Sintoma | O que aconteceu | O que fazer |
 |---|---|---|
-| Erro ao criar `railway_service.web` citando o repositório ou o GitHub (o texto pode variar) | A Railway não enxerga o repositório ([Passo 3](#passo-3--github-app-da-railway-no-repositório)) | 1) Apague o `helinho-web` órfão, se existir (linha do serviço órfão, abaixo). 2) Refaça o Passo 3. 3) Repita `plan` e `apply`. **Plano B**, se a integração estiver certa e o erro persistir: crie um token de **conta** ("No workspace" em [2.5](#25-criar-o-token-de-workspace)), defina `workspace_id` no `terraform.tfvars`, repita, e ao final **apague esse token** e volte ao de workspace. O token de conta alcança também os seus projetos pessoais: é exceção, não rotina |
+| Erro ao criar `railway_service.web` citando o repositório ou o GitHub (o texto pode variar) | A Railway não enxerga o repositório ([Passo 3](#passo-3--github-app-da-railway-no-repositório)) | 1) Apague o `helinho-web` órfão, se existir (linha do serviço órfão, abaixo). 2) Refaça o Passo 3. 3) Repita `plan` e `apply`. **Plano B**, se a integração estiver certa e o erro persistir: crie um token de **conta** ("No workspace" em [2.5](#25-criar-o-token-de-workspace)), pegue o id do workspace (logo abaixo desta tabela), defina `workspace_id` no `terraform.tfvars`, repita, e ao final **apague esse token** e volte ao de workspace. O token de conta alcança também os seus projetos pessoais: é exceção, não rotina |
 | `Unable to redeploy service after variable collection created` | As variáveis **já estão** na Railway; o provider tentou reimplantar um serviço que não tinha deploy anterior | No painel, serviço citado no erro → `Cmd+K` → **Deploy Latest Commit** (web) ou **Redeploy** do último deploy (`Postgres`). Depois repita `plan` e `apply` |
 | `serviceManifest is not found` | O provider lê a região no manifesto do último deploy, e esse deploy não tem manifesto (foi ignorado, por exemplo) | Igual à linha de cima: faça existir um deploy de verdade e repita `plan` e `apply` |
 | Erro em `railway_service_domain.web` dizendo que o subdomínio já existe | `helinho-homologacao` é único em toda a Railway e alguém já usa | Defina `subdominio` no `terraform.tfvars` ([4.1](#41-criar-o-terraformtfvars)) e repita `plan` e `apply` |
-| Erro em `railway_project.this` pedindo workspace | O token enxerga mais de um workspace (acontece com token de conta) | Defina `workspace_id`. **Confira:** a documentação não diz onde o id do workspace aparece no painel; tente `Cmd+K` e procure por "workspace", ou peça ao Igor |
+| Erro em `railway_project.this` pedindo workspace | O token enxerga mais de um workspace (acontece com token de conta) | Pegue o id do workspace (logo abaixo desta tabela) e defina `workspace_id` no `terraform.tfvars` |
 | `Not Authorized`, `401` ou erro de autenticação no primeiro recurso | Token errado, apagado, de projeto, ou colado com espaço | Repita o [4.3](#43-exportar-os-segredos-sem-deixá-los-no-histórico). Nada foi criado |
-| Um serviço existe no painel e **não** aparece no `state list` | **Serviço órfão** (limitação L8 do provider): ele só entra no estado no fim da criação | Apague o órfão no painel: configurações do **projeto** → seção de perigo (**Danger**) → apagar o serviço [F4][F15]. Depois repita `plan` e `apply`. No primeiro `apply` o órfão não tem dado nenhum; em qualquer outro momento, **não apague o `Postgres` sem backup** |
+| Um **serviço** existe no painel e **não** aparece no `state list` | **Serviço órfão** (limitação L8 do provider): ele só entra no estado no fim da criação | Siga "Apagar só o serviço órfão", abaixo. **Não repita o `apply` com o órfão presente** |
+| O **projeto** `helinho-homologacao` existe no painel e o `state list` **não imprime nada** | O `apply` foi interrompido (queda de rede, `Ctrl+C`, terminal fechado) depois de criar o projeto e antes de gravar o estado | Siga "Projeto criado, mas fora do estado", abaixo. **Não repita o `apply`:** ele criaria um segundo projeto com o mesmo nome |
+
+**Pegar o id do workspace** (só para o plano B com token de conta). O painel copia id de projeto, de serviço e de ambiente com `Cmd+K`, mas não o de workspace [F1]. A CLI mostra [F22]. Em um **terminal da CLI** (novo, sem `RAILWAY_TOKEN`; a preparação está no [8.4](#84-pg_dump-para-fora-da-plataforma)), depois de `brew install railway` e `railway login`:
+
+```sh
+railway whoami --json | jq -r '.workspaces[] | "\(.id)  \(.name)"'
+```
+
+**✔ Confira:** uma linha por workspace, com id e nome. Copie o id da linha do workspace da contratante para `workspace_id`, no `terraform.tfvars`. O id não é segredo, mas não vai para `ambientes.md`.
+
+**Se der errado:** a lista vem vazia ou sem o workspace da contratante → você não é membro dele ([Passo 1](#passo-1--o-que-pedir-ao-igor)). Peça o id ao Igor (ele roda o mesmo comando).
+
+**Apagar só o serviço órfão.** A opção fica nas configurações do **projeto**, na seção de perigo (**Danger**) [F4][F15]. **É a mesma página do botão `Delete Project`: você vai apagar um serviço, não o projeto.**
+
+1. Confira o alvo antes de clicar: o projeto aberto é `helinho-homologacao`, e o serviço que você vai apagar é exatamente o que **falta** no `state list` (`helinho-web` ou `Postgres`).
+2. Na seção de perigo, procure a opção de apagar **serviço** e escolha o órfão pelo nome. A documentação diz que serviços podem ser apagados nessa página, mas não dá o rótulo do botão (o nome pode variar) [F15]. **Não clique em `Delete Project`.**
+3. No primeiro `apply` o órfão não tem dado nenhum. Em qualquer outro momento, **não apague o `Postgres` sem `pg_dump`** ([8.4](#84-pg_dump-para-fora-da-plataforma)).
+
+**✔ Confira:** o serviço sumiu do painel, o projeto `helinho-homologacao` continua lá com os demais serviços, e o `state list` não mudou. Só então repita `plan` e `apply`.
+
+**Se der errado:** repetir o `apply` com o órfão presente faz o provider tentar criar outro serviço com o mesmo nome: ou falha por nome repetido, ou deixa dois serviços iguais no projeto. Se já aconteceu, apague o que **não** está no estado (compare o id do serviço no painel, `Cmd+K`, com `servico_web_id` e `servico_postgres_id` de `terraform output ambientes`).
+
+**Projeto criado, mas fora do estado.**
+
+- **Primeiro `apply`, projeto recém-criado e sem dado:** apague o projeto no painel (configurações do projeto → aba **Danger** → **Delete Project** [F15]). Antes de clicar, confira que o nome é `helinho-homologacao`, que ele foi criado agora e que não há serviço com dado dentro dele. Confira que sumiu da lista de projetos e só então repita `plan` e `apply`.
+- **Projeto que já tem dado:** não apague. Traga-o para o estado. O provider aceita importar o projeto pelo id [F2], que aparece nas configurações do projeto, aba **General** [F15]:
+
+  ```sh
+  terraform -chdir=infra/railway import 'module.ambiente["homologacao"].railway_project.this' <id do projeto>
+  ```
+
+  **Confira (nunca executado):** depois do `import`, rode `plan`. Ele deve querer criar só o que falta. Se quiser destruir ou substituir qualquer coisa, não aplique e abra uma Issue.
 
 Regras para repetir:
 
@@ -424,7 +471,7 @@ ls -l ~/.helinho-infra/
 age -d "$HOME/.helinho-infra/<arquivo>.age" | jq '.resources | length'
 ```
 
-**✔ Confira:** pede a frase-senha e imprime `7`.
+**✔ Confira:** pede a frase-senha e imprime `7` depois de um `apply` completo. Depois de um `apply` parcial imprime menos: o mesmo número de linhas do `terraform -chdir=infra/railway state list`.
 
 Copie o arquivo `.age` para **fora da máquina** ([8.9](#89-onde-fica-o-estado-do-terraform)).
 
@@ -528,20 +575,20 @@ echo "$BASE/entrar"
 
 - "Usuário ou senha inválidos" → o seed não rodou (volte ao [6.3](#63-conferir-o-pre-deploy-migrate)) ou a senha colada não é a do `TF_VAR_seed_password`.
 - A conta bloqueou por tentativas erradas → espere 15 minutos.
-- Depois de um deploy novo você é deslogado → o commit publicado não tem o PR do Data Protection (Issue #103, [2.1](#21-conferir-que-a-main-tem-tudo)).
+- Depois de um deploy novo você é deslogado → o commit publicado não persiste as chaves do Data Protection. É esperado enquanto a decisão D4 estiver aberta ou se ela for a opção D ([2.1](#21-conferir-que-a-main-tem-tudo)).
 
 ### 6.6 `POST /api/login` com `curl`
 
 O jogo entra por matrícula, usuário ou e-mail no campo `login`. Use o aluno `2026001` (os alunos 03 e 08 estão com a aprovação do responsável pendente e respondem 403).
 
 ```sh
-read -rs HELINHO_PASS
+read -rs HELINHO_PASS && export HELINHO_PASS
 ```
 
-Cole a senha do seed e aperte Enter. O comando abaixo monta o JSON com o `jq` (a senha tem símbolos e quebraria um JSON montado à mão) e mostra só o tamanho do token:
+Cole a senha do seed e aperte Enter. O comando abaixo monta o JSON com o `jq` (a senha tem símbolos e quebraria um JSON montado à mão) e mostra só o tamanho do token. A senha **não entra na linha de comando**: o `jq` a lê da variável de ambiente (`env.HELINHO_PASS`), então ela não aparece na lista de processos nem no histórico.
 
 ```sh
-jq -n --arg l 2026001 --arg p "$HELINHO_PASS" '{login:$l,password:$p}' | curl -sS -X POST "$BASE/api/login" -H 'Content-Type: application/json' --data-binary @- | jq '{user_id, expires_at, token_chars: (.token | length)}'
+jq -n --arg l 2026001 '{login:$l,password:env.HELINHO_PASS}' | curl -sS -X POST "$BASE/api/login" -H 'Content-Type: application/json' --data-binary @- | jq '{user_id, expires_at, token_chars: (.token | length)}'
 ```
 
 **✔ Confira:** um objeto com `user_id`, `expires_at` cerca de 8 horas à frente (em UTC) e `token_chars` maior que zero.
@@ -575,9 +622,22 @@ Agora o limite de taxa do login, com um IP forjado diferente a cada chamada. O l
 for i in $(seq 1 12); do curl -sS -o /dev/null -w '%{http_code} ' -X POST "$BASE/api/login" -H 'Content-Type: application/json' -H "X-Real-IP: 203.0.113.$i" -d '{"login":"nao-existe","password":"x"}'; done; echo
 ```
 
-**✔ Confira:** as primeiras respostas são `401` e as últimas são `429` (o limite é de 10 por minuto por IP, e o login do 6.6 conta se foi feito no mesmo minuto). Isso prova que a borda da Railway **sobrescreveu** o `X-Real-IP` forjado e a aplicação contou as 12 chamadas como um IP só.
+**✔ Confira:** as primeiras respostas são `401` e as últimas são `429` (o limite é de 10 por minuto por IP, e o login do 6.6 conta se foi feito no mesmo minuto). Isso prova que o `X-Real-IP` forjado **não decide** em qual balde a chamada cai: a borda da Railway o sobrescreveu.
 
 **Se der errado:** doze `401` → o cabeçalho forjado chegou à aplicação, e o limite de taxa pode ser burlado. **Não ponha dado real nesse ambiente**, abra uma Issue com a label `security:sensitive` e avise o revisor de segurança. Homologação com dado sintético pode continuar.
+
+O teste acima ainda **não prova que o limite é por cliente**: o resultado seria o mesmo se todas as chamadas do mundo caíssem em um balde só, o do IP do proxy. Para separar os dois casos, **em menos de um minuto** depois do laço (enquanto a sua rede ainda recebe `429`), troque de rede (o 4G do celular como roteador, por exemplo) e faça **uma** chamada:
+
+```sh
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/login" -H 'Content-Type: application/json' -d '{"login":"nao-existe","password":"x"}'
+```
+
+**✔ Confira:** `401`. A outra rede tem o seu próprio balde: o limite é por IP de cliente.
+
+**Se der errado:**
+
+- `429` na outra rede → todos os clientes dividem o mesmo balde (a aplicação está vendo o IP do proxy, não o do cliente). Dez tentativas de qualquer pessoa bloqueiam o login de todo mundo por um minuto. Abra uma Issue com a label `security:sensitive`; homologação pode continuar.
+- Você demorou mais de um minuto para trocar de rede → a janela zerou e o `401` não prova nada. Repita o laço e a troca.
 
 ### 6.8 No próximo push na `main`: o deploy foi ignorado?
 
@@ -625,7 +685,7 @@ Abra o arquivo e preencha os campos marcados com `<a preencher>`: URL do painel,
 2. Painel → `helinho-web` → `Cmd+K` → **Deploy Latest Commit** [F5].
 3. Repita as conferências [6.3](#63-conferir-o-pre-deploy-migrate) e [6.4](#64-healthready).
 
-Três coisas para lembrar:
+Quatro coisas para lembrar:
 
 - **Todo `terraform apply` com mudança é um deploy** do serviço alterado: o provider reimplanta quando muda o serviço ou as variáveis dele. O do `Postgres` tem indisponibilidade curta, porque serviço com volume não troca de versão sem parar [F12]. Rode `apply` em horário combinado.
 - Mudou algo no painel à mão? O Terraform não sabe. Rode `terraform plan` e traga a mudança para o código, ou desfaça no painel.
@@ -657,6 +717,8 @@ O que o rollback faz e não faz:
 
 **✔ Confira:** o backup aparece na lista da aba **Backups**, com a data e a hora de agora.
 
+**Confira (não confirmado):** a documentação não diz em quais planos a aba **Backups** existe [F11][F17]. **Se ela não aparecer no seu plano**, o `pg_dump` do [8.4](#84-pg_dump-para-fora-da-plataforma) deixa de ser o segundo nível e passa a ser a **salvaguarda obrigatória**: faça-o em todo lugar onde este runbook pede "backup de volume" ([8.5](#85-restore-do-banco) e [8.7](#87-rotação-das-senhas)), e o caminho A do restore não existe para você.
+
 Limites, todos da documentação [F11]:
 
 - Só restaura **no mesmo projeto e ambiente**. Não protege contra apagar o projeto.
@@ -671,11 +733,11 @@ Limites, todos da documentação [F11]:
 
 **Caminho escolhido:** `ssh` nativo com redirecionamento de porta, que a documentação da Railway descreve [F13]. A conexão é aberta de dentro do contêiner, e o redirecionamento só alcança o próprio contêiner e a rede privada do projeto [F13].
 
-**Por que não `railway connect Postgres --tunnel-only`** (o comando citado no ADR-0002 §11): o código da CLI lê as credenciais da variável `DATABASE_URL` (ou `DATABASE_PUBLIC_URL`) do serviço [F14], e o Terraform deste repositório define `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD` e `PGDATABASE`, **não** `DATABASE_URL`. O comando deve falhar por variável ausente. Além disso, ele imprime a senha do banco no terminal [F14]. Se um dia o serviço ganhar `DATABASE_URL` (Issue própria em `infra/`), ele passa a ser uma opção.
+**Por que não `railway connect Postgres --tunnel-only`:** o ADR-0002 §11 já descarta esse comando neste desenho, pelos mesmos motivos. O código da CLI lê as credenciais da variável `DATABASE_URL` (ou `DATABASE_PUBLIC_URL`) do serviço [F14], e o Terraform deste repositório define `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD` e `PGDATABASE`, **não** `DATABASE_URL`: o comando falharia por variável ausente. Além disso, ele imprime a senha do banco no terminal [F14].
 
 **Por que não um TCP proxy temporário:** expõe o banco à internet e cobra tráfego de saída (ADR-0002 §14). Não crie, nem "só por cinco minutos".
 
-**Riscos do túnel:** quem tem chave SSH registrada e acesso ao workspace vira administrador do banco; a porta local fica aberta na sua máquina enquanto o túnel existir (só em `127.0.0.1`); o arquivo de dump contém hashes de senha e, depois da Issue #103, as chaves do Data Protection. Feche o túnel ao terminar e cifre o dump.
+**Riscos do túnel:** quem tem chave SSH registrada e acesso ao workspace vira administrador do banco; a porta local fica aberta na sua máquina enquanto o túnel existir (só em `127.0.0.1`); o arquivo de dump contém hashes de senha e, se a decisão D4 for a opção A, as chaves do Data Protection. Feche o túnel ao terminar e cifre o dump.
 
 #### Preparar (uma vez)
 
@@ -715,7 +777,7 @@ railway ssh keys add
 
 #### Abrir o túnel
 
-1. Painel → serviço `Postgres` → `Cmd+K` → **Copy Service Instance ID**. Atenção: **Copy Service ID** é outro valor e **não** serve como destino de SSH [F13].
+1. Painel → projeto **`helinho-homologacao`** (confira o nome no topo da página) → serviço `Postgres` → `Cmd+K` → **Copy Service Instance ID**. Atenção: **Copy Service ID** é outro valor e **não** serve como destino de SSH [F13].
 2. No terminal da CLI, guarde o id (não é segredo):
 
 ```sh
@@ -736,55 +798,119 @@ ssh -N -L 5433:127.0.0.1:5432 "$INSTANCIA@ssh.railway.com"
 - Erro dizendo que o destino não existe → você copiou o Service ID no lugar do Service **Instance** ID.
 - **Confira (não executado):** se o `ssh` recusar o redirecionamento de porta, use o plano B no fim desta seção.
 
-#### Fazer o dump
+#### Conferir que o túnel aponta para a homologação
 
-Em **outro** terminal (também sem `RAILWAY_TOKEN`):
+Todo comando deste runbook que **apaga ou sobrescreve dados** pelo túnel ([8.5](#85-restore-do-banco), caminho B, e [8.7](#87-rotação-das-senhas)) começa por esta conferência. Em **outro** terminal (também sem `RAILWAY_TOKEN`), com o túnel aberto:
 
 ```sh
-"$(brew --prefix libpq)/bin/pg_dump" -h 127.0.0.1 -p 5433 -U helinho -d helinho -Fc -f "$HOME/.helinho-infra/helinho-homologacao-$(date +%Y%m%d-%H%M).dump"
+"$(brew --prefix libpq)/bin/psql" -h 127.0.0.1 -p 5433 -U helinho -d helinho -Atc "select current_database(), count(*) filter (where \"Email\" not like '%@helinho.example') from \"AspNetUsers\""
+```
+
+**✔ Confira:** imprime `helinho|0`: o banco é o `helinho` e **nenhum** usuário tem e-mail fora do domínio sintético `helinho.example`.
+
+**Se der errado:**
+
+- O número depois da barra **não é `0`** → há usuário que o seed não criou. Ou este não é o banco de homologação, ou alguém cadastrou contas pelo painel. **Pare:** não rode nada destrutivo antes de entender de onde vêm essas contas.
+- `relation "AspNetUsers" does not exist` → o banco está vazio (o `migrate` nunca rodou nele). Para um restore isso é esperado; confira no painel que o Service Instance ID veio do `Postgres` do projeto `helinho-homologacao`.
+- Pede senha → veja a nota sobre senha, logo abaixo.
+
+Para o `pg_dump`, que só lê, a conferência é opcional.
+
+#### Fazer o dump
+
+No mesmo terminal da conferência (sem `RAILWAY_TOKEN`). O `umask 077` faz todo arquivo criado neste terminal nascer legível só por você:
+
+```sh
+umask 077
+```
+
+```sh
+DUMP="$HOME/.helinho-infra/helinho-homologacao-$(date +%Y%m%d-%H%M).dump"
+```
+
+```sh
+"$(brew --prefix libpq)/bin/pg_dump" -h 127.0.0.1 -p 5433 -U helinho -d helinho -Fc -f "$DUMP"
 ```
 
 **Confira:** a imagem oficial do PostgreSQL costuma aceitar conexão local sem senha, então o comando pode nem pedir. **Se pedir senha:** painel → `Postgres` → aba **Variables** → `PGPASSWORD` (o gesto para revelar o valor pode variar [F21]); copie e cole no prompt do `pg_dump`. Não ponha a senha na linha de comando.
 
 ```sh
-"$(brew --prefix libpq)/bin/pg_restore" --list "$HOME/.helinho-infra/<arquivo>.dump" | head -20
+"$(brew --prefix libpq)/bin/pg_restore" --list "$DUMP" | grep -c 'TABLE DATA'
 ```
 
-**✔ Confira:** o `pg_restore --list` imprime o sumário do dump, com as tabelas do sistema (por exemplo as do Identity e `__EFMigrationsHistory`). Arquivo vazio ou erro de formato = dump inválido; repita.
+**✔ Confira:** imprime um número maior que zero (uma linha por tabela com dados; as do Identity e `__EFMigrationsHistory` estão entre elas). **Anote o número.** `0` ou erro de formato = dump inválido; repita.
 
-Feche o túnel com `Ctrl+C` no primeiro terminal. Cifre o dump e apague o original:
+Feche o túnel com `Ctrl+C` no primeiro terminal. Cifre o dump:
 
 ```sh
-age -p -o "$HOME/.helinho-infra/<arquivo>.dump.age" "$HOME/.helinho-infra/<arquivo>.dump"
+age -p -o "$DUMP.age" "$DUMP"
 ```
 
+**Antes de apagar o original**, prove que o arquivo cifrado existe e abre com a frase que você digitou:
+
 ```sh
-rm "$HOME/.helinho-infra/<arquivo>.dump"
+age -d "$DUMP.age" | "$(brew --prefix libpq)/bin/pg_restore" --list | grep -c 'TABLE DATA'
+```
+
+**✔ Confira:** pede a frase-senha e imprime **o mesmo número** de antes.
+
+**Se der errado:** o `age -p` reclamou que as duas frases não conferem, o arquivo `.age` não existe, ou a conferência não imprime o mesmo número → **não apague o dump.** Apague o `.age` defeituoso (`rm "$DUMP.age"`) e cifre de novo.
+
+Só depois da conferência:
+
+```sh
+rm "$DUMP"
 ```
 
 Guarde o `.age` fora da máquina, junto do backup do estado ([8.9](#89-onde-fica-o-estado-do-terraform)).
 
 #### Plano B: dump dentro do contêiner e cópia por `scp`
 
-Use só se o túnel não abrir. Os três comandos usam recursos documentados [F13]. Troque `<id do projeto>` pelo `projeto_id` de `terraform output ambientes`.
+Use só se o túnel não abrir. Os comandos usam recursos documentados [F13]. Troque `<id do projeto>` pelo `projeto_id` de `terraform output ambientes`.
+
+O terminal em que você leu `INSTANCIA` era o do túnel, que falhou ou foi fechado. **Neste terminal, leia de novo** (cole o Service Instance ID do `Postgres`):
+
+```sh
+read -r INSTANCIA
+```
+
+```sh
+umask 077
+```
+
+```sh
+DUMP="$HOME/.helinho-infra/helinho-homologacao-$(date +%Y%m%d-%H%M).dump"
+```
+
+1. Gere o dump dentro do contêiner:
 
 ```sh
 railway ssh --project <id do projeto> --environment homologacao --service Postgres -- pg_dump -U helinho -d helinho -Fc -f /tmp/helinho.dump
 ```
 
+2. Copie para a sua máquina:
+
 ```sh
-scp "$INSTANCIA@ssh.railway.com:/tmp/helinho.dump" "$HOME/.helinho-infra/helinho-homologacao-$(date +%Y%m%d-%H%M).dump"
+scp "$INSTANCIA@ssh.railway.com:/tmp/helinho.dump" "$DUMP"
+```
+
+3. Apague o dump do contêiner. **Rode este comando mesmo se o `scp` falhar:** o dump em claro não pode ficar no contêiner.
+
+```sh
+railway ssh --project <id do projeto> --environment homologacao --service Postgres -- rm -f /tmp/helinho.dump
 ```
 
 ```sh
-railway ssh --project <id do projeto> --environment homologacao --service Postgres -- rm /tmp/helinho.dump
+railway ssh --project <id do projeto> --environment homologacao --service Postgres -- ls /tmp/helinho.dump
 ```
 
-**✔ Confira:** o mesmo `pg_restore --list` de cima. Não esqueça o terceiro comando: o dump não pode ficar no contêiner.
+**✔ Confira:** o último comando responde `No such file or directory`.
+
+4. Daqui em diante é igual ao caminho normal: `pg_restore --list "$DUMP"`, `age -p`, a conferência do arquivo cifrado e só então o `rm "$DUMP"`.
 
 ### 8.5 Restore do banco
 
-Dois caminhos. Antes de qualquer um, faça um backup de volume do estado atual ([8.3](#83-backup-de-volume-da-railway)), para poder voltar atrás.
+Dois caminhos. Antes de qualquer um, faça um backup de volume do estado atual ([8.3](#83-backup-de-volume-da-railway)) ou, se a aba **Backups** não existir no seu plano, um `pg_dump` ([8.4](#84-pg_dump-para-fora-da-plataforma)), para poder voltar atrás. Nos dois, confira no painel que o projeto aberto é o **`helinho-homologacao`** antes de restaurar.
 
 #### A. Restaurar um backup de volume (mesmo projeto e ambiente)
 
@@ -798,24 +924,50 @@ Dois caminhos. Antes de qualquer um, faça um backup de volume do estado atual (
 
 #### B. `pg_restore` de um dump (qualquer banco vazio ou o próprio)
 
-1. Decifre o dump:
+O `--clean` **apaga os objetos existentes** antes de recriá-los. Entre o passo 1 e o passo 7 o painel e a API ficam fora do ar.
+
+1. **Tire o `helinho-web` do ar primeiro:** painel → `helinho-web` → aba **Deployments** → três pontos do deploy ativo → **Remove** [F6]. Com a aplicação conectada, o `pg_restore --clean` tende a ficar **parado**, esperando as travas das tabelas em uso, em vez de dar erro.
+
+**✔ Confira:** o serviço `helinho-web` fica sem deploy ativo e `curl` em `/health/ready` deixa de responder `200`.
+
+2. Decifre o dump (o `umask 077` deixa o arquivo decifrado legível só por você):
+
+```sh
+umask 077
+```
 
 ```sh
 age -d -o "$HOME/.helinho-infra/<arquivo>.dump" "$HOME/.helinho-infra/<arquivo>.dump.age"
 ```
 
-2. Abra o túnel como no [8.4](#84-pg_dump-para-fora-da-plataforma).
-3. Restaure por cima, apagando os objetos existentes:
+3. Abra o túnel como no [8.4](#84-pg_dump-para-fora-da-plataforma), conferindo no painel que o Service Instance ID é o do `Postgres` do projeto **`helinho-homologacao`**.
+4. **Confira o alvo** com o comando de "Conferir que o túnel aponta para a homologação" ([8.4](#84-pg_dump-para-fora-da-plataforma)). Só siga com `helinho|0` (ou com o banco vazio, se o restore é em banco novo).
+5. Restaure por cima:
 
 ```sh
 "$(brew --prefix libpq)/bin/pg_restore" -h 127.0.0.1 -p 5433 -U helinho -d helinho --clean --if-exists --no-owner "$HOME/.helinho-infra/<arquivo>.dump"
 ```
 
-4. Feche o túnel, apague o dump decifrado e faça **Redeploy** do `helinho-web`.
+**✔ Confira:** o `pg_restore` termina sozinho, sem linhas `error:`.
 
-**✔ Confira:** o `pg_restore` termina sem linhas `error:`; login no painel funciona ([6.5](#65-login-no-painel)).
+6. Feche o túnel. Confira que o cifrado continua lá e apague o dump decifrado:
 
-**Se der errado:** erros de objeto em uso → remova o deploy do `helinho-web` antes (três pontos → **Remove** [F6]), restaure e publique de novo. O restore de um dump **antigo** em cima de um esquema mais novo deixa o banco no esquema do dump: publique o commit correspondente ou deixe o `migrate` do próximo deploy trazer o esquema para a frente.
+```sh
+ls -l "$HOME/.helinho-infra/<arquivo>.dump.age"
+```
+
+```sh
+rm "$HOME/.helinho-infra/<arquivo>.dump"
+```
+
+7. Publique de novo: `helinho-web` → `Cmd+K` → **Deploy Latest Commit**.
+
+**✔ Confira:** deploy verde; `/health/ready` responde `200` ([6.4](#64-healthready)); login no painel funciona ([6.5](#65-login-no-painel)).
+
+**Se der errado:**
+
+- O `pg_restore` fica parado → ainda há conexão da aplicação: confira que o deploy do `helinho-web` foi mesmo removido, interrompa com `Ctrl+C` e repita o passo 5.
+- O dump é **mais antigo** que o código publicado → o banco fica no esquema do dump, e o `migrate` do deploy do passo 7 traz o esquema para a frente.
 
 Homologação só tem dado sintético: se o restore complicar, destruir e recriar ([8.8](#88-destruir-o-ambiente)) é um caminho legítimo.
 
@@ -851,15 +1003,16 @@ terraform -chdir=infra/railway plan
 
 1. Gere a senha nova no gerenciador ([4.2](#42-gerar-a-senha-do-seed)).
 2. No terminal do Terraform, exporte a nova (`read -rs TF_VAR_seed_password && export TF_VAR_seed_password`), rode `plan` (esperado: 1 mudança, em `railway_variable_collection.web`) e `apply`. O `apply` reimplanta o web.
-3. Faça um backup de volume ([8.3](#83-backup-de-volume-da-railway)).
-4. Abra o túnel do [8.4](#84-pg_dump-para-fora-da-plataforma) e zere o esquema. **Isso apaga todos os dados de homologação:**
+3. Faça um backup de volume ([8.3](#83-backup-de-volume-da-railway)) ou, se a aba não existir no seu plano, um `pg_dump` ([8.4](#84-pg_dump-para-fora-da-plataforma)).
+4. Abra o túnel do [8.4](#84-pg_dump-para-fora-da-plataforma), conferindo no painel que o Service Instance ID é o do `Postgres` do projeto **`helinho-homologacao`**, e **confira o alvo** com o comando de "Conferir que o túnel aponta para a homologação". Só siga com `helinho|0`.
+5. Zere o esquema. **Isso apaga todos os dados do banco em que o túnel está ligado, sem pedir confirmação:**
 
 ```sh
 "$(brew --prefix libpq)/bin/psql" -h 127.0.0.1 -p 5433 -U helinho -d helinho -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
 ```
 
-5. Feche o túnel e faça **Deploy Latest Commit** no `helinho-web`: o `migrate` recria as tabelas e o seed recria os usuários com a senha nova.
-6. Repita [6.5](#65-login-no-painel) e [6.6](#66-post-apilogin-com-curl) com a senha nova; repasse-a a quem usa ([7.3](#73-passar-a-credencial-ao-desenvolvedor-unity)); faça o backup do estado ([5.7](#57-backup-cifrado-do-estado)).
+6. Feche o túnel e faça **Deploy Latest Commit** no `helinho-web`: o `migrate` recria as tabelas e o seed recria os usuários com a senha nova.
+7. Repita [6.5](#65-login-no-painel) e [6.6](#66-post-apilogin-com-curl) com a senha nova; repasse-a a quem usa ([7.3](#73-passar-a-credencial-ao-desenvolvedor-unity)); faça o backup do estado ([5.7](#57-backup-cifrado-do-estado)).
 
 **✔ Confira:** a senha antiga responde `401` e a nova entra.
 
@@ -876,11 +1029,13 @@ A senha é gerada pelo Terraform. Trocar tem uma armadilha: a imagem oficial do 
 terraform -chdir=infra/railway plan -replace='module.ambiente["homologacao"].random_password.postgres' -out="$HOME/.helinho-infra/rotacao.tfplan"
 ```
 
-**✔ Confira:** o plano substitui `random_password.postgres` e altera `railway_variable_collection.postgres`. `railway_service.postgres` e `railway_project.this` **não aparecem** no plano, nem como alteração.
+**✔ Confira:** o plano substitui `random_password.postgres` e altera `railway_variable_collection.postgres`. `railway_service.postgres` e `railway_project.this` **não aparecem** no plano, nem como alteração, e todos os endereços começam por `module.ambiente["homologacao"]`. O `apply` do passo 3 usa esse plano salvo e **não pede confirmação**.
 
-3. Aplique (`terraform -chdir=infra/railway apply "$HOME/.helinho-infra/rotacao.tfplan"`) e apague o arquivo de plano. O `Postgres` reinicia, mas a senha **de dentro do banco continua a antiga**, e o web que está no ar segue funcionando com ela. Um deploy novo do web falharia agora, no pre-deploy, porque já receberia a senha nova.
+3. Aplique (`terraform -chdir=infra/railway apply "$HOME/.helinho-infra/rotacao.tfplan"`) e apague o arquivo de plano. O `Postgres` reinicia, mas a senha **de dentro do banco continua a antiga**. Um deploy novo do web falharia agora, no pre-deploy, porque já receberia a senha nova.
+
+   **Confira (não confirmado):** o esperado é que o web que está no ar siga funcionando com a senha antiga, porque o Terraform não muda nenhuma variável **dele** (a connection string só faz referência à do `Postgres`). Não se sabe se a Railway reimplanta o web sozinha quando muda uma variável referenciada. Olhe a aba **Deployments** do `helinho-web`: se aparecer um deploy novo que **falhou no pre-deploy**, é esse caso; a versão anterior continua no ar [F7] e o procedimento segue igual, a partir do passo 4. Se o web cair, siga também: ele volta no passo 6.
 4. Leia a senha nova no painel (`Postgres` → **Variables** → `POSTGRES_PASSWORD`) e copie.
-5. Abra o túnel do [8.4](#84-pg_dump-para-fora-da-plataforma) e troque a senha dentro do banco. O `\password` pede a senha duas vezes sem mostrar na tela:
+5. Abra o túnel do [8.4](#84-pg_dump-para-fora-da-plataforma), conferindo no painel que o Service Instance ID é o do `Postgres` do projeto **`helinho-homologacao`**. Confira o alvo com o comando de "Conferir que o túnel aponta para a homologação" (só siga com `helinho|0`) e troque a senha dentro do banco. O `\password` pede a senha duas vezes sem mostrar na tela:
 
 ```sh
 "$(brew --prefix libpq)/bin/psql" -h 127.0.0.1 -p 5433 -U helinho -d helinho -c '\password helinho'
@@ -899,51 +1054,162 @@ O banco também pode ser apagado **sem** você pedir uma destruição: uma alter
 
 **Só quer parar de gastar por umas semanas?** Não destrua: remova o deploy dos dois serviços (três pontos do deploy → **Remove** [F6]). Sem deploy ativo, só o volume é cobrado (`docs/operations/custos.md`). Para voltar, publique de novo.
 
+#### Antes de qualquer um dos dois caminhos: conferir o alvo
+
+Os dois caminhos apagam **tudo o que está no estado**, sem volta. No terminal do Terraform:
+
+```sh
+terraform -chdir=infra/railway output -json ambientes | jq -c 'keys'
+```
+
+**✔ Confira:** imprime exatamente `["homologacao"]`.
+
+```sh
+terraform -chdir=infra/railway state list
+```
+
+**✔ Confira:** sete linhas, **todas** começando por `module.ambiente["homologacao"]`.
+
+**Se der errado:** aparece `producao`, ou qualquer endereço fora de `module.ambiente["homologacao"]` → **pare.** Este procedimento destruiria também o que não é homologação; ele só vale para um estado que contém apenas a homologação.
+
+Confira também que o backup cifrado do estado de **agora** existe e abre ([5.7](#57-backup-cifrado-do-estado)): depois da destruição ele é a única cópia das senhas e dos ids antigos.
+
 #### A. Pelo Terraform (preferido: o estado fica coerente)
 
-O serviço `Postgres` tem `prevent_destroy`. Destruir de propósito exige tirar essa proteção em um commit, numa branch que **não** vai para a `main`.
+O serviço `Postgres` tem `prevent_destroy`. Destruir de propósito exige tirar essa proteção. Isso é feito em um **commit, numa branch local que nunca vai para a `main` nem para o GitHub**: com a mudança commitada, o `git switch main` do passo 6 devolve o `prevent_destroy` sem deixar nada pendente, e a remoção não fica esquecida como edição solta no arquivo.
 
-1. Crie a branch:
+1. Comece na `main`, sem nada pendente, e crie a branch:
+
+```sh
+git status --short
+```
+
+**✔ Confira:** não imprime nada.
 
 ```sh
 git switch -c chore/destruir-homologacao
 ```
 
-2. Em `infra/railway/modules/ambiente/main.tf`, apague o bloco `lifecycle { prevent_destroy = true }` do recurso `railway_service.postgres` e faça o commit (`chore(infra): remove prevent_destroy para destruir a homologação`).
+2. Em `infra/railway/modules/ambiente/main.tf`, apague o bloco `lifecycle { prevent_destroy = true }` do recurso `railway_service.postgres` (as três linhas) e faça o commit:
+
+```sh
+git commit -am "chore(infra): remove prevent_destroy para destruir a homologação"
+```
+
+```sh
+grep -c prevent_destroy infra/railway/modules/ambiente/main.tf
+```
+
+**✔ Confira:** imprime `0`. **Não faça `git push` dessa branch.**
+
 3. Planeje a destruição:
 
 ```sh
 terraform -chdir=infra/railway plan -destroy -out="$HOME/.helinho-infra/destruir.tfplan"
 ```
 
-**✔ Confira:** `Plan: 0 to add, 0 to change, 7 to destroy.`, todos sob `module.ambiente["homologacao"]`.
+**✔ Confira:** `Plan: 0 to add, 0 to change, 7 to destroy.`, e os sete endereços começam por `module.ambiente["homologacao"]`. Qualquer outro número ou endereço: **não aplique**.
 
-4. Destrua:
+4. Destrua. **Atenção:** aplicar um plano salvo **não pede confirmação**. Ao apertar Enter, o banco, o volume e o projeto são apagados.
 
 ```sh
 terraform -chdir=infra/railway apply "$HOME/.helinho-infra/destruir.tfplan"
 ```
 
-**✔ Confira:** `Apply complete! Resources: 0 added, 0 changed, 7 destroyed.`; o projeto `helinho-homologacao` sumiu do painel; `terraform -chdir=infra/railway state list` não imprime nada.
+**✔ Confira:** `Apply complete! Resources: 0 added, 0 changed, 7 destroyed.`; o projeto `helinho-homologacao` sumiu do painel.
 
-5. Apague o arquivo de plano, volte para a `main` (`git switch main`) e apague a branch local. A proteção volta sozinha, porque o commit não foi mergeado.
+5. Confira que o estado ficou vazio:
+
+```sh
+terraform -chdir=infra/railway state list
+```
+
+**✔ Confira:** não imprime nada.
+
+6. Volte para a `main` e apague a branch local. O `-D` é necessário porque o commit, de propósito, não foi mergeado:
+
+```sh
+git switch main
+```
+
+```sh
+git branch -D chore/destruir-homologacao
+```
+
+```sh
+grep -c prevent_destroy infra/railway/modules/ambiente/main.tf
+```
+
+**✔ Confira:** imprime `1`: a proteção voltou.
+
+7. Limpe o que ficou em claro, seguindo "Nada fica em claro", abaixo.
 
 **Se der errado:**
 
-- `Instance cannot be destroyed` → o `prevent_destroy` ainda está no arquivo.
-- O `destroy` para no meio (o provider reimplanta o serviço ao apagar uma coleção de variáveis, e isso pode falhar) → faça um `plan -destroy` novo e aplique de novo; se insistir, use o caminho B.
+- `Instance cannot be destroyed` → o `prevent_destroy` ainda está no arquivo (o `grep` do passo 2 não imprimiu `0`).
+- O `destroy` para no meio (o provider reimplanta o serviço ao apagar uma coleção de variáveis, e isso pode falhar) → **não apague o estado**. Faça um `plan -destroy` novo e aplique de novo; se insistir, use o caminho B.
 - Erro de permissão ao apagar projeto ou serviço → o seu papel não é Admin [F16].
+- O `grep` do passo 6 imprime `0` → você ainda está na branch errada ou editou o arquivo na `main`: `git status` e `git checkout -- infra/railway/modules/ambiente/main.tf`.
 
 #### B. Pelo painel (se o Terraform não conseguir)
 
-1. Painel → configurações do projeto `helinho-homologacao` → aba **Danger** → **Delete Project** [F15]. Isso apaga todos os serviços, ambientes e deploys do projeto [F15].
-2. O estado local ficou apontando para recursos que não existem. Guarde-o cifrado ([5.7](#57-backup-cifrado-do-estado)) e tire-o do caminho:
+1. Confira o alvo: o id do projeto que o Terraform conhece precisa ser o do projeto aberto no painel (configurações do projeto → aba **General** [F15]), e o nome precisa ser `helinho-homologacao`.
 
 ```sh
-mv infra/railway/terraform.tfstate "$HOME/.helinho-infra/tfstate-destruido-$(date +%Y%m%d).json"
+terraform -chdir=infra/railway output -json ambientes | jq -r '.homologacao.projeto_id'
 ```
 
-3. Apague esse arquivo depois de cifrá-lo: ele contém as senhas antigas.
+**✔ Confira:** o id impresso é igual ao da aba **General** do projeto que você vai apagar.
+
+2. Painel → configurações do projeto `helinho-homologacao` → aba **Danger** → **Delete Project** [F15]. Isso apaga todos os serviços, ambientes e deploys do projeto [F15].
+
+**✔ Confira:** o projeto sumiu da lista de projetos do workspace.
+
+3. O estado local ficou apontando para recursos que não existem, e continua com as senhas antigas. Cifre-o:
+
+```sh
+age -p -o "$HOME/.helinho-infra/tfstate-destruido-$(date +%Y%m%d-%H%M).age" infra/railway/terraform.tfstate
+```
+
+4. Prove que o cifrado abre, trocando `<arquivo>`:
+
+```sh
+age -d "$HOME/.helinho-infra/<arquivo>.age" | jq '.resources | length'
+```
+
+**✔ Confira:** pede a frase-senha e imprime um número (`7`, se o estado estava completo).
+
+5. Só então apague os arquivos em claro, seguindo "Nada fica em claro", abaixo.
+
+#### Nada fica em claro
+
+Vale para os dois caminhos, **só depois** de: o projeto ter sumido do painel, e o backup cifrado do estado ter sido aberto com sucesso. No caminho A, também só depois de o `state list` não imprimir nada.
+
+O `terraform.tfstate.backup` é a cópia automática do estado **anterior**: depois de destruir, é ele que guarda a senha do banco e a do seed em texto. Apague os dois arquivos de estado:
+
+```sh
+rm -f infra/railway/terraform.tfstate infra/railway/terraform.tfstate.backup
+```
+
+Apague os planos salvos, que também têm os segredos em texto:
+
+```sh
+find "$HOME/.helinho-infra" -name '*.tfplan' -delete
+```
+
+Confira que não sobrou nada em claro:
+
+```sh
+find infra/railway -maxdepth 1 -name 'terraform.tfstate*'
+```
+
+```sh
+find "$HOME/.helinho-infra" -type f ! -name '*.age'
+```
+
+**✔ Confira:** os dois comandos não imprimem nada. Em `~/.helinho-infra/` só ficam arquivos `.age`.
+
+**Se der errado:** o segundo `find` lista um `.dump` ou outro arquivo → é um dump ou um estado decifrado que ficou para trás. Confira que existe o `.age` correspondente e apague o arquivo em claro.
 
 **Depois de destruir (os dois caminhos):**
 
@@ -959,8 +1225,8 @@ Decisão D2 do ADR-0002 (§10.3): estado **local**, fora do git, com backup cifr
 | O quê | Onde | Observação |
 |---|---|---|
 | Estado em uso | `infra/railway/terraform.tfstate` | Texto, com a senha do banco e a do seed e, depois das Sprints 3 e 4, as chaves da Brevo e de IA. O `.gitignore` cobre `*.tfstate` e `*.tfstate.*` |
-| Cópia automática anterior | `infra/railway/terraform.tfstate.backup` | Mesmo cuidado: também tem segredo |
-| Arquivos de plano | `~/.helinho-infra/*.tfplan` | Têm os segredos em texto. O `.gitignore` só bloqueia `*.tfplan` a partir da Issue #112: por isso ficam fora do repositório e são apagados depois do `apply` |
+| Cópia automática anterior | `infra/railway/terraform.tfstate.backup` | Mesmo cuidado: também tem segredo. Depois de destruir, é ela que guarda as senhas antigas ([8.8](#88-destruir-o-ambiente), "Nada fica em claro") |
+| Arquivos de plano | `~/.helinho-infra/*.tfplan` | Têm os segredos em texto. O `.gitignore` bloqueia `*.tfplan` e `tfplan` (PR #116), mas o arquivo continuaria em claro no disco: por isso ficam fora do repositório e são apagados depois do `apply` |
 | Backups cifrados | `~/.helinho-infra/tfstate-<data>.age` | Um por `apply` ([5.7](#57-backup-cifrado-do-estado)) |
 | Cópia fora da máquina | Um lugar que só você acessa: anexo cifrado no gerenciador de senhas ou disco externo cifrado | Sempre o arquivo `.age`, nunca o estado em texto. Não use drive compartilhado sem combinar com a contratante |
 | Frase-senha do `age` | Gerenciador de senhas | Sem ela o backup não abre |
@@ -998,7 +1264,9 @@ Nada disto é feito agora. Cada item tem dono e condição.
 | **Ambiente de produção** | Exige ADR próprio para dado real, resposta sobre região e fornecedores (C14, Issue #39), teto de gasto (C04), estado separado e `Seed__Enabled=false` (ADR-0002 §5.2) | Acrescentar `producao` em `ambientes` cria um **segundo projeto** (`helinho-producao`). **Não acrescente agora.** **Confira (ADR-0002 §16, item 5):** nunca crie um segundo ambiente **dentro** do projeto de homologação, nem pelo painel: o provider só lê serviço e volume do ambiente padrão, e o comportamento com dois ambientes não foi testado |
 | **Brevo (Sprint 3)** | E-mail real ainda não existe; `Email__Provider = "Fake"` | `TF_VAR_brevo_api_key` + `variaveis_web` (`Email__Provider`, `Brevo__SenderEmail`, `Brevo__SenderName`, `App__PublicBaseUrl`); runbook próprio. A chave passa a ficar em texto no estado |
 | **IA (Sprint 4)** | `Ai__Provider = "Fake"` | `TF_VAR_ai_api_key` + `Ai__Provider`, `Ai__Model`; runbook próprio. A chave passa a ficar em texto no estado |
-| **`DATABASE_URL` no serviço `Postgres`** | O Terraform não define; sem ela `railway connect` não funciona ([8.4](#84-pg_dump-para-fora-da-plataforma)) | Issue própria em `infra/`, se você quiser o comando da CLI |
+| **`railway connect` para o banco** | O ADR-0002 §11 descarta o comando neste desenho: ele exige `DATABASE_URL` no serviço `Postgres`, que o Terraform não define, e imprime a senha ([8.4](#84-pg_dump-para-fora-da-plataforma)) | Só com ADR e Issue em `infra/`, se um dia fizer falta |
+| **Senha própria para o aluno de teste** | Hoje todos os usuários do seed têm a mesma senha; é risco aberto registrado no ADR-0002 §10.4 | Issue própria, no código do seed |
+| **Chaves do Data Protection** | Depende da decisão D4 ([2.1](#21-conferir-que-a-main-tem-tudo)) | Opção A: PR da Issue #103 |
 | **Deploy contínuo** (`auto_deploy = true`) | Decisão D3: manual por enquanto | Trocar a variável e ativar **Wait for CI** nas configurações do serviço, que o provider não alcança [F5] |
 | **Estado remoto com lock** | Um operador, um ambiente | ADR próprio, junto com produção |
 
@@ -1018,7 +1286,7 @@ Nada disto é feito agora. Cada item tem dono e condição.
 |---|---|---|---|
 | 1 | Conectar o repositório no primeiro `apply` dispara um deploy? Ele respeita o watch pattern? | ADR §16.1; handoff 107, surpresa 2 | [5.4](#54-apply), [6.1](#61-ver-em-que-estado-o-helinho-web-ficou), [6.8](#68-no-próximo-push-na-main-o-deploy-foi-ignorado) |
 | 2 | "Deploy Latest Commit" ignora o watch pattern? | ADR §16.2; handoff 107, surpresa 8 | [6.2](#62-publicar-deploy-latest-commit) |
-| 3 | O pre-deploy roda em shell ou em forma exec? | ADR §16.3 | [6.3](#63-conferir-o-pre-deploy-migrate) |
+| 3 | O pre-deploy substitui o `ENTRYPOINT` da imagem e roda em forma exec? | ADR §16.3 | [6.3](#63-conferir-o-pre-deploy-migrate) |
 | 4 | O healthcheck traz `X-Forwarded-Proto`? | ADR §16.4 | [6.2](#62-publicar-deploy-latest-commit) |
 | 5 | Comportamento do provider com um segundo ambiente no mesmo projeto | ADR §16.5 | [Passo 9](#passo-9--o-que-fica-para-depois) |
 | 6 | A API da Railway aceita variável com valor vazio? | ADR §16.6 | [5.3](#53-plan), item 6 |
@@ -1032,25 +1300,28 @@ Nada disto é feito agora. Cada item tem dono e condição.
 | 14 | Subdomínio ocupado | handoff 107, surpresa 6 | [5.5](#55-se-o-apply-falhar-no-meio) |
 | 15 | Todo `apply` com mudança é um deploy | handoff 107, surpresa 7 | [8.1](#81-publicar-uma-versão-nova) |
 | 16 | Trocar `seed_password` regrava a senha dos usuários? | handoff 107, surpresa 9 | [8.7](#87-rotação-das-senhas): conferido no código, **não regrava** |
-| 17 | A borda sobrescreve `X-Real-IP`; cookie `Secure` e HSTS em ambiente real | ADR §8; handoff 97 | [6.7](#67-conferir-o-comportamento-atrás-do-proxy) |
+| 17 | A borda sobrescreve `X-Real-IP`; o limite de taxa separa os clientes por IP; cookie `Secure` e HSTS em ambiente real | ADR §8; handoff 97 | [6.7](#67-conferir-o-comportamento-atrás-do-proxy) |
 | 18 | Token de workspace consegue conectar repositório privado de conta pessoal? | este runbook | [Passo 3](#passo-3--github-app-da-railway-no-repositório), [5.5](#55-se-o-apply-falhar-no-meio) |
 | 19 | Onde aparecem os logs do pre-deploy no painel | este runbook | [6.3](#63-conferir-o-pre-deploy-migrate) |
 | 20 | O túnel `ssh -L` até o contêiner do `Postgres` funciona como a documentação descreve | este runbook | [8.4](#84-pg_dump-para-fora-da-plataforma) |
 | 21 | Nome do volume depois de restaurar um backup, visto pelo Terraform | este runbook | [8.5](#85-restore-do-banco) |
 | 22 | Janela de 48 h do volume quando o projeto inteiro é apagado | este runbook | [8.8](#88-destruir-o-ambiente) |
-| 23 | Onde o id do workspace aparece no painel; qual papel pode criar token de workspace | este runbook | [5.5](#55-se-o-apply-falhar-no-meio), [2.5](#25-criar-o-token-de-workspace) |
-| 24 | Alterar o bloco `volume` do `Postgres` apaga o volume no lugar, sem o `prevent_destroy` impedir | segunda revisão do PR #110 (Issue #112) | [8.1](#81-publicar-uma-versão-nova), [8.5](#85-restore-do-banco), [8.8](#88-destruir-o-ambiente) |
+| 23 | Qual papel pode criar token de workspace | este runbook | [2.5](#25-criar-o-token-de-workspace). O id do workspace deixou de ser dúvida: `railway whoami --json` ([5.5](#55-se-o-apply-falhar-no-meio)) |
+| 24 | Alterar o bloco `volume` do `Postgres` apaga o volume no lugar, sem o `prevent_destroy` impedir | `infra/railway/README.md` (lido no código do provider; nunca executado) | [8.1](#81-publicar-uma-versão-nova), [8.5](#85-restore-do-banco), [8.8](#88-destruir-o-ambiente) |
+| 25 | A aba **Backups** existe no plano Hobby? | este runbook | [8.3](#83-backup-de-volume-da-railway) |
+| 26 | A Railway reimplanta o web quando muda uma variável do `Postgres` que ele referencia? | este runbook | [8.7](#87-rotação-das-senhas) |
+| 27 | Rótulo do botão que apaga um serviço na seção de perigo do projeto; `terraform import` do projeto | este runbook | [5.5](#55-se-o-apply-falhar-no-meio) |
 
 Quando um desses pontos for resolvido na prática, troque o "Confira:" pelo fato, em PR `docs`.
 
 ## Fontes
 
-Todas consultadas em **18/11/2026**. A interface da Railway muda com frequência: se o painel não bater com o texto, vale o painel, e o runbook é corrigido.
+Consultadas em **18/11/2026**; F4, F15 e F22 foram lidas de novo ou acrescentadas em **19/11/2026**. A interface da Railway muda com frequência: se o painel não bater com o texto, vale o painel, e o runbook é corrigido.
 
 | # | Assunto | Fonte |
 |---|---|---|
 | F1 | Tipos de token, página de criação, seletor de workspace, cabeçalhos | https://docs.railway.com/integrations/api |
-| F2 | Autenticação do provider (`RAILWAY_TOKEN`, token de conta ou de workspace); `projectDelete` no `destroy` | https://registry.terraform.io/providers/terraform-community-providers/railway/0.6.3/docs e o código da tag `v0.6.3` em https://github.com/terraform-community-providers/terraform-provider-railway (`docs/index.md`, `internal/provider/resource_project.graphql`) |
+| F2 | Autenticação do provider (`RAILWAY_TOKEN`, token de conta ou de workspace); `projectDelete` no `destroy`; `terraform import` de projeto e de serviço pelo id | https://registry.terraform.io/providers/terraform-community-providers/railway/0.6.3/docs e o código da tag `v0.6.3` em https://github.com/terraform-community-providers/terraform-provider-railway (`docs/index.md`, `docs/resources/service.md`, `examples/resources/railway_project/import.sh`, `internal/provider/resource_project.graphql`) |
 | F3 | CLI: instalação, `railway login`, `RAILWAY_TOKEN` (projeto) e `RAILWAY_API_TOKEN` (conta ou workspace) | https://docs.railway.com/cli |
 | F4 | Serviço a partir de repositório do GitHub, link da GitHub App, apagar serviço | https://docs.railway.com/services |
 | F5 | Auto-deploy: botão Disable, Deploy Latest Commit, Show Skipped, Wait for CI, diagnóstico da GitHub App | https://docs.railway.com/deployments/github-autodeploys |
@@ -1070,5 +1341,6 @@ Todas consultadas em **18/11/2026**. A interface da Railway muda com frequência
 | F19 | Terraform: versão estável 1.17.2 e instalação pelo Homebrew | https://developer.hashicorp.com/terraform/install |
 | F20 | Alterações pendentes no painel (Details e Deploy) | https://docs.railway.com/deployments/staged-changes |
 | F21 | Variáveis de serviço: aba Variables, variáveis seladas | https://docs.railway.com/variables |
+| F22 | `railway whoami --json`: lista os workspaces com id e nome | https://docs.railway.com/cli/whoami |
 
 Documentos do repositório usados como especificação: `docs/architecture/ADR-0002-hospedagem-railway.md`, `infra/railway/README.md`, `docs/handoff/107.md`, `docs/handoff/94.md`, `docs/handoff/95.md`, `docs/handoff/97.md`, `docs/operations/custos.md` e o `README.md` da raiz.
