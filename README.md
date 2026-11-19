@@ -21,6 +21,32 @@ Painel em `http://localhost:5018`; API em `/api`. Passo a passo da apresentaçã
 
 Logs: fora de `Development` o console sai em JSON, uma linha por evento, com timestamp em UTC e sem escopos (`Logging:Console` em `appsettings.json`); em `Development` continua o formato legível. SQL do EF Core e requisições do ASP.NET Core só aparecem a partir de `Warning`.
 
+## Imagem Docker
+
+O `Dockerfile` da raiz gera a imagem que a hospedagem constrói (multi-stage, usuário sem privilégios, sem SDK). O processo escuta em `0.0.0.0:$PORT` (8080 se `PORT` não existir) e repassa argumentos ao binário (`seed`).
+
+```bash
+docker build -t helinho-web .
+docker compose up -d --wait db     # banco local publicado em 127.0.0.1:5432
+docker run --rm -p 8080:8080 \
+  -e ConnectionStrings__Default="Host=host.docker.internal;Port=5432;Database=helinho;Username=helinho;Password=$POSTGRES_PASSWORD" \
+  helinho-web                      # acrescente `migrate` ao final para aplicar as migrações
+curl http://localhost:8080/health
+```
+
+`host.docker.internal` vale no Docker Desktop. Segredos entram só por variável de ambiente em tempo de execução; nada vai para a imagem.
+
+## Configuração do banco: `migrate`, `seed` e `Seed__Enabled`
+
+Aplicar migração e gravar dados sintéticos são passos separados. Os dois comandos encerram o processo ao terminar, sem subir o servidor:
+
+| Comando | O que faz | Código de saída |
+|---|---|---|
+| `dotnet run --project src/Helinho.Web -- migrate` | Aplica as migrações. Com `Seed__Enabled=true`, roda o seed em seguida; sem a flag, não toca em dados | `0` |
+| `dotnet run --project src/Helinho.Web -- seed` | Uso local: aplica as migrações e roda o seed, mas só com `Seed__Enabled=true`; sem a flag, recusa e não grava nada | `0`, ou `1` quando recusado |
+
+`Seed__Enabled` (chave `Seed:Enabled`) vem **desligada por padrão**: um ambiente que só define a string de conexão nunca recebe dados sintéticos. Ela é ligada em `appsettings.Development.json` e pelo `scripts/demo.sh`, então o fluxo local não muda. O seed é idempotente (rodar de novo não duplica dados) e exige `HELINHO_SEED_PASSWORD`. No deploy, `migrate` é o comando de pré-deploy.
+
 ## Configuração do login da API
 
 `POST /api/login` aceita matrícula, usuário ou e-mail e devolve um token opaco Bearer (256 bits; só o hash SHA-256 fica no banco). Falha de credencial responde `401 invalid_credentials` (uniforme); aluno não aprovado, admin e master respondem `403 forbidden`. Chaves opcionais da seção `Api:Auth` (em `appsettings` ou variável de ambiente com `__`, ex.: `Api__Auth__TokenLifetime`):
@@ -32,6 +58,27 @@ Logs: fora de `Development` o console sai em JSON, uma linha por evento, com tim
 | `LockoutDuration` | `00:15:00` | Duração do bloqueio |
 | `LoginRateLimit` | `10` | Requisições a `/api/login` por IP por janela |
 | `LoginRateWindow` | `00:01:00` | Janela do limite de taxa |
+
+## Atrás do proxy (Railway): HTTPS, HSTS e IP do cliente
+
+A Railway termina o TLS e entrega a requisição em HTTP ao contêiner. Fora de `Development` (`ASPNETCORE_ENVIRONMENT` diferente de `Development`) a aplicação sempre:
+
+- redireciona HTTP para HTTPS (307), **menos** as rotas sob `/health`, que o healthcheck da plataforma chama em HTTP puro;
+- envia `Strict-Transport-Security: max-age=31536000` nas respostas HTTPS;
+- marca todo cookie como `Secure` (painel, antiforgery, TempData).
+
+Para ela enxergar o esquema e o IP reais, ligue a seção `Proxy` (variável de ambiente com `__`):
+
+| Chave | Variável de ambiente | Padrão | Efeito |
+|---|---|---|---|
+| `Proxy:TrustForwardedHeaders` | `Proxy__TrustForwardedHeaders` | `false` | Confia em `X-Forwarded-Proto` (esquema) e no cabeçalho de IP abaixo. **Ligue (`true`) na Railway**; nunca onde a aplicação é alcançável sem passar pelo proxy |
+| `Proxy:ClientIpHeader` | `Proxy__ClientIpHeader` | `X-Real-IP` | Cabeçalho de onde sai o IP do cliente (limite de taxa do login). Só o último valor é usado |
+
+- Fora de `Development` com `Proxy:TrustForwardedHeaders` desligado, toda requisição parece HTTP e entra em laço de redirecionamento: é o sinal de que a chave faltou.
+- Não use `ASPNETCORE_FORWARDEDHEADERS_ENABLED`: ela liga o middleware do framework lendo `X-Forwarded-For`, que a Railway não documenta.
+- A porta do redirecionamento é 443; `ASPNETCORE_HTTPS_PORT` a substitui.
+- `AllowedHosts` (chave do ASP.NET Core, hoje `*`) pode restringir os hosts aceitos; se for definida, inclua `healthcheck.railway.app`, o host do healthcheck.
+- O serviço não deve ter TCP Proxy público, e os demais serviços do mesmo projeto Railway alcançam o contêiner pela rede privada sem passar pela borda: eles são confiáveis por definição.
 
 ## Como testar
 

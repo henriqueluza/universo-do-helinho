@@ -156,7 +156,8 @@ public class LoggingTests(PostgresFixture postgres)
             await db.SaveChangesAsync(Ct);
         }
 
-        using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+        // Fora de Development, HTTP puro é redirecionado para HTTPS (#97): o cliente já fala HTTPS.
+        using var client = factory.CreateClient(new() { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
         var form = await (await client.GetAsync("/entrar", Ct)).Content.ReadAsStringAsync(Ct);
         var antiforgery = Regex.Match(form, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
         var panel = await client.PostAsync(
