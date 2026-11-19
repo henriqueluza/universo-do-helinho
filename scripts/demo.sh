@@ -29,6 +29,8 @@ export POSTGRES_USER="${POSTGRES_USER:-helinho}"
 export ConnectionStrings__Default="Host=127.0.0.1;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
 export ASPNETCORE_ENVIRONMENT="${ASPNETCORE_ENVIRONMENT:-Development}"
 export ASPNETCORE_URLS="${ASPNETCORE_URLS:-http://localhost:5018}"
+# O seed sintético é opt-in (padrão desligado, para produção); a demonstração local o liga.
+export Seed__Enabled=true
 
 # Senha do seed: HELINHO_SEED_PASSWORD (se definida) vale e é gravada; senão reaproveita o arquivo; senão é gerada.
 seed_pass_file="$state_dir/seed-password"
