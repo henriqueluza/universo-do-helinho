@@ -10,7 +10,6 @@
     string? Err(string field) => ModelState["Input." + field]?.Errors.FirstOrDefault()?.ErrorMessage;
     string? Bad(string field) => Err(field) is null ? null : "true";
     string? Desc(string field) => Err(field) is null ? null : $"Input_{field}-erro";
-    // Alvo do link do resumo de erros: o primeiro rádio do grupo ou o próprio campo.
     string Target(string key) => key.Replace('.', '_');
     var letters = new[] { "A", "B", "C", "D" };
     var optionFields = new[] { "OptionA", "OptionB", "OptionC", "OptionD" };
@@ -18,7 +17,6 @@
     var bands = new[] { AgeBand.Age6To7, AgeBand.Age8To10, AgeBand.Age11To12, AgeBand.Age13To14 };
     var quizTypes = Enum.GetValues<QuizType>();
 
-    // Prévia do celular: renderizada no servidor com o que está no formulário (salvo, ou enviado quando há erro).
     var quiz = Model.Input.QuizType;
     var age = Model.Input.AgeBand;
     var statement = Model.Input.Statement?.Trim();

@@ -109,7 +109,6 @@ public class QuestoesRecreioTests(PostgresFixture postgres)
         Assert.Matches("id=\"Input_AgeBand\"[^>]*aria-invalid=\"true\"[^>]*aria-describedby=\"Input_AgeBand-erro\"", html);
         Assert.Contains("checked=\"checked\"", html, StringComparison.Ordinal);
         Assert.Contains("class=\"phone cul\"", html, StringComparison.Ordinal);
-        // texto de questão sai sempre codificado, na prévia e no campo
         Assert.DoesNotContain(Xss, raw, StringComparison.Ordinal);
         Assert.Contains("&lt;script&gt;alert(1)&lt;/script&gt;", raw, StringComparison.Ordinal);
     }
