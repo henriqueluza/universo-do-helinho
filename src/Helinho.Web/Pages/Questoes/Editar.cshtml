@@ -1,90 +1,197 @@
 @page "{id:guid?}"
 @model Helinho.Web.Pages.Questoes.EditarModel
 @using Helinho.Domain
+@using Helinho.Web.Pages.Questoes
 @{
     var editing = Model.Id is not null;
     ViewData["Title"] = editing ? "Editar questão" : "Nova questão";
     var errors = ModelState.Where(e => e.Value!.Errors.Count > 0)
         .Select(e => (Key: e.Key, Message: e.Value!.Errors[0].ErrorMessage)).ToList();
     string? Err(string field) => ModelState["Input." + field]?.Errors.FirstOrDefault()?.ErrorMessage;
+    string? Bad(string field) => Err(field) is null ? null : "true";
+    string? Desc(string field) => Err(field) is null ? null : $"Input_{field}-erro";
+    string Target(string key) => key.Replace('.', '_');
     var letters = new[] { "A", "B", "C", "D" };
     var optionFields = new[] { "OptionA", "OptionB", "OptionC", "OptionD" };
     var optionValues = new[] { Model.Input.OptionA, Model.Input.OptionB, Model.Input.OptionC, Model.Input.OptionD };
-}
-<h1 class="page-title">@ViewData["Title"]</h1>
-
-<section class="card-panel" aria-label="Formulário da questão" style="max-width: 720px">
-    @if (editing)
+    var bands = new[] { AgeBand.Age6To7, AgeBand.Age8To10, AgeBand.Age11To12, AgeBand.Age13To14 };
+    var quizTypes = Enum.GetValues<QuizType>();
+    var quiz = Model.Input.QuizType;
+    var age = Model.Input.AgeBand;
+    var statement = Model.Input.Statement?.Trim();
+    var explanation = Model.Input.Explanation?.Trim();
+    if (explanation is { Length: > 160 }) { explanation = explanation[..160] + "…"; }
+    var correct = Model.Input.Correct;
+    var checklist = new (string Label, bool Done)[]
     {
-        <p class="muted">Ao salvar, a questão volta para rascunho e precisa ser aprovada de novo para chegar ao jogo.</p>
-    }
-    <form method="post" novalidate>
+        ("Tema escolhido", quiz is not null),
+        ("Faixa etária", age is not null),
+        ("Enunciado escrito", !string.IsNullOrWhiteSpace(statement)),
+        ("4 alternativas preenchidas", optionValues.All(v => !string.IsNullOrWhiteSpace(v))),
+        ("Alternativa correta marcada", correct is >= 0 and <= 3),
+    };
+}
+<div>
+    <a class="back" asp-page="Index"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Questões</a>
+    <div class="page-head">
+        <p class="sub">Três passos: o tema, para quem é e a pergunta com as quatro alternativas.</p>
+    </div>
+</div>
+
+@if (editing)
+{
+    <div class="note info"><svg aria-hidden="true"><use href="#i-info"/></svg><span>Ao salvar, a questão volta para rascunho e precisa ser aprovada de novo para chegar ao jogo.</span></div>
+}
+
+<div class="maker">
+    <form class="maker-form" method="post" novalidate>
         @if (errors.Count > 0)
         {
-            <div class="alert alert-danger" role="alert" tabindex="-1" id="resumo-erros" autofocus>
-                @foreach (var e in errors)
-                {
-                    <div><a href="#@e.Key.Replace('.', '_')">@e.Message</a></div>
-                }
+            <div class="alert" role="alert" tabindex="-1" id="resumo-erros" autofocus>
+                <svg aria-hidden="true"><use href="#i-alert"/></svg>
+                <div>
+                    @foreach (var e in errors)
+                    {
+                        <div>@if (e.Key.Length > 0) { <a href="#@Target(e.Key)">@e.Message</a> } else { @e.Message }</div>
+                    }
+                </div>
             </div>
         }
-        <div class="row g-3 mb-3">
-            <div class="col-sm-6">
-                <label class="form-label" asp-for="Input.QuizType">Tipo de quiz <span class="muted">(obrigatório)</span></label>
-                <select class="form-select @(Err("QuizType") is null ? "" : "is-invalid")" asp-for="Input.QuizType" aria-invalid="@(Err("QuizType") is null ? null : "true")">
-                    <option value="">Selecione</option>
-                    @foreach (var t in Enum.GetValues<QuizType>())
-                    {
-                        <option value="@t" selected="@(Model.Input.QuizType == t)">@Helinho.Web.Pages.Questoes.IndexModel.QuizLabel(t)</option>
-                    }
-                </select>
+
+        <fieldset class="step">
+            <legend class="step-h"><span class="n" aria-hidden="true">1</span>Qual é o tema? <span class="visually-hidden">Tipo de quiz, obrigatório.</span><small>Cada tema tem um personagem no jogo</small></legend>
+            <div class="theme-pick">
+                @foreach (var t in quizTypes)
+                {
+                    var face = QuizPresentation.Face(t);
+                    <label class="tp @QuizPresentation.CssClass(t)">
+                        <input type="radio" name="Input.QuizType" value="@t" id="@(t == quizTypes[0] ? "Input_QuizType" : "Input_QuizType_" + t)" checked="@(quiz == t)" aria-invalid="@Bad("QuizType")" aria-describedby="@Desc("QuizType")" />
+                        <img src="~/img/@face.File" width="@face.Width" height="@face.Height" alt="" />
+                        <b>@IndexModel.QuizLabel(t)</b>
+                        <small>@QuizPresentation.Character(t)</small>
+                    </label>
+                }
             </div>
-            <div class="col-sm-6">
-                <label class="form-label" asp-for="Input.AgeBand">Faixa etária <span class="muted">(obrigatório)</span></label>
-                <select class="form-select @(Err("AgeBand") is null ? "" : "is-invalid")" asp-for="Input.AgeBand" aria-invalid="@(Err("AgeBand") is null ? null : "true")">
-                    <option value="">Selecione</option>
-                    @foreach (var b in Enum.GetValues<AgeBand>())
-                    {
-                        <option value="@b" selected="@(Model.Input.AgeBand == b)">@Helinho.Web.Pages.Questoes.IndexModel.BandLabel(b)</option>
-                    }
-                </select>
-            </div>
-        </div>
-        <div class="mb-3">
-            <label class="form-label" asp-for="Input.Statement">Enunciado <span class="muted">(obrigatório)</span></label>
-            <textarea class="form-control @(Err("Statement") is null ? "" : "is-invalid")" asp-for="Input.Statement" rows="3" maxlength="500" aria-invalid="@(Err("Statement") is null ? null : "true")"></textarea>
-        </div>
-        <fieldset class="mb-3">
-            <legend class="form-label fs-6">Alternativas <span class="muted">(preencha as quatro e marque a correta)</span></legend>
-            @for (var i = 0; i < 4; i++)
+            @if (Err("QuizType") is { } quizError)
             {
-                var field = optionFields[i];
-                var err = Err(field);
-                <div class="d-flex align-items-start gap-2 mb-2">
-                    <div class="form-check pt-2">
-                        <input class="form-check-input" type="radio" name="Input.Correct" id="Input_Correct_@i" value="@i" checked="@(Model.Input.Correct == i)" />
-                        <label class="form-check-label" for="Input_Correct_@i"><span class="visually-hidden">Marcar a alternativa @letters[i] como correta</span></label>
-                    </div>
-                    <div class="flex-grow-1">
-                        <label class="visually-hidden" for="Input_@field">Alternativa @letters[i]</label>
-                        <input class="form-control @(err is null ? "" : "is-invalid")" id="Input_@field" name="Input.@field" value="@optionValues[i]" maxlength="300" autocomplete="off"
-                               placeholder="Alternativa @letters[i]" aria-invalid="@(err is null ? null : "true")" />
-                    </div>
-                </div>
-            }
-            @if (Err("Correct") is { } correctError)
-            {
-                <div class="form-text text-negative" id="Input_Correct">@correctError</div>
+                <span class="field-error" id="Input_QuizType-erro">@quizError</span>
             }
         </fieldset>
-        <div class="mb-3">
-            <label class="form-label" asp-for="Input.Explanation">Explicação <span class="muted">(obrigatório)</span></label>
-            <textarea class="form-control @(Err("Explanation") is null ? "" : "is-invalid")" asp-for="Input.Explanation" rows="3" maxlength="1000" aria-invalid="@(Err("Explanation") is null ? null : "true")"></textarea>
-            <div class="form-text muted">Mostrada ao aluno depois que ele responde.</div>
-        </div>
-        <div class="d-flex gap-2">
+
+        <fieldset class="step">
+            <legend class="step-h"><span class="n" aria-hidden="true">2</span>Para quem é? <span class="visually-hidden">Faixa etária, obrigatória.</span></legend>
+            <div class="pill-pick">
+                @for (var i = 0; i < bands.Length; i++)
+                {
+                    <label class="pp">
+                        <input type="radio" name="Input.AgeBand" value="@bands[i]" id="@(i == 0 ? "Input_AgeBand" : "Input_AgeBand_" + bands[i])" checked="@(age == bands[i])" aria-invalid="@Bad("AgeBand")" aria-describedby="@Desc("AgeBand")" />
+                        <span>@IndexModel.BandLabel(bands[i])</span>
+                    </label>
+                }
+            </div>
+            @if (Err("AgeBand") is { } ageError)
+            {
+                <span class="field-error" id="Input_AgeBand-erro">@ageError</span>
+            }
+        </fieldset>
+
+        <fieldset class="step">
+            <legend class="step-h"><span class="n" aria-hidden="true">3</span>Escreva a pergunta</legend>
+            <div class="field">
+                <label asp-for="Input.Statement">Enunciado <span class="req">(obrigatório)</span></label>
+                <textarea class="input textarea" asp-for="Input.Statement" rows="3" maxlength="500" aria-invalid="@Bad("Statement")" aria-describedby="@Desc("Statement")"></textarea>
+                <small>Até 500 caracteres.</small>
+                @if (Err("Statement") is { } statementError)
+                {
+                    <span class="field-error" id="Input_Statement-erro">@statementError</span>
+                }
+            </div>
+            <fieldset class="alts">
+                <legend>Alternativas <span class="req">(preencha as quatro e marque a correta)</span></legend>
+                @for (var i = 0; i < 4; i++)
+                {
+                    var field = optionFields[i];
+                    <div class="alt">
+                        <span class="key" aria-hidden="true">@letters[i]</span>
+                        <div>
+                            <label class="visually-hidden" for="Input_@field">Alternativa @letters[i]</label>
+                            <input class="input" id="Input_@field" name="Input.@field" value="@optionValues[i]" maxlength="300" autocomplete="off"
+                                   aria-invalid="@Bad(field)" aria-describedby="@Desc(field)" />
+                        </div>
+                        <label class="correct">
+                            <input type="radio" name="Input.Correct" id="@(i == 0 ? "Input_Correct" : "Input_Correct_" + i)" value="@i" checked="@(correct == i)" aria-invalid="@Bad("Correct")" aria-describedby="@Desc("Correct")" />
+                            Certa<span class="visually-hidden"> (alternativa @letters[i])</span>
+                        </label>
+                    </div>
+                    @if (Err(field) is { } optionError)
+                    {
+                        <span class="field-error" id="Input_@(field)-erro">@optionError</span>
+                    }
+                }
+                @if (Err("Correct") is { } correctError)
+                {
+                    <span class="field-error" id="Input_Correct-erro">@correctError</span>
+                }
+            </fieldset>
+            <div class="field">
+                <label asp-for="Input.Explanation">Explicação <span class="req">(obrigatório)</span></label>
+                <textarea class="input textarea" asp-for="Input.Explanation" rows="3" maxlength="1000" aria-invalid="@Bad("Explanation")" aria-describedby="Input_Explanation-ajuda@(Err("Explanation") is null ? "" : " Input_Explanation-erro")"></textarea>
+                <small id="Input_Explanation-ajuda">Mostrada ao aluno depois que ele responde.</small>
+                @if (Err("Explanation") is { } explanationError)
+                {
+                    <span class="field-error" id="Input_Explanation-erro">@explanationError</span>
+                }
+            </div>
+        </fieldset>
+
+        <div class="maker-bar">
             <button class="btn btn-primary" type="submit">Salvar</button>
-            <a class="btn btn-outline-secondary" asp-page="Index">Cancelar</a>
+            <a class="link" asp-page="Index">Cancelar</a>
+            <span class="hint">Fica como rascunho até ser aprovada.</span>
         </div>
     </form>
-</section>
+
+    <aside class="maker-preview" aria-labelledby="t-prev-q">
+        <p class="pv-label"><span id="t-prev-q">Como o aluno vê</span><span>mostra o que está no formulário</span></p>
+        @* Ilustração: repete o que o formulário já diz, então fica fora da leitura de tela. *@
+        <div class="phone @(quiz is { } qt ? QuizPresentation.CssClass(qt) : "")" aria-hidden="true">
+            <div class="screen">
+                <div class="gq-head">
+                    @if (quiz is { } pt)
+                    {
+                        var pface = QuizPresentation.Face(pt);
+                        <img src="~/img/@pface.File" width="@pface.Width" height="@pface.Height" alt="" />
+                        <span>@IndexModel.QuizLabel(pt)</span>
+                    }
+                    else
+                    {
+                        <span class="is-empty">Escolha o tema</span>
+                    }
+                    @if (age is { } pa)
+                    {
+                        <span class="lvl">@IndexModel.BandLabel(pa)</span>
+                    }
+                </div>
+                <p class="gq @(string.IsNullOrWhiteSpace(statement) ? "is-empty" : "")">@(string.IsNullOrWhiteSpace(statement) ? "Sua pergunta aparece aqui" : statement)</p>
+                <ol class="gq-alts">
+                    @for (var i = 0; i < 4; i++)
+                    {
+                        var text = optionValues[i]?.Trim();
+                        var isRight = correct == i;
+                        <li data-k="@letters[i]" class="@(string.IsNullOrEmpty(text) ? "is-empty" : "") @(isRight ? "right" : "")">@(string.IsNullOrEmpty(text) ? "Alternativa " + letters[i] : text)@if (isRight) { <span> ✓</span> }</li>
+                    }
+                </ol>
+                @if (!string.IsNullOrWhiteSpace(explanation))
+                {
+                    <p class="gq-why">@explanation</p>
+                }
+            </div>
+        </div>
+        <ul class="ready" aria-label="O que falta">
+            @foreach (var item in checklist)
+            {
+                <li class="@(item.Done ? "ok" : "")">@item.Label<span class="visually-hidden">@(item.Done ? " (feito)" : " (falta)")</span></li>
+            }
+        </ul>
+    </aside>
+</div>
