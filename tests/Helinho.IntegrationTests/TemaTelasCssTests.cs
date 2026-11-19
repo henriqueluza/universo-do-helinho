@@ -46,27 +46,19 @@ public partial class TemaTelasCssTests(PostgresFixture postgres)
         return sb.ToString();
     }
 
-    [Theory]
-    [InlineData(".stack {")]
-    [InlineData(".filters-bar {")]
-    [InlineData(".maker {")]
-    [InlineData(".step {")]
-    [InlineData(".theme-pick {")]
-    [InlineData(".pill-pick {")]
-    [InlineData(".phone {")]
-    [InlineData(".ready {")]
-    [InlineData(".profile {")]
-    [InlineData(".badge-card {")]
-    [InlineData(".bare-card {")]
-    [InlineData(".auth-scene {")]
-    [InlineData(".auth-card {")]
-    [InlineData(".faces {")]
-    [InlineData(".field-error {")]
-    public async Task Seletores_das_telas_ficam_na_camada_screens(string selector)
+    [Fact]
+    public async Task Seletores_das_telas_ficam_na_camada_screens()
     {
         var screens = Layer(await CssAsync(), "screens");
 
-        Assert.Contains(selector, screens);
+        foreach (var selector in new[]
+        {
+            ".stack {", ".filters-bar {", ".maker {", ".step {", ".theme-pick {", ".pill-pick {", ".phone {", ".ready {",
+            ".profile {", ".badge-card {", ".bare-card {", ".auth-scene {", ".auth-card {", ".faces {", ".field-error {",
+        })
+        {
+            Assert.Contains(selector, screens);
+        }
     }
 
     [Fact]
@@ -76,18 +68,14 @@ public partial class TemaTelasCssTests(PostgresFixture postgres)
         var screens = Layer(css, "screens") + Layer(css, "motion");
 
         Assert.DoesNotMatch(@"var\(--ai", screens);
-        foreach (var banned in new[] { ".ai-", ".rcard", ".btn-ai", ".tag-ai", ".note.ai" })
-        {
-            Assert.DoesNotContain(banned, screens);
-        }
+        Assert.DoesNotMatch(@"\.(ai-|rcard|btn-ai|tag-ai|note\.ai)", screens);
     }
 
     [Fact]
     public async Task Todo_movimento_das_telas_fica_sob_movimento_nao_reduzido()
     {
         var motion = Layer(await CssAsync(), "motion");
-        var guarded = new StringBuilder();
-        var rest = new StringBuilder();
+        StringBuilder guarded = new(), rest = new();
         var idx = 0;
         while (true)
         {
@@ -113,7 +101,6 @@ public partial class TemaTelasCssTests(PostgresFixture postgres)
             idx = i;
         }
 
-        // As transições de página (view-transition) têm a própria regra de "reduzir movimento" na preview.
         var unguarded = string.Join('\n', rest.ToString().Split('\n').Where(l => !l.Contains("view-transition", StringComparison.Ordinal)));
         Assert.Contains(".auth-card", guarded.ToString());
         Assert.DoesNotMatch(@"\banimation\s*:\s*(?!none)", unguarded);
