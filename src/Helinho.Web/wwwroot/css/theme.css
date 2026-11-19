@@ -292,6 +292,99 @@
   .tag-draft { background: var(--warn-bg); color: var(--warn-ink); }
 }
 
+/* ---- CASCA do tema Recreio (Issue #140) ----
+   Menu lateral, bloco do usuário, gaveta e topo. Valores de recreio.css 198-222,
+   371-413 (só a casca) e 417-421, sem mudança; o que é adaptação está marcado. */
+@layer screens {
+  /* casca */
+  .shell { display: grid; grid-template-columns: var(--rail-width) minmax(0, 1fr); min-height: 100dvh; }
+  .rail { position: sticky; top: 0; height: 100dvh; overflow-y: auto; display: flex; flex-direction: column; gap: var(--sp-6); padding: var(--sp-6) var(--sp-4) var(--sp-4); background: var(--stage); border-right: 2px solid var(--rule); }
+  .rail-logo img { width: 156px; margin: 0 auto 0 6px; }
+  .nav { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .nav a { display: flex; align-items: center; gap: var(--sp-3); height: 46px; padding: 0 10px; border-radius: var(--r-md); border: 2px solid transparent; color: var(--ink-2); font-weight: 800; text-decoration: none; transition: background var(--dur), border-color var(--dur), color var(--dur); }
+  .nav a:hover { background: oklch(from var(--select-bg) l c h / .55); color: var(--ink); }
+  .nav a[aria-current="page"] { background: var(--select-bg); border-color: var(--select-line); color: var(--select-ink); }
+  .tile { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--t); color: oklch(1 0 0); box-shadow: inset 0 -3px 0 oklch(0 0 0 / .16); flex: none; }
+  .nav-sep { height: 2px; background: var(--rule); margin: 6px 8px; border-radius: 2px; }
+  .me { margin-top: auto; display: grid; grid-template-columns: 40px 1fr auto; gap: 0 10px; align-items: center; padding: 10px; border: 2px solid var(--rule); border-radius: var(--r-md); }
+  .me img { width: 40px; height: 40px; border-radius: 12px; background: var(--sunny); object-fit: cover; object-position: top; grid-row: span 2; }
+  .me b { font-weight: 800; font-size: var(--fs-sm); line-height: 1.2; }
+  .me small { color: var(--ink-3); font-size: var(--fs-xs); font-weight: 700; line-height: 1.3; }
+  .me small span { display: block; }
+  .me > b, .me > small { min-width: 0; }
+  .me form { grid-row: 1 / span 2; grid-column: 3; }
+  .me button { font: 800 var(--fs-xs) var(--font); color: var(--ink-2); background: none; border: 0; padding: 6px; border-radius: var(--r-sm); cursor: pointer; }
+  .me button:hover { color: var(--bad-ink); background: var(--bad-bg); }
+  .org { display: flex; align-items: center; justify-content: center; padding-top: var(--sp-2); }
+  .org img { width: 112px; }
+  .topbar { display: none; }
+  .rail-close { display: none; }
+  .main { min-width: 0; grid-template-columns: minmax(0, 1fr); padding: var(--sp-6) clamp(16px, 3vw, 40px) var(--sp-12); display: grid; gap: var(--sp-6); align-content: start; }
+  .nav-label { padding: 14px 12px 4px; color: var(--ink-3); font-size: var(--fs-xs); font-weight: 800; letter-spacing: .02em; }
+  .nav .tile svg, .icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .me .av { width: 40px; height: 40px; border-radius: 12px; grid-row: span 2; display: grid; place-items: center; background: var(--sunny); color: oklch(0.42 0.1 70); font-weight: 900; font-size: var(--fs-sm); }
+  :root[data-theme="dark"] .me .av { color: var(--warn-ink); }
+  /* ADAPTAÇÃO (casca real): botão do menu com outro nome para o módulo de gaveta do painel.js
+     (que espera .menu-btn + .scrim) não agir sobre o offcanvas do Bootstrap. */
+  .menu-toggle { width: 44px; height: 44px; display: grid; place-items: center; border: 2px solid var(--rule); border-radius: var(--r-md); background: var(--stage); color: var(--ink); cursor: pointer; }
+  .menu-toggle:hover, .tema-btn:hover { background: oklch(from var(--select-bg) l c h / .55); }
+  .rail { color: var(--ink); }
+  .rail nav { display: grid; gap: 4px; }
+  .rail-foot { margin-top: auto; display: grid; gap: var(--sp-3); }
+  .tema-btn { display: flex; align-items: center; gap: var(--sp-3); height: 40px; padding: 0 12px; border: 2px solid var(--rule); border-radius: var(--r-md); background: none; color: var(--ink-2); font: 800 var(--fs-sm) var(--font); cursor: pointer; }
+  .tema-btn[aria-pressed="true"] { background: var(--select-bg); border-color: var(--select-line); color: var(--select-ink); }
+  @media (scripting: none) { .tema-btn { display: none; } }
+  .main > .page-title { margin-bottom: 0; }
+  .skip-link { position: absolute; z-index: 2000; left: var(--sp-2); top: -64px; padding: 10px 16px; border-radius: var(--r-md); background: var(--ink); color: var(--stage); font-weight: 800; text-decoration: none; }
+  .skip-link:focus { top: var(--sp-2); }
+  .offcanvas-backdrop { --bs-backdrop-bg: oklch(0.2 0.04 260); --bs-backdrop-opacity: .4; }
+
+  /* responsivo */
+  @media (max-width: 767.98px) {
+    .shell { grid-template-columns: minmax(0, 1fr); }
+    .topbar { display: flex; align-items: center; justify-content: space-between; height: 60px; padding: 0 var(--sp-4); background: var(--stage); border-bottom: 2px solid var(--rule); position: sticky; top: 0; z-index: 10; }
+    .topbar img { width: 120px; }
+    .rail-logo { padding-right: 52px; }
+    .rail-close { display: grid; place-items: center; position: absolute; top: 16px; right: 12px; width: 40px; height: 40px; border: 2px solid var(--rule); border-radius: var(--r-md); background: var(--stage); color: var(--ink); cursor: pointer; }
+    /* gaveta: Recreio sobre o offcanvas do Bootstrap (classes .show/.showing/.hiding) em vez de .menu-open/.scrim */
+    .rail { display: flex; position: fixed; z-index: var(--bs-offcanvas-zindex, 1045); inset: 0 auto 0 0; width: min(300px, 86vw); translate: -105% 0; transform: none; visibility: hidden; transition: translate var(--dur-slow) var(--ease-out), visibility 0s linear var(--dur-slow); box-shadow: var(--shadow-float); }
+    .rail.show, .rail.showing, .rail.hiding { visibility: visible; }
+    .rail.show:not(.hiding), .rail.showing { translate: 0; transition: translate var(--dur-slow) var(--ease-out); }
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) { @view-transition { navigation: auto; } }
+
+@layer motion {
+  /* elementos que persistem entre páginas morfam em vez de piscar */
+  .rail { view-transition-name: rail; }
+  .rail-logo img { view-transition-name: logo-jogo; }
+  @media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
+  ::view-transition-group(*) { animation-duration: 520ms; animation-timing-function: var(--ease-out); }
+  /* o destaque do menu desliza para o item novo; o conteúdo troca suave */
+  .nav a[aria-current] { view-transition-name: nav-ativo; }
+  .main { view-transition-name: conteudo; }
+  ::view-transition-group(nav-ativo) { animation-duration: 440ms; }
+  ::view-transition-old(conteudo) { animation: 160ms ease-out both vt-out; }
+  ::view-transition-new(conteudo) { animation: 340ms var(--ease-out) both vt-in; }
+  ::view-transition-old(root) { animation: 180ms ease-out both vt-out; }
+  ::view-transition-new(root) { animation: 360ms var(--ease-out) both vt-in; }
+  @keyframes vt-out { to { opacity: 0; } }
+  @keyframes vt-in { from { opacity: 0; translate: 0 8px; } }
+  /* troca de tema: revelação circular feita no JS */
+  html.vt-theme * { view-transition-name: none !important; }
+  html.vt-theme::view-transition-old(root), html.vt-theme::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+  @media (prefers-reduced-motion: no-preference) {
+    .main > * { animation: rise var(--dur-enter) var(--ease-out) both; animation-delay: calc(var(--i, 0) * var(--stagger)); }
+    .main > :nth-child(2) { --i: 2; } .main > :nth-child(3) { --i: 4; } .main > :nth-child(4) { --i: 9; } .main > :nth-child(5) { --i: 11; } .main > :nth-child(6) { --i: 12; } .main > :nth-child(7) { --i: 13; }
+    @keyframes rise { from { opacity: 0; translate: 0 14px; } }
+    .js .main > .reveal { animation: none; transition: opacity 700ms var(--ease-out), translate 800ms var(--ease-out); }
+    .js .main > .reveal:not(.vis) { opacity: 0; translate: 0 24px; }
+    .nav a .tile { transition: transform 220ms var(--ease-pop); }
+    .nav a:hover .tile { transform: rotate(-8deg) scale(1.08); }
+  }
+}
+
 /* ---- PONTE do legado (remover junto com o legado) ----
    A base do Recreio zera a margem de h1/h2/p e define o tamanho do h1, e camada
    vence especificidade: sem isto, os títulos do tema antigo perderiam o espaço. */

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
     <title>@(ViewData["Title"] is string t ? t + " · " : "")Universo do Helinho</title>
+    <link rel="icon" href="~/img/helinho-rosto.webp" type="image/webp" />
     <link rel="stylesheet" href="~/css/theme.css" asp-append-version="true" />
 </head>
 <body>
@@ -12,10 +13,17 @@
     <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
     <div class="shell">
         @await Component.InvokeAsync("PanelUser")
-        <main id="conteudo" class="content" tabindex="-1">
-            <h1 class="page-title">@ViewData["Title"]</h1>
-            @RenderBody()
-        </main>
+        <div>
+            <header class="topbar">
+                <a href="/Dashboard"><img src="~/img/logo-jogo.webp" width="480" height="162" alt="Universo do Helinho" /></a>
+                <button class="menu-toggle" type="button" data-bs-toggle="offcanvas" data-bs-target="#menu"
+                        aria-controls="menu" aria-expanded="false" aria-label="Abrir menu"><svg class="icon" aria-hidden="true"><use href="#i-menu" /></svg></button>
+            </header>
+            <main id="conteudo" class="main" tabindex="-1">
+                <h1 class="page-title">@ViewData["Title"]</h1>
+                @RenderBody()
+            </main>
+        </div>
     </div>
     <script src="~/lib/bootstrap/bootstrap.bundle.min.js"></script>
 </body>
