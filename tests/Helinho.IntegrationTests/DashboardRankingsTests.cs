@@ -35,6 +35,9 @@ public class DashboardRankingsTests(PostgresFixture postgres) : IAsyncLifetime
     private readonly Question[] _tied = [.. Enumerable.Range(0, 2)
         .Select(_ => NewQuestion(QuizType.Diversidade, AgeBand.Age11To12, "Empate?")).OrderBy(q => q.Id.ToString(), StringComparer.Ordinal)];
     private readonly Unit[] _unitsC = [.. Enumerable.Range(0, 2).Select(_ => new Unit("Unidade C")).OrderBy(u => u.Id.ToString(), StringComparer.Ordinal)];
+
+    // 5/9 = 55,6% e 9/16 = 56,25%: os dois mostram 56%. Respondidas em 1/set por uma aluna de 13 anos (só nos 90 dias).
+    private readonly Question[] _rounded = [NewQuestion(QuizType.Cultural, AgeBand.Age13To14, "Taxa exata menor?"), NewQuestion(QuizType.Cultural, AgeBand.Age13To14, "Mais respostas?")];
     private readonly List<string> _sql = [];
 
     private sealed class FakeUser(string role, Guid? unitId) : ICurrentUser
@@ -56,7 +59,7 @@ public class DashboardRankingsTests(PostgresFixture postgres) : IAsyncLifetime
         await db.Database.MigrateAsync(ct);
         (Unit Unit, int Answers)[] easy = [(_unitsC[0], 19), (_unitsC[1], 10), (_unitsC[1], 9), (new("Unidade D"), 2), (new("Unidade E"), 1)];
         db.Units.AddRange([_unitA, _unitB, .. easy.Select(e => e.Unit).Distinct()]);
-        db.Questions.AddRange([_q1, _q2, _q3, _q6, _q7, _easy, .. _tied]);
+        db.Questions.AddRange([_q1, _q2, _q3, _q6, _q7, _easy, .. _tied, .. _rounded]);
         var ana = NewStudent(db, _unitA, "Ana", new DateOnly(2019, 3, 1));
         var bia = NewStudent(db, _unitA, "Bia", new DateOnly(2014, 3, 1));
         var caio = NewStudent(db, _unitB, "Caio", new DateOnly(2019, 3, 1));
@@ -72,6 +75,9 @@ public class DashboardRankingsTests(PostgresFixture postgres) : IAsyncLifetime
         Add(db, bia, _tied[1], At(11, 7, 10), 3, 6);
         Add(db, caio, _q6, At(11, 6, 9), 5, 5);
         Add(db, caio, _q7, At(11, 5, 9), 3, 5);
+        var duda = NewStudent(db, _unitA, "Duda", new DateOnly(2013, 3, 1));
+        Add(db, duda, _rounded[0], At(9, 1, 9), 5, 9);
+        Add(db, duda, _rounded[1], At(9, 1, 9), 9, 16);
         for (var i = 0; i < easy.Length; i++)
         {
             Add(db, NewStudent(db, easy[i].Unit, $"Extra{i}", new DateOnly(2019, 3, 1)), _easy, At(11, 9, 9), easy[i].Answers, easy[i].Answers);
@@ -155,6 +161,22 @@ public class DashboardRankingsTests(PostgresFixture postgres) : IAsyncLifetime
         Assert.Equal([("Unidade A", 23, 1.0), ("Unidade B", 20, 0.87)], month.TopUnits?.Take(2).Select(u => (u.UnitName, u.Answers, u.Share)));
         Assert.Equal([Row(_tied[0], 6, 50), Row(_tied[1], 6, 50)], older.ConfusingQuestions); // só a Bia; Q2 fica com 1 resposta
         Assert.Equal([new UnitActivity("Unidade A", 13, 1, 1)], older.TopUnits);
+
+        // 23:30 do dia 9 em Brasília (já é dia 10 em UTC): o período é 3 a 9/nov, então o dia 3 entra e o dia 10 sai.
+        var late = await RunAsync(RoleNames.Master, null, new DashboardQuery(null, 7, null), At(11, 9, 23, 30));
+        Assert.Equal([Row(_q3, 5, 0), Row(_q2, 5, 40), Row(_tied[0], 6, 50), Row(_tied[1], 6, 50), Row(_q7, 5, 60)], late.ConfusingQuestions);
+        Assert.Equal(
+            [("Unidade B", 20, 1.0), ("Unidade C", 19, 0.95), ("Unidade C", 19, 0.95), ("Unidade A", 17, 0.85), ("Unidade D", 2, 0.1)],
+            late.TopUnits?.Select(u => (u.UnitName, u.Answers, u.Share)));
+    }
+
+    [Fact]
+    public async Task Ordem_das_questoes_usa_a_taxa_exata_e_nao_o_percentual_arredondado()
+    {
+        var r = await RunAsync(RoleNames.Master, null, new DashboardQuery(AgeBand.Age13To14, 90, null));
+
+        // Pelo percentual mostrado seria empate, e o desempate (mais respostas) inverteria a ordem.
+        Assert.Equal([Row(_rounded[0], 9, 56), Row(_rounded[1], 16, 56)], r.ConfusingQuestions);
     }
 
     [Fact]
@@ -180,6 +202,8 @@ public class DashboardRankingsTests(PostgresFixture postgres) : IAsyncLifetime
         Assert.All(_sql, sql => Assert.All(["GROUP BY", "ORDER BY", "LIMIT"], part => Assert.Contains(part, sql, StringComparison.Ordinal)));
         Assert.Contains("HAVING", _sql[0], StringComparison.Ordinal);
         Assert.Contains("count(DISTINCT", _sql[1], StringComparison.OrdinalIgnoreCase);
+        string[] personal = ["FullName", "Enrollment", "Cpf", "Rg", "Address", "GuardianName"]; // nenhuma coluna cadastral é lida
+        Assert.All(_sql, sql => Assert.All(personal, column => Assert.DoesNotContain($"\"{column}\"", sql, StringComparison.Ordinal)));
     }
 
     private async Task<DashboardRankings> RunAsync(string role, Guid? unitId, DashboardQuery query, DateTimeOffset? now = null)
