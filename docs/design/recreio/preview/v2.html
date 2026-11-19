@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel · Universo do Helinho — v2 Recreio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Só na preview: no projeto as fontes ficam autohospedadas em wwwroot/fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito:wght@500..900&display=swap" rel="stylesheet">
+<link rel="icon" href="img/helinho-rosto.webp" type="image/webp">
+<link rel="stylesheet" href="recreio.css">
+<script>document.documentElement.classList.add('js');try { const t = localStorage.getItem('tema'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<style>
+  /* Barra da preview (não faz parte do sistema): recolhida por padrão */
+  .pv { position: fixed; z-index: 50; right: 12px; bottom: 12px; font: 800 13px var(--font); }
+  .pv summary { list-style: none; cursor: pointer; padding: 8px 12px; border-radius: 12px; background: var(--ink); color: var(--stage); box-shadow: var(--shadow-float); opacity: .55; transition: opacity .2s; }
+  .pv summary:hover, .pv[open] summary, .pv summary:focus-visible { opacity: 1; }
+  .pv summary::-webkit-details-marker { display: none; }
+  .pv nav { position: absolute; bottom: calc(100% + 6px); right: 0; display: flex; flex-wrap: wrap; width: max-content; max-width: calc(100vw - 24px); gap: 4px; padding: 5px; border-radius: 14px; background: var(--stage); border: 2px solid var(--rule); box-shadow: var(--shadow-float); }
+  .pv a, .pv button { font: inherit; color: var(--ink-2); background: none; border: 0; padding: 8px 10px; border-radius: 10px; text-decoration: none; cursor: pointer; }
+  .pv a:hover, .pv button:hover { background: var(--canvas); color: var(--ink); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-dash" viewBox="0 0 16 16"><path d="M2 9.5h5v4.5H2zM9 2h5v12H9zM2 2h5v5H2z"/></symbol>
+    <symbol id="i-alunos" viewBox="0 0 16 16"><path d="M8 7.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3 14c0-2.8 2.2-4.5 5-4.5s5 1.7 5 4.5"/></symbol>
+    <symbol id="i-unid" viewBox="0 0 16 16"><path d="M2 14V6l6-4 6 4v8zM6.5 14v-4h3v4"/></symbol>
+    <symbol id="i-adm" viewBox="0 0 16 16"><path d="M8 1.5l5 2v4c0 3-2 5.5-5 7-3-1.5-5-4-5-7v-4z"/></symbol>
+    <symbol id="i-quest" viewBox="0 0 16 16"><path d="M6 6a2 2 0 1 1 3 1.7c-.7.4-1 .8-1 1.6M8 12v.5M2 2h12v12H2z"/></symbol>
+    <symbol id="i-event" viewBox="0 0 16 16"><path d="M2 3.5h12V14H2zM5 1.5v3M11 1.5v3M2 7h12"/></symbol>
+    <symbol id="i-curio" viewBox="0 0 16 16"><path d="M6 13h4M6.5 15h3M8 1.5a4.5 4.5 0 0 0-2.6 8.2c.4.3.6.7.6 1.1v.7h4v-.7c0-.4.2-.8.6-1.1A4.5 4.5 0 0 0 8 1.5z"/></symbol>
+    <symbol id="i-miss" viewBox="0 0 16 16"><path d="M3 14V2M3 3h9l-2 3 2 3H3"/></symbol>
+    <symbol id="i-desemp" viewBox="0 0 16 16"><path d="M2 14h12M4 14V9M8 14V4M12 14V7"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 16 16"><path d="M8 5v4M8 11.5v.5M8 1.5l6.5 12h-13z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+    <symbol id="i-go" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 1.8l3.1 6.6 7.2.9-5.3 5 1.4 7.1L12 17.9l-6.4 3.5 1.4-7.1-5.3-5 7.2-.9z"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 0c.8 6.4 5.6 11.2 12 12-6.4.8-11.2 5.6-12 12-.8-6.4-5.6-11.2-12-12C6.4 11.2 11.2 6.4 12 0z"/></symbol>
+    <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 13V3M3.5 7.5L8 3l4.5 4.5"/></symbol>
+    <symbol id="i-down" viewBox="0 0 16 16"><path d="M8 3v10M3.5 8.5L8 13l4.5-4.5"/></symbol>
+    <symbol id="i-table" viewBox="0 0 16 16"><path d="M2 3h12v10H2zM2 6.5h12M2 10h12M6 3v10"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 16 16"><path d="M8 14.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM8 4.5V8l2.5 1.5"/></symbol>
+    <symbol id="i-target" viewBox="0 0 16 16"><path d="M8 14.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8 8h0"/></symbol>
+    <symbol id="i-play" viewBox="0 0 16 16"><path d="M4.5 2.5v11l9-5.5z"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 16 16"><path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7z"/></symbol>
+  </defs>
+</svg>
+
+<div class="shell">
+  <div class="scrim" hidden></div>
+  <aside class="rail" aria-label="Menu">
+    <button class="rail-close" type="button" aria-label="Fechar menu"><svg class="icon"><use href="#i-x"/></svg></button>
+    <a class="rail-logo" href="v2.html"><img src="img/logo-jogo.webp" width="480" height="162" alt="Universo do Helinho"></a>
+    <ul class="nav" id="menu">
+      <li><a href="v2.html" aria-current="page"><span class="tile" style="--t:var(--tile-1)"><svg><use href="#i-dash"/></svg></span>Painel</a></li>
+      <li><a href="telas.html#alunos"><span class="tile" style="--t:var(--tile-2)"><svg><use href="#i-alunos"/></svg></span>Alunos</a></li>
+      <li><a href="telas.html#desempenho"><span class="tile" style="--t:var(--tile-9)"><svg><use href="#i-desemp"/></svg></span>Desempenho</a></li>
+      <li class="nav-label">Conteúdo do jogo</li>
+      <li><a href="telas.html#questoes"><span class="tile" style="--t:var(--tile-4)"><svg><use href="#i-quest"/></svg></span>Questões</a></li>
+      <li><a href="telas.html#curiosidades"><span class="tile" style="--t:var(--tile-5)"><svg><use href="#i-curio"/></svg></span>Curiosidades</a></li>
+      <li><a href="telas.html#missoes"><span class="tile" style="--t:var(--tile-3)"><svg><use href="#i-miss"/></svg></span>Missões</a></li>
+      <li><a href="telas.html#eventos"><span class="tile" style="--t:var(--tile-6)"><svg><use href="#i-event"/></svg></span>Eventos</a></li>
+      <li class="nav-label">Gestão</li>
+      <li><a href="telas.html#unidades"><span class="tile" style="--t:var(--tile-7)"><svg><use href="#i-unid"/></svg></span>Unidades</a></li>
+      <li><a href="telas.html#administradores"><span class="tile" style="--t:var(--tile-8)"><svg><use href="#i-adm"/></svg></span>Administradores</a></li>
+    </ul>
+    <div class="me user-block">
+      <span class="av" aria-hidden="true">MD</span>
+      <b>Marina Duarte</b>
+      <small><span>Master</span><span>Unidade Centro</span></small>
+      <form action="v2-entrar.html"><button type="submit">Sair</button></form>
+    </div>
+    <div class="org"><img class="only-light" src="img/fundhas.webp" width="480" height="127" alt="FUNDHAS"><img class="only-dark" src="img/fundhas-invertido.webp" width="480" height="127" alt="FUNDHAS"></div>
+  </aside>
+
+  <div>
+    <header class="topbar">
+      <img src="img/logo-jogo.webp" width="480" height="162" alt="Universo do Helinho">
+      <button class="menu-btn" type="button" data-bs-target="#menu" aria-controls="menu" aria-expanded="false" aria-label="Abrir menu"><svg class="icon"><use href="#i-menu"/></svg></button>
+    </header>
+
+    <main id="conteudo" class="main" tabindex="-1">
+      <section class="scene" aria-labelledby="titulo">
+        <svg class="scene-twinkle t1" aria-hidden="true"><use href="#i-spark"/></svg>
+        <svg class="scene-twinkle t2" aria-hidden="true"><use href="#i-spark"/></svg>
+        <svg class="scene-twinkle t3" aria-hidden="true"><use href="#i-spark"/></svg>
+        <div class="scene-copy">
+          <p class="hello">Boa tarde, Marina</p>
+          <h1 id="titulo" class="page-title">Como a turma está jogando</h1>
+          <p class="headline"><span data-count="1284">1.284</span><svg class="star" aria-hidden="true"><use href="#i-star"/></svg></p>
+          <p class="scene-sub"><b>respostas certas</b> nesta semana <span class="up">+12%</span></p>
+          <div class="week"><ol aria-label="Respostas certas por dia"><li style="--v:0.62;--d:0"><span class="bar"></span><small aria-hidden="true">qui</small><span class="sr">Quinta: 182</span></li><li style="--v:0.77;--d:1"><span class="bar"></span><small aria-hidden="true">sex</small><span class="sr">Sexta: 228</span></li><li style="--v:0.25;--d:2"><span class="bar"></span><small aria-hidden="true">sáb</small><span class="sr">Sábado: 74</span></li><li style="--v:0.18;--d:3"><span class="bar"></span><small aria-hidden="true">dom</small><span class="sr">Domingo: 52</span></li><li style="--v:0.69;--d:4"><span class="bar"></span><small aria-hidden="true">seg</small><span class="sr">Segunda: 205</span></li><li style="--v:0.84;--d:5"><span class="bar"></span><small aria-hidden="true">ter</small><span class="sr">Terça: 248</span></li><li class="today" style="--v:1.00;--d:6"><span class="bar"></span><small aria-hidden="true">hoje</small><span class="sr">Quarta (hoje): 295</span></li></ol></div>
+        </div>
+        <img class="scene-hero" src="img/helinho-corpo.webp" width="182" height="360" alt="">
+        <div class="scene-stats">
+          <p class="stat" id="kpi-ativos"><b data-count="312">312</b> alunos ativos</p>
+          <p class="stat" id="kpi-respostas"><b data-count="4870">4.870</b> respostas</p>
+          <p class="stat"><b data-count="46">46</b> missões concluídas</p>
+        </div>
+      </section>
+
+      <form class="filters" aria-label="Filtros">
+        <div class="chips" role="group" aria-label="Faixa etária">
+          <a class="chip" href="#" aria-current="true">Todas as idades</a>
+          <a class="chip" href="#">6–7 anos</a>
+          <a class="chip" href="#">8–10 anos</a>
+          <a class="chip" href="#">11–12 anos</a>
+          <a class="chip" href="#">13–14 anos</a>
+        </div>
+        <div class="filters-end">
+          <span class="field-inline"><label for="f-unid">Unidade</label>
+          <select id="f-unid" class="select"><option>Todas</option><option>Unidade Centro</option><option>Unidade Leste</option><option>Unidade Dom Bosco</option><option>Unidade Dom Pedro I</option><option>Unidade Putim</option></select></span>
+          <span class="field-inline"><label for="f-per">Período</label>
+          <select id="f-per" class="select"><option>Últimos 7 dias</option><option>Últimos 30 dias</option><option>Este semestre</option></select></span>
+          <button class="btn" type="submit">Aplicar</button>
+        </div>
+      </form>
+
+      <section class="kpis" aria-label="Indicadores da semana">
+          <article class="kpi">
+            <h3><span class="kpi-ic"><svg class="icon"><use href="#i-target"/></svg></span>Taxa de acerto</h3>
+            <p class="kpi-v"><b data-count="74">74</b><small>%</small></p>
+            <p class="delta good"><svg class="icon"><use href="#i-up"/></svg>+2 pts<span>vs. semana passada</span></p>
+            <svg class="spark" data-spark="70,71,69,72,73,72,74" aria-hidden="true"></svg>
+          </article>
+          <article class="kpi">
+            <h3><span class="kpi-ic"><svg class="icon"><use href="#i-clock"/></svg></span>Tempo médio por sessão</h3>
+            <p class="kpi-v"><b data-count="14">14</b><small>min</small></p>
+            <p class="delta flat"><svg class="icon"><use href="#i-down"/></svg>−1 min<span>vs. semana passada</span></p>
+            <svg class="spark" data-spark="15,16,15,14,15,13,14" aria-hidden="true"></svg>
+          </article>
+          <article class="kpi">
+            <h3><span class="kpi-ic"><svg class="icon"><use href="#i-play"/></svg></span>Sessões por aluno</h3>
+            <p class="kpi-v"><b data-count="4">4</b><small>na semana</small></p>
+            <p class="delta good"><svg class="icon"><use href="#i-up"/></svg>+0,6<span>vs. semana passada</span></p>
+            <svg class="spark" data-spark="3,3,4,3,4,4,4" aria-hidden="true"></svg>
+          </article>
+          <a class="kpi" href="telas.html#alunos">
+            <h3><span class="kpi-ic"><svg class="icon"><use href="#i-moon"/></svg></span>Sem jogar há 7+ dias</h3>
+            <p class="kpi-v"><b data-count="27">27</b><small>alunos</small></p>
+            <p class="delta bad"><svg class="icon"><use href="#i-up"/></svg>+5<span>precisa de atenção</span></p>
+            <svg class="spark" data-spark="19,20,22,21,23,25,27" aria-hidden="true"></svg>
+          </a>
+        </section>
+
+      <div class="two">
+        <section class="panel panel-pad chart-card" aria-labelledby="t-resp">
+          <div class="panel-head">
+            <div><h2 id="t-resp">Respostas por dia</h2><p>Últimas 4 semanas · 13.249 respostas, <b class="txt-good">+16%</b> sobre as 4 anteriores</p></div>
+            <ul class="legend" aria-hidden="true"><li><i class="sw sw-data"></i>Últimas 4 semanas</li><li><i class="sw sw-ref"></i>4 semanas anteriores</li></ul>
+          </div>
+          <div class="linechart" data-fonte="tab-resp" tabindex="0" role="img" aria-label="Linha de respostas por dia nas últimas 4 semanas, comparada às 4 anteriores. Use as setas para percorrer os dias; os números estão na tabela logo abaixo."></div>
+          <details class="chart-table"><summary><svg class="icon"><use href="#i-table"/></svg>Ver em tabela</summary>
+            <div class="tscroll"><table id="tab-resp" class="dtable"><caption class="sr">Respostas por dia</caption><thead><tr><th scope="col">Dia</th><th scope="col">Últimas 4 semanas</th><th scope="col">4 semanas anteriores</th></tr></thead><tbody><tr><th scope="row" data-curto="15/out">qui, 15/out</th><td>517</td><td>451</td></tr><tr><th scope="row" data-curto="16/out">sex, 16/out</th><td>526</td><td>464</td></tr><tr><th scope="row" data-curto="17/out">sáb, 17/out</th><td>180</td><td>168</td></tr><tr><th scope="row" data-curto="18/out">dom, 18/out</th><td>128</td><td>116</td></tr><tr><th scope="row" data-curto="19/out">seg, 19/out</th><td>542</td><td>463</td></tr><tr><th scope="row" data-curto="20/out">ter, 20/out</th><td>622</td><td>552</td></tr><tr><th scope="row" data-curto="21/out">qua, 21/out</th><td>591</td><td>547</td></tr><tr><th scope="row" data-curto="22/out">qui, 22/out</th><td>525</td><td>459</td></tr><tr><th scope="row" data-curto="23/out">sex, 23/out</th><td>541</td><td>458</td></tr><tr><th scope="row" data-curto="24/out">sáb, 24/out</th><td>198</td><td>177</td></tr><tr><th scope="row" data-curto="25/out">dom, 25/out</th><td>137</td><td>124</td></tr><tr><th scope="row" data-curto="26/out">seg, 26/out</th><td>545</td><td>461</td></tr><tr><th scope="row" data-curto="27/out">ter, 27/out</th><td>653</td><td>554</td></tr><tr><th scope="row" data-curto="28/out">qua, 28/out</th><td>651</td><td>584</td></tr><tr><th scope="row" data-curto="29/out">qui, 29/out</th><td>546</td><td>481</td></tr><tr><th scope="row" data-curto="30/out">sex, 30/out</th><td>545</td><td>451</td></tr><tr><th scope="row" data-curto="31/out">sáb, 31/out</th><td>212</td><td>181</td></tr><tr><th scope="row" data-curto="1/nov">dom, 1/nov</th><td>149</td><td>134</td></tr><tr><th scope="row" data-curto="2/nov">seg, 2/nov</th><td>553</td><td>471</td></tr><tr><th scope="row" data-curto="3/nov">ter, 3/nov</th><td>666</td><td>545</td></tr><tr><th scope="row" data-curto="4/nov">qua, 4/nov</th><td>709</td><td>611</td></tr><tr><th scope="row" data-curto="5/nov">qui, 5/nov</th><td>585</td><td>515</td></tr><tr><th scope="row" data-curto="6/nov">sex, 6/nov</th><td>547</td><td>450</td></tr><tr><th scope="row" data-curto="7/nov">sáb, 7/nov</th><td>220</td><td>180</td></tr><tr><th scope="row" data-curto="8/nov">dom, 8/nov</th><td>164</td><td>142</td></tr><tr><th scope="row" data-curto="9/nov">seg, 9/nov</th><td>578</td><td>496</td></tr><tr><th scope="row" data-curto="10/nov">ter, 10/nov</th><td>667</td><td>536</td></tr><tr><th scope="row" data-curto="11/nov">qua, 11/nov</th><td>752</td><td>620</td></tr></tbody></table></div>
+          </details>
+        </section>
+
+        <section class="panel panel-pad" aria-labelledby="t-attn">
+          <div class="panel-head"><h2 id="t-attn">Precisa de atenção</h2></div>
+          <div class="attention">
+            <a class="attn" href="#"><span class="ic" style="background:var(--warn-bg);color:var(--warn-ink)"><svg><use href="#i-alunos"/></svg></span><span><b>8 alunos sem jogar há 7 dias</b><small>Unidade Dom Bosco, turma da tarde</small></span><svg class="icon go"><use href="#i-go"/></svg></a>
+            <a class="attn" href="#"><span class="ic cul" style="background:var(--qb);color:var(--qi)"><svg><use href="#i-desemp"/></svg></span><span><b>Cultural abaixo de 65%</b><small>Luna caiu 6 pontos na semana</small></span><svg class="icon go"><use href="#i-go"/></svg></a>
+            <a class="attn" href="#"><span class="ic" style="background:var(--neutral-bg);color:var(--neutral-ink)"><svg><use href="#i-quest"/></svg></span><span><b>12 questões em rascunho</b><small>Revise antes do evento de sexta</small></span><svg class="icon go"><use href="#i-go"/></svg></a>
+            <a class="attn" href="telas.html#eventos"><span class="ic" style="background:var(--select-bg);color:var(--select-ink)"><svg><use href="#i-event"/></svg></span><span><b>Dia da Água começa sexta</b><small>6 de 10 perguntas prontas</small></span><svg class="icon go"><use href="#i-go"/></svg></a>
+          </div>
+        </section>
+      </div>
+
+      <section aria-labelledby="t-tipos">
+        <div class="panel-head"><h2 id="t-tipos">Acertos por tipo de quiz</h2><p>Cada personagem do jogo cuida de um tema</p><span class="cast-hint" aria-hidden="true">Deslize para ver os 5 temas →</span></div>
+        <div class="cast">
+          <a class="castcard amb" href="#"><img src="img/flora-corpo.webp" width="150" height="300" alt="">
+            <span class="name">Ambiental<span>com a Flora</span></span>
+            <span class="pct"><span data-count="82">82</span><small>%</small></span>
+            <span class="meter"><i style="width:82%"></i></span>
+            <span class="count">1.204 respostas</span></a>
+          <a class="castcard con" href="#"><img src="img/byte-corpo.webp" width="150" height="300" alt="">
+            <span class="name">Conhecimento<span>com o Byte</span></span>
+            <span class="pct"><span data-count="74">74</span><small>%</small></span>
+            <span class="meter"><i style="width:74%"></i></span>
+            <span class="count">1.118 respostas</span></a>
+          <a class="castcard cul" href="#"><img src="img/luna-corpo.webp" width="150" height="300" alt="">
+            <span class="name">Cultural<span>com a Luna</span></span>
+            <span class="pct"><span data-count="61">61</span><small>%</small></span>
+            <span class="meter"><i style="width:61%"></i></span>
+            <span class="count">876 respostas</span></a>
+          <a class="castcard esp" href="#"><img src="img/max-corpo.webp" width="150" height="300" alt="">
+            <span class="name">Esportivo<span>com o Max</span></span>
+            <span class="pct"><span data-count="79">79</span><small>%</small></span>
+            <span class="meter"><i style="width:79%"></i></span>
+            <span class="count">964 respostas</span></a>
+          <a class="castcard div" href="#"><img src="img/lia-corpo.webp" width="150" height="300" alt="">
+            <span class="name">Diversidade<span>com a Lia</span></span>
+            <span class="pct"><span data-count="71">71</span><small>%</small></span>
+            <span class="meter"><i style="width:71%"></i></span>
+            <span class="count">708 respostas</span></a>
+        </div>
+      </section>
+
+      <div class="two">
+        <section class="panel panel-pad" aria-labelledby="t-dificeis">
+          <div class="panel-head"><div><h2 id="t-dificeis">Questões que mais confundem</h2><p>Menor taxa de acerto nos últimos 30 dias</p></div><a class="more" href="telas.html#questoes">Todas as questões<svg class="icon"><use href="#i-go"/></svg></a></div>
+          <div class="tscroll"><table class="dtable hard"><thead><tr><th scope="col">Questão</th><th scope="col">Acerto</th><th scope="col"><span class="sr">Ação</span></th></tr></thead><tbody><tr><td><b>Qual é o maior bioma do Brasil?</b><span class="q-meta"><span class="tag tag-type amb"><img src="img/flora.webp" alt="">Ambiental</span><small>142 respostas · 8–10 anos</small></span></td><td><span class="hit" style="--v:0.31"><b>31%</b><span class="hit-bar" aria-hidden="true"><i></i></span></span></td><td><a class="btn btn-sm" href="telas.html#questao-editar">Revisar</a></td></tr><tr><td><b>Em que ano o Brasil virou república?</b><span class="q-meta"><span class="tag tag-type cul"><img src="img/luna.webp" alt="">Cultural</span><small>118 respostas · 11–12 anos</small></span></td><td><span class="hit" style="--v:0.38"><b>38%</b><span class="hit-bar" aria-hidden="true"><i></i></span></span></td><td><a class="btn btn-sm" href="telas.html#questao-editar">Revisar</a></td></tr><tr><td><b>Quantos jogadores tem um time de vôlei em quadra?</b><span class="q-meta"><span class="tag tag-type esp"><img src="img/max.webp" alt="">Esportivo</span><small>97 respostas · 8–10 anos</small></span></td><td><span class="hit" style="--v:0.42"><b>42%</b><span class="hit-bar" aria-hidden="true"><i></i></span></span></td><td><a class="btn btn-sm" href="telas.html#questao-editar">Revisar</a></td></tr><tr><td><b>Qual planeta é conhecido como planeta vermelho?</b><span class="q-meta"><span class="tag tag-type con"><img src="img/byte.webp" alt="">Conhecimento</span><small>164 respostas · 6–7 anos</small></span></td><td><span class="hit" style="--v:0.47"><b>47%</b><span class="hit-bar" aria-hidden="true"><i></i></span></span></td><td><a class="btn btn-sm" href="telas.html#questao-editar">Revisar</a></td></tr><tr><td><b>O que significa a sigla LIBRAS?</b><span class="q-meta"><span class="tag tag-type div"><img src="img/lia.webp" alt="">Diversidade</span><small>86 respostas · 11–12 anos</small></span></td><td><span class="hit" style="--v:0.49"><b>49%</b><span class="hit-bar" aria-hidden="true"><i></i></span></span></td><td><a class="btn btn-sm" href="telas.html#questao-editar">Revisar</a></td></tr></tbody></table></div>
+        </section>
+
+        <section class="panel panel-pad" aria-labelledby="t-unid">
+          <div class="panel-head"><h2 id="t-unid">Unidades que mais jogam</h2><a class="more" href="telas.html#unidades">Ver no mapa<svg class="icon"><use href="#i-go"/></svg></a></div>
+          <ol class="rank"><li style="--v:1.00;--k:0"><span class="pos">1</span><span class="rk-name">Unidade Centro<small>92 alunos ativos</small></span><b>1.420</b><span class="rk-bar" aria-hidden="true"><i></i></span></li><li style="--v:0.84;--k:1"><span class="pos">2</span><span class="rk-name">Unidade Leste<small>71 alunos ativos</small></span><b>1.186</b><span class="rk-bar" aria-hidden="true"><i></i></span></li><li style="--v:0.67;--k:2"><span class="pos">3</span><span class="rk-name">Unidade Dom Bosco<small>64 alunos ativos</small></span><b>958</b><span class="rk-bar" aria-hidden="true"><i></i></span></li><li style="--v:0.57;--k:3"><span class="pos">4</span><span class="rk-name">Unidade Dom Pedro I<small>48 alunos ativos</small></span><b>812</b><span class="rk-bar" aria-hidden="true"><i></i></span></li><li style="--v:0.35;--k:4"><span class="pos">5</span><span class="rk-name">Unidade Putim<small>37 alunos ativos</small></span><b>494</b><span class="rk-bar" aria-hidden="true"><i></i></span></li></ol>
+          <p class="foot-note">Respostas nos últimos 7 dias</p>
+        </section>
+      </div>
+
+      <div class="two">
+        <section class="panel panel-pad" aria-labelledby="t-quando">
+          <div class="panel-head"><div><h2 id="t-quando">Quando a turma joga</h2><p>Respostas por dia e turno, média das 4 semanas</p></div>
+            <span class="heat-scale" aria-hidden="true">menos<i></i>mais</span></div>
+          <div class="tscroll"><table class="heat"><caption class="sr">Respostas por dia da semana e turno</caption><thead><tr><td></td><th scope="col"><abbr title="Segunda">seg</abbr></th><th scope="col"><abbr title="Terça">ter</abbr></th><th scope="col"><abbr title="Quarta">qua</abbr></th><th scope="col"><abbr title="Quinta">qui</abbr></th><th scope="col"><abbr title="Sexta">sex</abbr></th><th scope="col"><abbr title="Sábado">sáb</abbr></th><th scope="col"><abbr title="Domingo">dom</abbr></th></tr></thead><tbody><tr><th scope="row">Manhã</th><td style="--v:0.51" data-tip="Segunda, manhã|212 respostas"><span>212</span></td><td style="--v:0.60" data-tip="Terça, manhã|248 respostas"><span>248</span></td><td style="--v:0.57" data-tip="Quarta, manhã|236 respostas"><span>236</span></td><td style="--v:0.54" data-tip="Quinta, manhã|221 respostas"><span>221</span></td><td style="--v:0.48" data-tip="Sexta, manhã|198 respostas"><span>198</span></td><td style="--v:0.16" data-tip="Sábado, manhã|64 respostas"><span>64</span></td><td style="--v:0.05" data-tip="Domingo, manhã|22 respostas"><span>22</span></td></tr><tr><th scope="row">Tarde</th><td style="--v:0.86" data-tip="Segunda, tarde|356 respostas"><span>356</span></td><td style="--v:1.00" data-tip="Terça, tarde|412 respostas"><span>412</span></td><td style="--v:0.97" data-tip="Quarta, tarde|398 respostas"><span>398</span></td><td style="--v:0.90" data-tip="Quinta, tarde|371 respostas"><span>371</span></td><td style="--v:0.78" data-tip="Sexta, tarde|322 respostas"><span>322</span></td><td style="--v:0.21" data-tip="Sábado, tarde|88 respostas"><span>88</span></td><td style="--v:0.10" data-tip="Domingo, tarde|41 respostas"><span>41</span></td></tr><tr><th scope="row">Noite (em casa)</th><td style="--v:0.29" data-tip="Segunda, noite|118 respostas"><span>118</span></td><td style="--v:0.32" data-tip="Terça, noite|131 respostas"><span>131</span></td><td style="--v:0.34" data-tip="Quarta, noite|142 respostas"><span>142</span></td><td style="--v:0.31" data-tip="Quinta, noite|126 respostas"><span>126</span></td><td style="--v:0.23" data-tip="Sexta, noite|96 respostas"><span>96</span></td><td style="--v:0.37" data-tip="Sábado, noite|152 respostas"><span>152</span></td><td style="--v:0.41" data-tip="Domingo, noite|168 respostas"><span>168</span></td></tr></tbody></table></div>
+          <p class="foot-note"><b>Pico:</b> terça à tarde. Bom horário para lançar missões e eventos.</p>
+        </section>
+
+        <section class="panel panel-pad" aria-labelledby="t-feed">
+          <div class="panel-head"><h2 id="t-feed">Acabou de acontecer</h2><p id="feed-status" role="status">Atualizado há 2 min</p></div>
+          <ul class="feed" id="feed">
+            <li><span class="av" style="background:var(--q-amb-bg);color:var(--q-amb-ink)">JS</span><div><b>João Silva</b><small>terminou a missão Horta da Vila · 20 XP</small></div><span class="tag tag-type amb"><img src="img/flora.webp" alt="">Ambiental</span><time>14:32</time></li>
+            <li><span class="av" style="background:var(--q-cul-bg);color:var(--q-cul-ink)">AR</span><div><b>Ana Rocha</b><small>ganhou o selo Curioso do mês</small></div><span class="tag tag-type cul"><img src="img/luna.webp" alt="">Cultural</span><time>14:18</time></li>
+            <li><span class="av" style="background:var(--q-esp-bg);color:var(--q-esp-ink)">PL</span><div><b>Pedro Lima</b><small>acertou 9 de 10 no quiz da semana</small></div><span class="tag tag-type esp"><img src="img/max.webp" alt="">Esportivo</span><time>13:57</time></li>
+            <li><span class="av" style="background:var(--q-con-bg);color:var(--q-con-ink)">BC</span><div><b>Bia Costa</b><small>chegou ao nível 10</small></div><span class="tag tag-type con"><img src="img/byte.webp" alt="">Conhecimento</span><time>13:40</time></li>
+            <li><span class="av" style="background:var(--q-div-bg);color:var(--q-div-ink)">LM</span><div><b>Lucas Moura</b><small>leu a história da Lia até o fim</small></div><span class="tag tag-type div"><img src="img/lia.webp" alt="">Diversidade</span><time>13:12</time></li>
+          </ul>
+          <div class="empty" id="dashboard-vazio" hidden>
+            <img src="img/helinho-corpo.webp" width="182" height="360" alt="">
+            <b>Nenhuma jogada nas últimas 24 horas</b>
+            <p>Quando os alunos voltarem a jogar, as conquistas aparecem aqui na hora.</p>
+            <a class="btn" href="#">Ver alunos da unidade</a>
+          </div>
+          <ul class="feed" id="feed-sk" hidden aria-busy="true" aria-label="Carregando atividades">
+            <li><span class="sk sk-av"></span><div><span class="sk sk-line" style="width:40%"></span><span class="sk sk-line" style="width:70%;margin-top:8px"></span></div></li>
+            <li><span class="sk sk-av"></span><div><span class="sk sk-line" style="width:32%"></span><span class="sk sk-line" style="width:60%;margin-top:8px"></span></div></li>
+            <li><span class="sk sk-av"></span><div><span class="sk sk-line" style="width:45%"></span><span class="sk sk-line" style="width:55%;margin-top:8px"></span></div></li>
+          </ul>
+        </section>
+
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<details class="pv"><summary>Preview</summary><nav aria-label="Telas da preview"><a href="v2-entrar.html">Entrar</a><a href="v2-entrar.html?estado=erro">Erro</a><a href="v2.html">Painel</a><a href="v2.html?estado=vazio">Vazio</a><a href="v2.html?estado=carregando">Carregando</a><button type="button" data-tema>Tema</button><a href="index.html">v1</a></nav></details>
+<script src="v2.js" defer></script>
+</body>
+</html>
