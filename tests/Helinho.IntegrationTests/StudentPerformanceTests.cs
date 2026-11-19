@@ -157,4 +157,52 @@ public class StudentPerformanceTests(PostgresFixture postgres)
         Assert.Contains("ainda não respondeu nenhuma pergunta", html, StringComparison.Ordinal);
         Assert.Contains("Nenhuma conquista desbloqueada", html, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task Ficha_usa_marcacao_recreio_com_personagem_selo_e_sem_pii()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (factory, seed) = await NewWorldAsync();
+        await using var _ = factory;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var art = new Badge($"cem-{Guid.NewGuid():N}", "Cem perguntas", "");
+            db.Badges.Add(art);
+            db.StudentBadges.Add(new StudentBadge(seed.Ana, art.Id, Now));
+            await db.SaveChangesAsync(ct);
+        }
+
+        using var client = factory.CreateClientAs(RoleNames.Master);
+        var html = await (await client.GetAsync($"/Desempenho/Aluno/{seed.Ana}", ct)).Content.ReadAsStringAsync(ct);
+
+        Assert.Contains("class=\"profile panel panel-pad\"", html, StringComparison.Ordinal);
+        Assert.Contains("Ambiental · Flora", html, StringComparison.Ordinal);
+        Assert.Contains("Diversidade · Lia", html, StringComparison.Ordinal);
+        Assert.Contains("src=\"/img/selo-cem-perguntas.webp\" alt=\"Selo Cem perguntas\" width=\"96\" height=\"109\"", html, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Selo Explorador do Bosque\"", html, StringComparison.Ordinal); // selo sem arte: ícone com nome
+        Assert.Contains("Desbloqueado em", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("btn-ai", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Rua Sintética", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Lista_usa_marcacao_recreio_com_aplicar_e_resumo()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (factory, seed) = await NewWorldAsync();
+        await using var _ = factory;
+
+        using var client = factory.CreateClientAs(RoleNames.Admin, seed.UnitA);
+        var html = await (await client.GetAsync("/Desempenho", ct)).Content.ReadAsStringAsync(ct);
+        var vazio = await (await client.GetAsync("/Desempenho?faixa=Age13To14", ct)).Content.ReadAsStringAsync(ct);
+
+        Assert.Contains("class=\"filters-bar\"", html, StringComparison.Ordinal);
+        Assert.Contains(">Aplicar</button>", html, StringComparison.Ordinal);
+        Assert.Contains("class=\"tag tag-neutral\"", html, StringComparison.Ordinal);
+        Assert.Contains("2 alunos", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("111.111.111-11", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"desempenho-vazio\"", vazio, StringComparison.Ordinal);
+        Assert.Contains("width=\"117\" height=\"120\"", vazio, StringComparison.Ordinal);
+    }
 }
