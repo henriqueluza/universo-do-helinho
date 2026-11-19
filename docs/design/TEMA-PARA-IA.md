@@ -7,6 +7,7 @@ Referências: `docs/design/GUIA-DE-EVOLUCAO.md` (receitas) e a preview em `docs/
 ## 1. Arquitetura do CSS
 
 - Um arquivo: `wwwroot/css/theme.css`. Camadas na ordem `@layer tokens, base, components, screens, motion;`.
+- Enquanto houver tela não portada, abaixo dessas ficam `@layer bootstrap, legado;`: o Bootstrap entra por `@import url("../lib/bootstrap/bootstrap.min.css") layer(bootstrap)` (nunca por `<link>`) e o tema antigo fica em `@layer legado`, a remover na limpeza. Nada fora de camada. Detalhes em `docs/handoff/123.md`.
 - Regra nova entra **na camada certa**: valor → `tokens`; peça reutilizável → `components`; algo de uma tela → `screens`; animação → `motion`.
 - **Proibido:** `!important`, cor em hex/rgb/oklch fora de `@layer tokens`, `style=""` com cor ou tamanho fixo (exceção: variáveis de dado como `style="--v:.42"`), estilos em `<style>` dentro de página.
 - Tema escuro: `:root[data-theme="dark"]` redefine os **mesmos tokens**. Nunca escreva regra de componente só para o escuro se um token resolve.
