@@ -54,8 +54,8 @@ public class DashboardEngagementTests(PostgresFixture postgres) : IAsyncLifetime
         db.Students.AddRange(ana, bia, caio, dani);
 
         Session(db, ana, At(11, 10, 9), 10);
-        Session(db, ana, At(11, 10, 10), 20);
-        Session(db, ana, At(11, 8, 9), null); // abandonada: conta como iniciada, fica fora do tempo médio
+        Session(db, ana, At(11, 9, 21), 20); // concluída 21:20 do dia 9 de Brasília (00:20 UTC do dia 10)
+        Session(db, ana, At(11, 9, 8), null); // abandonada: conta como iniciada, fica fora do tempo médio
         Session(db, ana, At(11, 3, 23, 50), 20); // iniciada no período anterior, concluída 00:10 do dia 4 (período atual)
         Session(db, ana, At(10, 29, 10), 30);
         Session(db, bia, At(10, 30, 10), 10 * 24 * 60); // retomada dez dias depois (9/nov): longa demais, fora do tempo médio
@@ -103,8 +103,8 @@ public class DashboardEngagementTests(PostgresFixture postgres) : IAsyncLifetime
         var r = await RunAsync(RoleNames.Master, null, new DashboardQuery(null, 30, null)); // sempre os 7 últimos dias
 
         Assert.Equal(Enumerable.Range(4, 7).Select(d => new DateOnly(2026, 11, d)), r.LastDays.Select(d => d.Day));
-        Assert.Equal([20, null, null, null, null, null, 20], r.LastDays.Select(d => d.AverageSessionMinutes));
-        Assert.Equal([null, null, null, null, 1.0m, 1.0m, 2.0m], r.LastDays.Select(d => d.SessionsPerStudent));
+        Assert.Equal([20, null, null, null, null, 20, 20], r.LastDays.Select(d => d.AverageSessionMinutes));
+        Assert.Equal([null, null, null, null, null, 1.5m, 1.0m], r.LastDays.Select(d => d.SessionsPerStudent)); // dia 9: 3 sessões ÷ 2 alunos
         Assert.Equal([1, 1, 1, 2, 3, 2, 2], r.LastDays.Select(d => d.InactiveStudents));
         Assert.Equal([0, 0, 0, 0, 1, 1, 1], r.LastDays.Select(d => d.CompletedQuests));
     }
@@ -124,7 +124,7 @@ public class DashboardEngagementTests(PostgresFixture postgres) : IAsyncLifetime
             Assert.Equal(new Indicator(2, 1, new Trend(TrendDirection.Up, "+100%")), r.CompletedQuests);
             Assert.Equal([0, 0, 0, 1, 1, 1, 1], r.LastDays.Select(d => d.InactiveStudents)); // Caio e Dani nunca entram
             Assert.Equal([0, 0, 0, 0, 1, 0, 1], r.LastDays.Select(d => d.CompletedQuests)); // a do dia 9 é do Caio
-            Assert.Equal([null, null, null, null, 1.0m, null, 2.0m], r.LastDays.Select(d => d.SessionsPerStudent));
+            Assert.Equal([null, null, null, null, null, 2.0m, 1.0m], r.LastDays.Select(d => d.SessionsPerStudent));
         }
 
         Assert.Equal((NoAverage, NoSessions, true), (semUnidade.AverageSessionMinutes, semUnidade.SessionsPerStudent, semUnidade.IsEmpty));
