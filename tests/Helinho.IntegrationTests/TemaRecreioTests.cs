@@ -28,7 +28,7 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
     private static partial Regex BootstrapImport();
 
     [Fact]
-    public async Task Tema_declara_a_ordem_das_camadas_e_isola_bootstrap_e_legado()
+    public async Task Tema_declara_a_ordem_das_camadas_e_isola_o_bootstrap()
     {
         await using var factory = await NewFactoryAsync();
         using var client = factory.CreateAnonymousClient();
@@ -36,14 +36,13 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
         var css = await client.GetStringAsync("/css/theme.css", Ct);
 
         Assert.Matches(LayerOrder(), css);
-        Assert.Contains("@layer bootstrap, legado;", css);
+        Assert.Contains("@layer bootstrap;", css);
         Assert.Matches(BootstrapImport(), css);
-        Assert.Contains("@layer legado {", css);
         Assert.Contains("@layer tokens {", css);
         Assert.Contains("@layer base {", css);
         // Camadas declaradas antes de qualquer uso; o @import precisa vir antes das regras.
         var import = BootstrapImport().Match(css).Index;
-        Assert.True(css.IndexOf("@layer bootstrap, legado;", StringComparison.Ordinal) < import);
+        Assert.True(css.IndexOf("@layer bootstrap;", StringComparison.Ordinal) < import);
         Assert.True(import < css.IndexOf("@layer tokens {", StringComparison.Ordinal));
     }
 
@@ -51,7 +50,6 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
     [InlineData("/lib/bootstrap/bootstrap.min.css", "text/css")]
     [InlineData("/fonts/nunito-latin-wght-normal.woff2", "font/woff2")]
     [InlineData("/fonts/baloo-2-latin-wght-normal.woff2", "font/woff2")]
-    [InlineData("/fonts/dm-sans-latin-400-normal.woff2", "font/woff2")]
     public async Task Arquivos_do_tema_respondem_200(string path, string contentType)
     {
         await using var factory = await NewFactoryAsync();
@@ -130,9 +128,35 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
         var css = await client.GetStringAsync("/css/theme.css", Ct);
 
         var start = css.IndexOf("@layer components {", StringComparison.Ordinal);
-        var end = css.IndexOf("@layer legado {", StringComparison.Ordinal);
+        var end = css.IndexOf("@layer screens {", StringComparison.Ordinal);
         Assert.True(start >= 0 && end > start);
         Assert.Contains(selector, css[start..end]);
+    }
+
+    [Fact]
+    public async Task Tema_nao_tem_a_camada_legado_nem_as_pontes_nem_DM_Sans()
+    {
+        await using var factory = await NewFactoryAsync();
+        using var client = factory.CreateAnonymousClient();
+
+        var css = await client.GetStringAsync("/css/theme.css", Ct);
+
+        // Tema antigo (Issue #195): camada, fonte e as regras de ponte que o sustentavam.
+        foreach (var removido in new[]
+        {
+            "@layer legado", "legado,", "DM Sans", "dm-sans", "PONTE",
+            ".card-panel", ".section-title", ".auth:not(:has(.auth-scene))", ".auth:has(.auth-scene)",
+            ".kpi:not(:has(.spark))", ".text-negative", ".seg-item", ".type-badge",
+            "--surface:", "--raised:", "--bs-body-color:", "--bs-card-bg:",
+        })
+        {
+            Assert.DoesNotContain(removido, css);
+        }
+        // O único resto do legado em uso: .muted (Desempenho/Aluno.cshtml), mantido de propósito.
+        Assert.Contains(".muted {", css);
+
+        using var fonte = await client.GetAsync("/fonts/dm-sans-latin-400-normal.woff2", Ct);
+        Assert.Equal(HttpStatusCode.NotFound, fonte.StatusCode);
     }
 
     [Fact]
