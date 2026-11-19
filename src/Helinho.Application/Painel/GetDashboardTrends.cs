@@ -29,7 +29,7 @@ public sealed record Trend(TrendDirection Direction, string Text)
         : previous is not { } p ? new Trend(TrendDirection.None, NoBaseline)
         : Signed(c - p, " pt", " pts");
 
-    private static Trend Signed(int delta, string one, string many) => delta == 0
+    internal static Trend Signed(int delta, string one, string many) => delta == 0
         ? new Trend(TrendDirection.Flat, Stable)
         : new Trend(delta > 0 ? TrendDirection.Up : TrendDirection.Down, $"{(delta > 0 ? "+" : "−")}{Math.Abs(delta)}{(Math.Abs(delta) == 1 ? one : many)}");
 }
@@ -121,5 +121,5 @@ public static class GetDashboardTrends
     internal static int? Percent(int correct, int total) =>
         total == 0 ? null : (int)Math.Round(100.0 * correct / total, MidpointRounding.AwayFromZero);
 
-    private static DateTimeOffset StartOf(DateOnly day) => BrasiliaTime.ToUtc(day.ToDateTime(TimeOnly.MinValue));
+    internal static DateTimeOffset StartOf(DateOnly day) => BrasiliaTime.ToUtc(day.ToDateTime(TimeOnly.MinValue));
 }
