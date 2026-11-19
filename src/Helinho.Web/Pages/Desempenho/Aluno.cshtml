@@ -1,4 +1,5 @@
 @page "{id:guid}"
+@using Helinho.Web.Painel
 @model Helinho.Web.Pages.Desempenho.AlunoModel
 @{
     ViewData["Title"] = Model.Student.FullName;
@@ -33,10 +34,10 @@
                 <tbody>
                     @foreach (var t in s.Scores)
                     {
-                        var (css, img) = AlunoModel.ThemeAssets(t.Type);
+                        var tema = TemaQuiz.Of(t.Type);
                         var pct = t.Answered == 0 ? 0 : 100 * t.Correct / t.Answered;
                         <tr>
-                            <td><span class="tag tag-type @css"><img src="~/img/@(img).webp" alt="" width="20" height="20" />@AlunoModel.TypeLabel(t.Type) · @AlunoModel.CharacterName(t.Type)</span></td>
+                            <td><span class="tag tag-type @tema.Css"><img src="~/img/@tema.Imagem" alt="" width="20" height="20" />@tema.Nome · @tema.Personagem</span></td>
                             <td class="num">@t.Answered</td>
                             <td class="num">@t.Correct</td>
                             <td>
@@ -46,7 +47,7 @@
                                 }
                                 else
                                 {
-                                    <span class="meter meter-inline @css" aria-hidden="true"><i style="width: @(pct)%"></i></span>
+                                    <span class="meter meter-inline @tema.Css" aria-hidden="true"><i style="width: @(pct)%"></i></span>
                                     <span>@(pct)%</span>
                                 }
                             </td>

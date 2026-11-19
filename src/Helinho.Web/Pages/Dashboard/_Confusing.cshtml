@@ -1,3 +1,4 @@
+@using Helinho.Web.Painel
 @model Helinho.Web.Pages.Dashboard.IndexModel
 @using Helinho.Application.Painel
 @using Helinho.Web.Pages.Dashboard
@@ -15,9 +16,9 @@
             <tbody>
                 @foreach (var q in Model.Rankings.ConfusingQuestions)
                 {
-                    var qc = IndexModel.Character(q.QuizType);
+                    var qc = TemaQuiz.Of(q.QuizType);
                     <tr>
-                        <td><b>@q.Statement</b><span class="q-meta"><span class="tag tag-type @IndexModel.TypeShort(q.QuizType)"><img src="~/img/@(qc.Slug).webp" width="160" height="160" alt="" />@IndexModel.TypeLabel(q.QuizType)</span><small>@IndexModel.Num(q.Answers) respostas · @IndexModel.BandLabel(q.AgeBand) anos</small></span></td>
+                        <td><b>@q.Statement</b><span class="q-meta"><span class="tag tag-type @qc.Css"><img src="~/img/@(qc.Slug).webp" width="160" height="160" alt="" />@qc.Nome</span><small>@IndexModel.Num(q.Answers) respostas · @IndexModel.BandLabel(q.AgeBand) anos</small></span></td>
                         <td><span class="hit" style="--v:@IndexModel.Inv(q.AccuracyPercent / 100.0)"><b>@q.AccuracyPercent%</b><span class="hit-bar" aria-hidden="true"><i></i></span></span></td>
                         <td><a class="btn btn-sm" href="@Url.Page("/Questoes/Editar", new { id = q.QuestionId })">Revisar<span class="sr"> questão: @q.Statement</span></a></td>
                     </tr>

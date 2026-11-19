@@ -1,3 +1,4 @@
+@using Helinho.Web.Painel
 @model Helinho.Web.Pages.Dashboard.IndexModel
 @using Helinho.Application.Painel
 @using Helinho.Web.Pages.Dashboard
@@ -17,13 +18,13 @@
         <ul class="feed" id="feed">
             @foreach (var e in Model.Feed.Events)
             {
-                var tipo = e.QuizType is { } q ? IndexModel.TypeShort(q) : null;
+                var tipo = e.QuizType is { } q ? TemaQuiz.Of(q).Css : null;
                 <li>
                     <span class="av @tipo" aria-hidden="true">@IndexModel.Initial(e.FirstName)</span>
                     <div><b>@e.FirstName</b><small>@e.Text · @e.UnitName</small></div>
                     @if (e.QuizType is { } qt)
                     {
-                        <span class="tag tag-type @tipo"><img src="~/img/@(IndexModel.Character(qt).Slug).webp" width="160" height="160" alt="" />@IndexModel.TypeLabel(qt)</span>
+                        <span class="tag tag-type @tipo"><img src="~/img/@(TemaQuiz.Of(qt).Slug).webp" width="160" height="160" alt="" />@TemaQuiz.Of(qt).Nome</span>
                     }
                     <time datetime="@e.At.ToString("O")">@IndexModel.LocalTime(e.At)</time>
                 </li>

@@ -35,35 +35,6 @@ public sealed class AlunoModel(IAppDbContext db, IClock clock) : PageModel
         return Page();
     }
 
-    public static string TypeLabel(QuizType type) => type switch
-    {
-        QuizType.Ambiental => "Ambiental",
-        QuizType.Conhecimento => "Conhecimento",
-        QuizType.Esportivo => "Esportivo",
-        QuizType.Cultural => "Cultural",
-        _ => "Diversidade",
-    };
-
-    /// <summary>Personagem do tema: o tipo de quiz aparece sempre com nome e personagem, nunca só pela cor.</summary>
-    public static string CharacterName(QuizType type) => type switch
-    {
-        QuizType.Ambiental => "Flora",
-        QuizType.Conhecimento => "Byte",
-        QuizType.Esportivo => "Max",
-        QuizType.Cultural => "Luna",
-        _ => "Lia",
-    };
-
-    /// <summary>Classe de cor do tema (<c>.amb</c>, <c>.con</c>…) e arquivo da carinha do personagem.</summary>
-    public static (string Css, string Image) ThemeAssets(QuizType type) => type switch
-    {
-        QuizType.Ambiental => ("amb", "cara-flora"),
-        QuizType.Conhecimento => ("con", "cara-byte"),
-        QuizType.Esportivo => ("esp", "cara-max"),
-        QuizType.Cultural => ("cul", "cara-luna"),
-        _ => ("div", "cara-lia"),
-    };
-
     /// <summary>Arte do selo pelo título, ou null (a tela mostra o ícone de estrela). Largura sempre 96.</summary>
     public static (string Src, int Height)? BadgeImage(string title) =>
         BadgeArt.TryGetValue(title, out var art) ? ($"/img/{art.File}.webp", art.Height) : null;

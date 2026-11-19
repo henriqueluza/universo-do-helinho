@@ -4,6 +4,7 @@ using Helinho.Application.LiveEvents;
 using Helinho.Application.Painel;
 using Helinho.Domain;
 using Helinho.Domain.Entities;
+using Helinho.Web.Painel;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -62,34 +63,6 @@ public sealed class IndexModel(IAppDbContext db, ICurrentUser user, IClock clock
         _ => "13–14",
     };
 
-    public static string TypeLabel(QuizType type) => type switch
-    {
-        QuizType.Ambiental => "Ambiental",
-        QuizType.Conhecimento => "Conhecimento",
-        QuizType.Esportivo => "Esportivo",
-        QuizType.Cultural => "Cultural",
-        _ => "Diversidade",
-    };
-
-    public static string TypeShort(QuizType type) => type switch
-    {
-        QuizType.Ambiental => "amb",
-        QuizType.Conhecimento => "con",
-        QuizType.Esportivo => "esp",
-        QuizType.Cultural => "cul",
-        _ => "div",
-    };
-
-    /// <summary>Personagem do tema: nome, artigo, arquivo sem extensão e largura da imagem de corpo inteiro.</summary>
-    public static (string Name, string With, string Slug, int BodyWidth) Character(QuizType type) => type switch
-    {
-        QuizType.Ambiental => ("Flora", "com a Flora", "flora", 159),
-        QuizType.Conhecimento => ("Byte", "com o Byte", "byte", 185),
-        QuizType.Esportivo => ("Max", "com o Max", "max", 170),
-        QuizType.Cultural => ("Luna", "com a Luna", "luna", 141),
-        _ => ("Lia", "com a Lia", "lia", 125),
-    };
-
     private static readonly string[] WeekdayLong = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
 
     public static string WeekdayName(DayOfWeek d) => char.ToUpperInvariant(WeekdayLong[(int)d][0]) + WeekdayLong[(int)d][1..];
@@ -114,7 +87,7 @@ public sealed class IndexModel(IAppDbContext db, ICurrentUser user, IClock clock
     public static string AlertTitle(AttentionAlert a) => a.Kind switch
     {
         AttentionKind.InactiveStudents => $"{a.Value} {(a.Value == 1 ? "aluno" : "alunos")} sem jogar há {GetDashboardAttention.InactiveAfterDays} dias",
-        AttentionKind.LowAccuracy => $"{TypeLabel(a.QuizType!.Value)} abaixo de {GetDashboardAttention.LowAccuracyPercent}%",
+        AttentionKind.LowAccuracy => $"{TemaQuiz.Of(a.QuizType!.Value).Nome} abaixo de {GetDashboardAttention.LowAccuracyPercent}%",
         AttentionKind.DraftQuestions => $"{a.Value} {(a.Value == 1 ? "questão" : "questões")} em rascunho",
         _ => $"{a.EventTitle} termina {(a.Value == 0 ? "hoje" : a.Value == 1 ? "amanhã" : $"em {a.Value} dias")}",
     };
