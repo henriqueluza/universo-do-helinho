@@ -1,9 +1,12 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using Helinho.Application.Abstractions;
 using Helinho.Web.Composition;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Helinho.IntegrationTests;
 
@@ -41,12 +44,10 @@ public class HealthTests(PostgresFixture postgres)
     [Fact]
     public async Task Sem_banco_ready_responde_503_e_health_continua_200_ambos_anonimos()
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop(); // porta fechada: a conexão é recusada na hora
+        using var reserved = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        reserved.Bind(new IPEndPoint(IPAddress.Loopback, 0)); // reservada e sem Listen: conexão recusada na hora, sem corrida com outro processo
         await using var factory = new HelinhoWebFactory(postgres, realCookieAuth: true);
-        using var client = ClientWithDatabaseAt(factory, port);
+        using var client = ClientWithDatabaseAt(factory, Assert.IsType<IPEndPoint>(reserved.LocalEndPoint).Port);
 
         var ready = await client.GetAsync("/health/ready", TestContext.Current.CancellationToken);
         var health = await client.GetAsync("/health", TestContext.Current.CancellationToken);
@@ -69,11 +70,38 @@ public class HealthTests(PostgresFixture postgres)
 
         var elapsed = Stopwatch.StartNew();
         var response = await client.GetAsync("/health/ready", TestContext.Current.CancellationToken);
-        elapsed.Stop();
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.Equal(Unavailable, await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.InRange(elapsed.Elapsed, TimeSpan.Zero, HealthEndpoint.ReadyTimeout + TimeSpan.FromSeconds(20));
+        Assert.InRange(elapsed.Elapsed, TimeSpan.Zero, HealthEndpoint.ReadyTimeout + TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task Ready_encerra_a_consulta_quando_o_cliente_cancela_a_requisicao()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start(); // servidor mudo: sem o token da requisição, a rota só terminaria no tempo limite
+        var served = new TaskCompletionSource();
+        await using var factory = new HelinhoWebFactory(postgres, configure: s => s.AddSingleton<IStartupFilter>(new AfterRequest(() => served.TrySetResult())));
+        using var client = ClientWithDatabaseAt(factory, ((IPEndPoint)listener.LocalEndpoint).Port, connectTimeoutSeconds: 60);
+        using var abort = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+        var request = client.GetAsync("/health/ready", abort.Token);
+        // O critério é o servidor encerrar a rota bem antes do teto (senão, TimeoutException aqui); o que o cliente vê vem depois.
+        await served.Task.WaitAsync(HealthEndpoint.ReadyTimeout - TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request);
+    }
+
+    [Fact]
+    public async Task Falha_inesperada_na_consulta_vira_503_sem_detalhe()
+    {
+        await using var factory = new HelinhoWebFactory(postgres, configure: s => s.AddScoped<IAppDbContext>(_ => throw new InvalidOperationException("Host=banco-interno")));
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/health/ready", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal(Unavailable, await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
     /// <summary>Cliente de um host cuja connection string aponta para a porta dada em 127.0.0.1 (sem banco de verdade).</summary>
@@ -82,4 +110,14 @@ public class HealthTests(PostgresFixture postgres)
                 "ConnectionStrings:Default",
                 $"Host=127.0.0.1;Port={port};Database=helinho;Username=helinho;Timeout={connectTimeoutSeconds};Pooling=false"))
             .CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+    /// <summary>Avisa quando o servidor termina de atender uma requisição (o cliente não enxerga isso depois de cancelar).</summary>
+    private sealed class AfterRequest(Action done) : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app => next(app.Use(async (context, following) =>
+        {
+            try { await following(context); }
+            finally { done(); }
+        }));
+    }
 }
