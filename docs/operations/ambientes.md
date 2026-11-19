@@ -34,6 +34,7 @@ Registro do que está publicado e de como acessar. Quem mantém é o Henrique, d
 | Banco | Só na rede privada do projeto: sem domínio público e sem TCP proxy |
 | Seed | Ligado (`Seed__Enabled=true`); roda no pre-deploy `migrate` |
 | E-mail e IA | `Email__Provider=Fake`, `Ai__Provider=Fake` |
+| Sessões do painel | `<a preencher: persistem entre deploys (decisão D4, opção A, com o PR da Issue #103) ou caem a cada deploy (D4 aberta ou opção D)>` |
 | Publicação | Manual: painel da Railway → `helinho-web` → `Cmd+K` → **Deploy Latest Commit** (`auto_deploy = false`) |
 | Infraestrutura como código | `infra/railway/` (Terraform); `plan` e `apply` só pelo Henrique |
 | Estado do Terraform | Local, na máquina do Henrique, fora do git, com backup cifrado ([runbook, 8.9](railway-runbook.md#89-onde-fica-o-estado-do-terraform)) |
