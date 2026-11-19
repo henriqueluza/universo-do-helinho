@@ -17,6 +17,8 @@ A fatura é `max(assinatura, uso)`: a assinatura já paga o uso até o valor del
 
 Se o workspace da contratante já paga a assinatura por outros projetos, o custo **incremental** deste projeto é só o uso que passar do que estiver incluído e ainda não consumido. Qual plano a conta tem e o que mais roda nela é pergunta para o Igor (C04, C19).
 
+**O plano também decide o acesso.** Só os planos Pro e Enterprise aceitam membros no workspace (https://docs.railway.com/pricing/plans, 18/11/2026). Se a conta for Hobby e o Henrique precisar entrar como membro para criar o token, o workspace sobe para Pro e a fatura do cenário 1 passa de US$ 5 para US$ 20 por mês. A alternativa sem custo é o dono da conta criar o token (ADR-0002 §10.2).
+
 ## Como a Railway cobra
 
 **Assinatura por workspace**, que vira crédito de uso do mês (não acumula):

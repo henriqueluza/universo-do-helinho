@@ -38,6 +38,9 @@ Restrições que moldam a decisão:
 | Rede privada, proxy e cabeçalhos | https://docs.railway.com/networking/private-networking e https://docs.railway.com/networking/public-networking/specs-and-limits |
 | Cabeçalhos sobrescritos pela borda e ausência de lista de IPs do proxy (resposta da conta oficial da Railway, 10/10/2026) | https://station.railway.com/questions/asp-net-core-10-secure-forwarded-heade-506a954b |
 | Tipos de token e variáveis de ambiente da CLI | https://docs.railway.com/integrations/api e https://docs.railway.com/cli |
+| Túnel `ssh -L` e o que `railway connect` lê | https://docs.railway.com/cli/ssh · https://docs.railway.com/cli/connect · https://github.com/railwayapp/cli/blob/master/src/commands/connect.rs |
+| Membros de workspace por plano | https://docs.railway.com/pricing/plans (pergunta "Can I add collaborators to my project?") e https://docs.railway.com/projects/workspaces |
+| Variáveis da imagem oficial do PostgreSQL | https://hub.docker.com/_/postgres (texto em https://github.com/docker-library/docs/blob/master/postgres/content.md) |
 | Regiões e ambientes | https://docs.railway.com/deployments/regions e https://docs.railway.com/environments |
 | Data Protection com EF Core | https://learn.microsoft.com/aspnet/core/security/data-protection/implementation/key-storage-providers (via Context7, `/dotnet/aspnetcore.docs`) |
 | Plano gratuito do HCP Terraform | https://developer.hashicorp.com/terraform/cloud-docs/overview |
@@ -200,7 +203,7 @@ Por isso **não haverá `railway.toml`**. As configurações que ele carregaria 
 | Configuração | Valor | Onde |
 |---|---|---|
 | Builder | Dockerfile da raiz, detectado pela Railway | repositório |
-| Pre-deploy command | o comando `migrate` da imagem (texto exato definido com as Issues #94 e #95) | `predeploy_command` |
+| Pre-deploy command | `tini -- dotnet Helinho.Web.dll migrate` (ver 7.3) | `predeploy_command` |
 | Tempo limite do pre-deploy | 300 s (sem limite, um `migrate` travado segura o deploy para sempre) | `predeploy_timeout` |
 | Healthcheck | `/health/ready`, 120 s | `healthcheck_path`, `healthcheck_timeout` |
 | Restart | `ON_FAILURE`, 5 tentativas | `restart_policy_type`, `restart_policy_max_retries` |
@@ -212,6 +215,7 @@ A Issue planejada para o `railway.toml` deixa de existir; o conteúdo dela passa
 
 - `migrate` é o pre-deploy command: aplica as migrações e, **só se `Seed__Enabled=true`**, roda o seed sintético idempotente. `seed` continua existindo para uso local e recusa rodar com a flag desligada.
 - `Seed__Enabled` tem padrão `false`. Em homologação o Terraform define `true`. **Nunca liga em produção**: o módulo deve impedir `Seed__Enabled=true` e `HELINHO_SEED_PASSWORD` quando o ambiente for `producao` (validação de variável).
+- O comando adotado é **`tini -- dotnet Helinho.Web.dll migrate`**. O `ENTRYPOINT` do `Dockerfile` da `main` é `tini` + `sh -c` que monta `ASPNETCORE_HTTP_PORTS` a partir de `PORT`; o pre-deploy escreve o comando inteiro porque se supõe que a Railway **substitui** o `ENTRYPOINT`, como faz com o start command. Essa substituição no pre-deploy **não está confirmada em fonte** (seção 16, item 3); o runbook manda conferir no primeiro deploy.
 - O pre-deploy roda em contêiner separado, com as variáveis do serviço e acesso à rede privada, **sem volume montado**. Se falhar, o deploy não prossegue e a versão anterior continua no ar.
 - Como o rollback do aplicativo não desfaz o banco, toda migração futura precisa ser compatível com a versão anterior (expand/contract, `devops-standards`).
 
@@ -271,14 +275,15 @@ Sem persistência, cada deploy gera chaves novas: o cookie do painel cai, os tok
 |---|---|---|
 | `ASPNETCORE_ENVIRONMENT` | `Staging` | não |
 | `PORT` | `8080` | não |
-| `ConnectionStrings__Default` | referência ao `Postgres` (seção 6) | sim (o valor resolvido contém a senha do banco, mesmo sem senha literal no Terraform) |
+| `Proxy__TrustForwardedHeaders` | `true` (a aplicação só confia nos cabeçalhos do proxy com esta flag; o padrão é desligado) | não |
+| `ConnectionStrings__Default` | referência ao `Postgres` (seção 6), com `Timeout=5;Command Timeout=30` | sim (o valor resolvido contém a senha do banco, mesmo sem senha literal no Terraform) |
 | `Seed__Enabled` | `true` | não |
-| `HELINHO_SEED_PASSWORD` | `TF_VAR_*`, só em homologação | sim |
-| `Api__Auth__*` | padrões do README | não |
+| `HELINHO_SEED_PASSWORD` | `TF_VAR_seed_password`, só em homologação | sim |
+| `Api__Auth__TokenLifetime`, `Api__Auth__MaxFailedAttempts`, `Api__Auth__LockoutDuration`, `Api__Auth__LoginRateLimit`, `Api__Auth__LoginRateWindow` | padrões do README | não |
 | `Email__Provider` | `Fake` | não |
-| `Brevo__ApiKey`, `Brevo__SenderEmail`, `Brevo__SenderName`, `App__PublicBaseUrl` | vazias (Sprint 3) | `Brevo__ApiKey` sim |
+| `Brevo__ApiKey`, `Brevo__SenderEmail`, `Brevo__SenderName`, `App__PublicBaseUrl` | vazias (Sprint 3) | `Brevo__ApiKey` sim (`TF_VAR_brevo_api_key`) |
 | `Ai__Provider` | `Fake` | não |
-| `Ai__ApiKey`, `Ai__Model` | vazias (Sprint 4) | `Ai__ApiKey` sim |
+| `Ai__ApiKey`, `Ai__Model` | vazias (Sprint 4) | `Ai__ApiKey` sim (`TF_VAR_ai_api_key`) |
 
 As variáveis das Sprints 3 e 4 já nascem declaradas no Terraform com valor padrão vazio. O módulo só envia à Railway as que tiverem valor, para não depender de a API aceitar variável vazia. `App__PublicBaseUrl` pode ser derivada do domínio do serviço quando a Sprint 3 precisar.
 
@@ -289,6 +294,7 @@ Toda variável sensível é `sensitive = true` e vem de `TF_VAR_*` ou de `*.tfva
 A Railway tem três tipos de token: de **conta** (tudo o que o usuário alcança), de **workspace** (um workspace) e de **projeto** (um ambiente de um projeto, enviado no cabeçalho `Project-Access-Token`). O provider autentica com `Authorization: Bearer` e a documentação dele pede token de conta ou de workspace; token de projeto não serve e, de todo modo, não poderia criar o projeto.
 
 - Use **token de workspace**, criado no workspace da contratante. É o menor escopo que o provider aceita.
+- **Isso depende do plano da conta.** A documentação de planos diz que são os planos Pro e Enterprise que permitem acrescentar membros ao workspace, e a página de preços descreve o Hobby como "Single developer workspace". Se a conta da contratante for **Hobby**, o Henrique não pode ser convidado e não consegue criar o token ele mesmo. As saídas são: (a) subir o workspace para Pro, o que leva a fatura de US$ 5 para US$ 20 por mês (`custos.md`); ou (b) o dono da conta criar o token e entregá-lo ao Henrique por gerenciador de senhas. Em (b) o token é do dono: se for de conta, alcança tudo o que ele alcança, e a conexão com o GitHub passa a depender da conta dele. A escolha é do Igor e do Henrique, antes do primeiro `apply`.
 - O provider lê `RAILWAY_TOKEN`. A CLI da Railway usa esse mesmo nome para token de **projeto** e `RAILWAY_API_TOKEN` para conta ou workspace. O runbook deve mandar exportar `RAILWAY_TOKEN` só no shell do Terraform e nunca rodar a CLI nesse shell.
 - Se o token enxergar mais de um workspace, `workspace_id` é obrigatório no `railway_project` (variável não sensível).
 - O token nunca vai para arquivo, `tfvars`, log ou CI. O workflow `infra.yml` roda `init -backend=false`, `validate`, `fmt` e `tflint`, que não precisam dele.
@@ -306,6 +312,10 @@ O estado guarda em texto a senha do banco, `HELINHO_SEED_PASSWORD` e, depois, as
 
 **Recomendação: A**, como exceção registrada à regra da casa ("nunca use estado local"), válida enquanto houver um único operador e só homologação. Backup cifrado com `age` ou `gpg` depois de cada `apply`, guardado fora da máquina (o runbook dá o comando). Quando houver produção, segundo operador ou `apply` em CI, o estado vai para backend remoto com lock, em ADR próprio.
 
+### 10.4 Risco aberto: uma senha só para todos os usuários do seed
+
+O seed cria master, administradores e alunos com a **mesma** senha, a de `HELINHO_SEED_PASSWORD`. A credencial sintética entregue ao desenvolvedor Unity para testar a API é, portanto, também a senha do master de homologação, que entra no painel. O dado é sintético, mas quem recebe a credencial de aluno ganha acesso administrativo ao ambiente. A correção (senha separada para o aluno de teste) vai por **Issue própria**; até lá o risco fica aberto e aparece na seção 12.
+
 ## 11. Observabilidade, rollback e backup
 
 - **Logs:** JSON no console fora de `Development`, por configuração (Issue #98); sem PII, sem corpo de requisição, sem SQL e sem token. A Railway coleta o stdout; a retenção é de 7 dias no plano Hobby e 30 no Pro. `X-Railway-Request-Id` serve de correlação com os logs de rede.
@@ -313,10 +323,13 @@ O estado guarda em texto a senha do banco, `HELINHO_SEED_PASSWORD` e, depois, as
 - **Rollback de deploy:** no painel, aba Deployments do serviço → menu do deploy anterior → **Rollback**. Restaura a imagem e as variáveis daquele deploy. A imagem de um deploy removido fica guardada por 72 horas no Hobby e 120 no Pro; depois disso só resta **Redeploy**, que reconstrói a partir do código. Rollback não desfaz migração.
 - **Backup do banco, dois níveis:**
   1. Backup de volume da Railway (aba Backups do serviço `Postgres`): manual ou agendado; diário guardado 6 dias, semanal 27, mensal 89. É incremental, cobrado como volume, e só restaura no mesmo projeto e ambiente. A agenda não é configurável pelo provider: é um clique no painel, descrito no runbook.
-  2. `pg_dump` para fora da plataforma: `railway connect Postgres --tunnel-only` abre um túnel SSH para o banco privado, sem TCP proxy público, e o `pg_dump`/`pg_restore` local usa esse túnel.
+  2. `pg_dump` para fora da plataforma, por **túnel `ssh -L` nativo da Railway** até o contêiner do `Postgres`, sem TCP proxy público. O redirecionamento só alcança o próprio contêiner e a rede privada do projeto. O passo a passo está no runbook (seção 8.4). `railway connect Postgres --tunnel-only` **não serve neste desenho**: o código da CLI exige a variável `DATABASE_URL` (ou `DATABASE_PUBLIC_URL`) no serviço, o módulo só define as `PG*`, e o comando imprime a senha do banco no terminal.
+- **Rotação de senhas** (runbook, seção 8.7): nenhuma das duas troca só pelo Terraform.
+  - **Seed:** o `PeopleSeeder` não regrava usuário que já existe. Trocar `TF_VAR_seed_password` muda a variável, não a senha dos usuários; em homologação a senha nova só vale depois de zerar o banco e deixar o seed recriá-los.
+  - **Banco:** a imagem oficial do PostgreSQL só lê `POSTGRES_PASSWORD` com o diretório de dados vazio, ou seja, ao criar o volume. Substituir o `random_password` muda a variável, não a senha de dentro do banco; é preciso trocá-la também no banco, pelo túnel, antes do próximo deploy do web.
 - **Destruição:** volume apagado fica 48 horas recuperável; depois é definitivo.
 
-O passo a passo de rollback, backup, restore, rotação e destruição é escrito em `docs/operations/railway-runbook.md` (Issue própria), não só aqui.
+O passo a passo de rollback, backup, restore, rotação e destruição está em `docs/operations/railway-runbook.md`; este ADR não o repete.
 
 ## 12. Decisões que esperam o Henrique
 
@@ -367,6 +380,15 @@ Não estava entre as quatro decisões, mas muda o plano da sprint e você precis
 
 **Recomendação: manter o Terraform nesta sprint.** É o objetivo que você definiu, o provider 0.6.3 cobre tudo o que a homologação precisa, e a validação roda no CI sem segredo. O IaC nativo é o caminho de saída se o provider quebrar ou parar de ser mantido, e deve ser reavaliado no ADR de produção.
 
+### Perguntas para o Igor, antes do primeiro `apply`
+
+1. Qual é o plano do workspace, Hobby ou Pro? No Hobby o Henrique não pode ser membro: ou o workspace sobe para Pro, ou o dono da conta cria o token (seção 10.2).
+2. O que mais roda nesse workspace e qual é o teto de gasto (C04)?
+
+### Risco aberto que não é decisão deste ADR
+
+Todos os usuários do seed compartilham a senha de `HELINHO_SEED_PASSWORD`: a credencial sintética do desenvolvedor Unity é também a do master de homologação (seção 10.4). A correção vai por Issue própria.
+
 ## 13. Exceções à política da casa (`devops-standards`)
 
 | Regra da casa | O que este ADR faz | Por quê |
@@ -415,11 +437,11 @@ As Issues #40 (pipeline de staging) e #41 (workflow de produção) foram escrita
 
 1. **Se conectar o repositório no primeiro `apply` dispara sozinho o deploy inicial**, e se esse deploy respeita o `watch_patterns`. O runbook trata os dois casos.
 2. **Se "Deploy Latest Commit" ignora o `watch_patterns`.** A documentação indica esse comando como saída quando os watch paths bloqueiam um deploy, mas não afirma isso com todas as letras. Plano B: botão Disable.
-3. **Se o pre-deploy command roda em shell ou em forma exec.** A documentação só diz isso do start command. Importa se a imagem final for sem shell.
+3. **Se o pre-deploy command substitui o `ENTRYPOINT` da imagem e roda em forma exec.** A documentação só diz isso do start command. O comando adotado, `tini -- dotnet Helinho.Web.dll migrate`, supõe que sim (seção 7.3); o runbook manda conferir no primeiro deploy.
 4. **Se a requisição de healthcheck traz `X-Forwarded-Proto`.** Por isso as rotas de saúde ficam fora do redirecionamento.
 5. **Como o provider se comporta com um segundo ambiente no mesmo projeto** além do que o código mostra (L3). Não foi executado nenhum `plan`.
 6. **Se a API da Railway aceita variável com valor vazio.** O módulo não envia as vazias.
-7. **Qual plano a conta da contratante tem** (Hobby ou Pro) e o que mais roda no workspace. Pergunta para o Igor; muda a fatura, não a arquitetura.
+7. **Qual plano a conta da contratante tem** (Hobby ou Pro) e o que mais roda no workspace. Pergunta para o Igor; muda a fatura e, se for Hobby, quem cria o token (seção 10.2).
 8. **Qual versão do PostgreSQL o template da Railway entrega hoje.** Irrelevante para a opção escolhida.
 9. **Consumo real de CPU e memória.** As estimativas de custo são premissas, a medir na primeira semana.
 
