@@ -76,8 +76,18 @@ Três fatos do código pesam nas decisões:
 | F19 | IP de saída fixo na Railway | https://docs.railway.com/networking/static-outbound-ips |
 | F20 | Recuperação de senha: resposta e tempo consistentes, token na URL, `no-referrer`, limite por conta, aviso depois da troca | https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html |
 | F21 | Política de senha padrão do Identity | Context7 `/dotnet/aspnetcore.docs`: `aspnetcore/security/authentication/identity-configuration.md` |
+| F22 | Plano gratuito: 300 envios por dia, fila de 1.000 transacionais, selo "Sent with Brevo" (artigo atualizado em 09/11/2026) | https://help.brevo.com/hc/en-us/articles/208580669 |
+| F23 | Chaves de API: validade, desativação depois de 90 dias sem uso (04/11/2026) | https://help.brevo.com/hc/en-us/articles/40159485019794 |
+| F24 | IPs autorizados: fase de aprendizado e bloqueio que se liga depois de 30 dias (13/11/2026) | https://help.brevo.com/hc/en-us/articles/5740111683858 |
+| F25 | Retenção dos registros transacionais e das prévias (03/11/2026) | https://help.brevo.com/hc/en-us/articles/4415743225746 |
+| F26 | Rastreamento anônimo de aberturas e cliques (18/11/2026) | https://help.brevo.com/hc/en-us/articles/11643306229906 |
+| F27 | Cliques medidos com links individualizados, por padrão (11/11/2026) | https://help.brevo.com/hc/en-us/articles/37113920427922 |
+| F28 | Subdomínio de marca para os endereços de rastreamento (03/11/2026) | https://help.brevo.com/hc/en-us/articles/35337929909778 |
+| F29 | Webhooks de saída no painel: autenticação e cabeçalhos próprios (12/11/2026) | https://help.brevo.com/hc/en-us/articles/27824932835474 |
+| F30 | Fórum da Brevo: desligar o rastreamento em transacionais só sob pedido e para Enterprise (respostas de 10/07/2024 e 18/10/2024); relatos sobre o domínio de rastreamento. **Fonte fraca** | https://community.brevo.com/t/no-way-to-disable-by-option-tracking-in-transactional-e-mail/201/28 e https://community.brevo.com/t/why-no-custom-domain-for-click-tracking/710 |
+| F31 | Autenticar o domínio: código `TXT`, DKIM em 1 `TXT` ou 2 `CNAME`, DMARC; SPF e MX não exigidos (18/11/2026) | https://help.brevo.com/hc/en-us/articles/12163873383186 |
 
-O que não foi possível confirmar está na seção 17. A central de ajuda da Brevo (`help.brevo.com`) respondeu 403 à leitura automática; o que depende dela está marcado.
+O que não foi possível confirmar está na seção 17. As páginas HTML da central de ajuda da Brevo (`help.brevo.com`) respondem 403 à leitura automática. Os artigos F22 a F29 e F31 foram lidos pela API pública da própria central (`https://help.brevo.com/api/v2/help_center/en-us/articles/<id>.json`, com o `<id>` do endereço), caminho encontrado por quem escreveu o runbook da Brevo (PR #208). Cada fato desses artigos citado aqui foi conferido de novo no texto do artigo, em 19/11/2026.
 
 ## 3. Decisão (resumo)
 
@@ -94,10 +104,11 @@ O que não foi possível confirmar está na seção 17. A central de ajuda da Br
 | Tokens | Tokens do Identity com dois provedores próprios: convite 72 h, redefinição 1 h; uso único pelo carimbo de segurança; link só de `App__PublicBaseUrl` | 10 |
 | E-mail do responsável | `Student.GuardianEmail`: obrigatório no formulário, anulável no banco, não único, nunca identificador de login (`PROPOSTA`) | 9 |
 | Senha do aluno | Definida pelo responsável, pelo link (`PROPOSTA`) | 11.4 |
-| Webhook | `POST /webhooks/brevo`, desligado sem segredo, `Authorization: Bearer` comparado em tempo constante | 12 |
-| Terraform | Acrescenta `Brevo__WebhookSecret` e validações; o resto já está declarado | 13 |
+| Links no e-mail | A Brevo reescreve os links para medir cliques e não há como desligar no plano gratuito. Mantém-se o link com token, com condições; o código digitado fica desenhado como plano B | 8.4 |
+| Webhook | `POST /webhooks/brevo`, desligado sem segredo, segredo em cabeçalho próprio comparado em tempo constante, quatro eventos | 12 |
+| Terraform | Faltam `Brevo__WebhookSecret`, `Email__DailyLimit` e as validações de remetente e de URL pública; `App__PublicBaseUrl` hoje é manual | 13 |
 
-As linhas de relação com o ADR-0001, fila, gravação, retenção, tokens, e-mail do responsável e senha do aluno são **recomendações** que esperam o Henrique (seção 16).
+As linhas de relação com o ADR-0001, fila, gravação, retenção, tokens, links no e-mail, e-mail do responsável e senha do aluno são **recomendações** que esperam o Henrique (seção 16).
 
 ## 4. Integração com a Brevo
 
@@ -268,7 +279,9 @@ Como não há destinatário nem corpo na fila, não há o que anonimizar. O que 
 - A limpeza roda no próprio worker, uma vez por dia, em lotes.
 - Linhas em `Pending` ou `Processing` não são apagadas: terminam por sucesso, falha ou `ExpiresAt`.
 - **Nada do conteúdo vai para log.** O log do worker tem id, tipo, tentativa, classe do resultado, código HTTP e duração.
-- O que a Brevo guarda do lado dela (registros e conteúdo das mensagens) não foi confirmado (seção 17) e entra na pergunta sobre fornecedores (C14).
+- **A retenção também precisa ser configurada na Brevo**, senão os 30 dias daqui não valem do lado de lá. Por padrão ela guarda os registros dos e-mails transacionais **sem prazo**; a regra de retenção aceita de 1 a 24 meses, e 1 mês é o mínimo (F25). Os registros têm endereço do destinatário, assunto, etiquetas e eventos: é dado do responsável, e por tabela da criança, num fornecedor. O runbook configura **1 mês** e **"Never store previews"** antes do primeiro envio; a prévia guardaria o corpo inteiro, com o primeiro nome do aluno, a matrícula e o link. O artigo se contradiz sobre o padrão das prévias (diz que são guardadas sem prazo por padrão e, mais abaixo, que "Never store previews" já vem selecionada), então o passo é conferir na tela, não supor. Faz parte da D9.
+- **O assunto do e-mail nunca leva nome de aluno nem matrícula:** ele fica nos registros da Brevo e volta no webhook.
+- Onde a Brevo guarda esses dados e o contrato de tratamento continuam na pergunta sobre fornecedores (C14, M12).
 - Se a D2 for decidida pela opção B (corpo renderizado na fila), o prazo passa a ser outro e mais curto: destinatário e corpo anulados **7 dias** depois do envio, já que o link mais longo vale 72 horas.
 
 ## 6. Worker
@@ -482,7 +495,68 @@ Regras do renderizador:
 - **Logo:** `<img>` apontando para `App__PublicBaseUrl/img/fundhas.png`, com `alt`, largura e altura. Não é anexo. **O arquivo ainda não existe em `wwwroot/img`**, que só tem `.webp`, formato que vários clientes de e-mail não mostram. A entrega do design traz `fundhas.png` e `fundhas-invertido.png` (480×127) como "cópias PNG (reserva, para e-mail/PDF)" (`docs/design/ENTREGA.md:72`), mas eles não foram importados para o repositório. A Issue dos modelos importa `fundhas.png` da entrega, do mesmo jeito que a Issue #124 importou os `.webp`.
 - **Rodapé:** identificação da FUNDHAS e um contato. O texto exato (razão social, endereço, canal) é pergunta para o Marcos; até lá, marcador `PROPOSTA`.
 - **Sem link de descadastro:** são mensagens transacionais, sem conteúdo promocional (`site-compliance`, seção de e-mails).
-- **Rastreamento desligado.** Se a Brevo reescrever os links para contar cliques, o link com o token passa pelo domínio de rastreamento dela e fica nos registros dela. Onde se desliga isso não foi confirmado (seção 17); entra no runbook como passo obrigatório.
+- **Selo da Brevo.** No plano gratuito todo e-mail leva o selo "Sent with Brevo" e não há como tirar; ele sai no Starter com um complemento pago ou nos planos acima (F22, F12). O layout precisa conviver com o selo, e ele pesa na escolha do plano (D7): um selo de terceiro num e-mail que pede para definir a senha de uma criança não ajuda a parecer legítimo.
+- **Links:** as regras estão na seção 8.4, porque a Brevo reescreve os links.
+
+### 8.4 A Brevo reescreve os links: o que muda
+
+A primeira versão deste ADR exigia "rastreamento desligado" como passo do runbook. **Esse controle não existe no plano que vamos usar.** Quem achou foi o runbook da Brevo (PR #208). O que as fontes dizem:
+
+| Fato | Fonte | Força |
+|---|---|---|
+| Por padrão a Brevo mede cliques com **links individualizados**. A referência da API transacional fala em "tracked links" ao descrever o consentimento de rastreamento por destinatário | F27, F1 | oficial |
+| A API de envio **não tem campo** para desligar o rastreamento de cliques de uma mensagem. `removeTrackingPixel` tira só o pixel de abertura, só no plano Enterprise, e a referência diz "Click tracking is unchanged" | F1 | oficial |
+| Existe o **rastreamento anônimo**: aberturas e cliques deixam de ser ligados ao contato, e os registros deixam de mostrar endereço, id da mensagem e links clicados. O artigo **não** diz que o link deixa de ser reescrito | F26 | oficial |
+| **Desligar** o rastreamento em e-mails transacionais só é feito sob pedido e para clientes Enterprise | F30 | fraca: fórum, respostas de 2024, sem confirmação mais nova |
+| O endereço reescrito fica num domínio da Brevo. O subdomínio de marca troca esse domínio por um nosso, mas o artigo fala em "marketing emails" | F30 (relatos de usuários), F28 | fraca para o transacional |
+
+**Consequência:** o link de acesso muito provavelmente chega ao destinatário reescrito. Três efeitos:
+
+1. **O token passa pelo redirecionador da Brevo e fica guardado lá.** Para redirecionar, a Brevo precisa guardar o destino, que é a nossa URL com o token.
+2. **O endereço que a pessoa vê ao passar o dedo ou o mouse sobre o botão não é o institucional.** É um domínio de rastreamento, compartilhado com outros clientes da Brevo.
+3. **O link passa a depender de mais um serviço** e de ele repassar a URL inteira, sem cortar a query string.
+
+**Quanto isso piora o risco, sem exagero.** A Brevo já recebe o corpo inteiro de toda mensagem, com o link dentro: é o que ela precisa para enviar. O que a reescrita acrescenta é o token guardado no sistema de cliques dela e, depois do clique, visível como "link clicado" nos registros da conta (o rastreamento anônimo esconde isso do painel). O token continua de uso único, com validade de 1 hora ou 72 horas, e o `GET` não o consome (seção 10). A afirmação "nenhum link de acesso em repouso" (D2) vale para o nosso banco; **deixa de valer para o fornecedor** enquanto o token for válido. O que mais muda é a aparência: um link de acesso que aponta para um domínio estranho.
+
+**Saídas:**
+
+| Opção | O que muda | Custo | Segurança | Para o responsável |
+|---|---|---|---|---|
+| **A. Manter o link com token e aceitar o redirecionamento, com condições** (recomendada) | nada no desenho | zero | risco residual descrito acima, limitado por uso único e validade curta | um toque no botão; o endereço visível no botão não é o institucional |
+| B. Plano em que a Brevo desliga o rastreamento | link sem reescrita | plano Enterprise, preço sob consulta (F12); a própria regra vem de fonte fraca (F30) | resolve os três efeitos | igual a hoje |
+| C. Link sem segredo e **código digitado** | o e-mail leva um código curto no texto; o link abre a página sem token e a pessoa digita o código | código novo em caminho sensível (gerar, guardar só o resumo, contar tentativas); substitui os provedores de token da Issue 5 | nenhum segredo em URL (a exceção D13 some); o código também passa pela Brevo, dentro do corpo; ganha uma superfície de força bruta que o token do Identity não tem | um campo a mais para digitar; em troca, dá para abrir o site digitando o endereço à mão |
+| D. Subdomínio de marca | o redirecionador passa a usar um subdomínio institucional; continua passando pela Brevo | mais registros no DNS da FUNDHAS, cujo administrador ainda não foi identificado (C15) | não muda o efeito 1 | resolve o efeito 2, **se** valer para transacional (não confirmado) |
+| E. Outro provedor | — | ADR e Issue próprios; a Brevo é a escolha em curso (C20) | depende do provedor | — |
+
+**Recomendação (D17): A, com cinco condições.**
+
+1. **Medir antes de construir a Issue 5.** Com a conta criada, um envio de teste pela API, com um link fictício que tenha query string, mostra no código-fonte da mensagem recebida se o link foi reescrito no HTML e na parte de texto, e para qual domínio. É um comando do runbook, não depende dos fluxos.
+2. **Rastreamento anônimo ligado, prévias desligadas e retenção de 1 mês** na conta, antes do primeiro envio (seção 5.6).
+3. **O texto do e-mail segue as regras abaixo.**
+4. **As perguntas ao suporte da Brevo** (lista abaixo) respondidas antes de dado real.
+5. **O teste de fumaça percorre o fluxo inteiro a partir do e-mail recebido** (clicar, definir a senha, entrar), para provar que o redirecionamento não quebra o link.
+
+Por que A e não C agora: a diferença de confidencialidade é pequena (nos dois casos o segredo passa pela Brevo), o token do Identity é o que a Issue e o roteiro da sprint pedem, e C troca um risco baixo por código de segurança escrito por nós. **C fica desenhado como plano B** e entra se uma destas coisas acontecer: a medição ou o teste de fumaça mostrarem que o redirecionamento corta ou altera o link; o suporte disser que o destino dos links fica guardado ou visível além do aceitável; a entrega piorar por causa do domínio de rastreamento; ou o Henrique preferir não aceitar a exceção D13. D pode somar-se a A quando houver quem mexa no DNS.
+
+Esboço de C, para não começar do zero: link `…/conta/definir-senha?usuario=<id>`, sem segredo; código de 10 caracteres sem letras ambíguas, mostrado em dois grupos de cinco; no banco só um resumo com chave do servidor, com validade e uso único (a tabela `AspNetUserTokens` do Identity já existe e talvez dispense migração; a confirmar); limite de tentativas por conta e por IP; mesmas validades da D4.
+
+**O que o e-mail diz e mostra (vale para A):**
+
+- **O botão tem texto de ação** ("Definir minha senha"), nunca uma URL. Um endereço escrito que não bate com o destino real é o padrão do phishing, e filtros de e-mail penalizam isso.
+- **No HTML, a URL com o token não aparece escrita.** Ela existe só como destino do botão.
+- **O que aparece por extenso é o endereço do site** (`App__PublicBaseUrl`, sem token), numa frase como "a página que vai abrir tem este endereço". É a conferência que continua verdadeira: o redirecionamento termina no nosso domínio, e é na barra do navegador, depois de abrir, que a pessoa confere.
+- **O e-mail não manda conferir o link antes de clicar**, porque essa conferência falharia com um e-mail legítimo.
+- **Na parte de texto puro** a URL completa fica sozinha numa linha. Se a Brevo reescreve também o texto puro não está confirmado.
+- **O que o e-mail afirma:** quem enviou e por quê; que ninguém da FUNDHAS pede senha por e-mail, telefone ou mensagem; e o que fazer na dúvida, sem clicar: falar com a unidade ou pedir um novo link pela tela de entrar.
+
+**A confirmar com o suporte da Brevo antes de ligar em produção:**
+
+1. O link de um e-mail transacional enviado pela API é reescrito nesta conta? Também na parte de texto puro?
+2. O rastreamento de cliques pode ser desligado, na conta ou por mensagem? Em qual plano? (A regra "só Enterprise" vem de fórum de 2024.)
+3. O rastreamento anônimo impede a reescrita, ou só esconde os eventos?
+4. O que fica guardado do destino do link, por quanto tempo, e quem na conta consegue ver?
+5. Em que domínio fica o redirecionador? O subdomínio de marca vale para transacional com IP compartilhado?
+6. O redirecionamento preserva a URL inteira, com query string longa?
 
 ## 9. E-mail do responsável (`PROPOSTA`)
 
@@ -528,6 +602,8 @@ Definir a senha passa por `UpdatePasswordHash`, que troca o carimbo de seguranç
 - Token inválido ou vencido leva a uma saída clara ("pedir novo link"), com a mesma mensagem para qualquer causa.
 
 **Token na query string é exceção registrada.** A ASVS 5.0 (14.2.1, citada na skill `owasp-security`) pede que dado sensível não vá em URL. O guia de recuperação de senha da OWASP (F20) descreve justamente o token na query string, com uso único, validade curta, `no-referrer` e sem depender do cabeçalho `Host`, e é assim que o Identity trabalha. Mitigações adotadas: as desta seção, mais um script pequeno que tira o token da barra de endereço depois de carregar a página (`history.replaceState`), para ele não ficar no histórico do navegador. A aplicação não registra a URL das requisições (`Microsoft.AspNetCore` em `Warning`, `appsettings.json:5`); o registro de acesso da Railway é o item 11 da seção 17. Alternativa descartada: token no fragmento (`#`), que nunca chega ao servidor mas exige JavaScript para funcionar e depende de cada cliente e filtro de e-mail preservar o fragmento, com um público de responsáveis que não tem a quem recorrer se o link quebrar. Aceitar a exceção é decisão do Henrique (D13).
+
+**A exceção ficou maior do que a primeira versão descrevia.** Como a Brevo reescreve os links (seção 8.4), a URL com o token é entregue a um redirecionador de terceiro e guardada por ele; não é mais só o histórico do navegador e o registro de acesso. A recomendação continua sendo aceitar, agora junto com a D17 e com as condições dela. A alternativa de verdade deixou de ser o fragmento, que também seria guardado pelo redirecionador: é o código digitado (seção 8.4, opção C), que tira o segredo da URL e faz a exceção desaparecer.
 
 ### 10.4 Dependência do Data Protection
 
@@ -605,20 +681,36 @@ O IP vem de `X-Real-IP`, já tratado pela área Hospedagem (ADR-0002 §8). Em Ra
 
 ## 12. Webhook da Brevo (preparado, desligado)
 
-Confirmado em F9, F10 e F11:
+Confirmado em F9, F10, F11 e F29:
 
-- A Brevo chama a URL configurada com **HTTP POST**, um evento por chamada. O corpo traz `event`, `email`, `message-id`, `date`, `ts_event`, `subject`, `tags`, `reason` e outros.
-- Valores de `event`: `request`, `delivered`, `deferred`, `soft_bounce`, `hard_bounce`, `blocked`, `spam`, `invalid_email`, `error`, `click`, `opened`, `unique_opened` e `unsubscribed`, entre outros. Ao **criar** o webhook, os nomes são outros (`hardBounce`, `softBounce`, `blocked`, `spam`, `invalid`, `deferred`, `delivered`…).
-- **Não há assinatura** (HMAC) do corpo. As formas de proteção documentadas são: usuário e senha na própria URL; `auth: { "type": "bearer", "token": "…" }`; cabeçalhos próprios (`headers: [{ "key", "value" }]`); e restrição pelas faixas de IP da Brevo.
+- A Brevo chama a URL configurada com **HTTP POST**. Com a estratégia "Send one at a time" do painel vai um evento por chamada; o envio em lote muda o corpo e não é usado. O corpo traz `event`, `email`, `message-id`, `date`, `ts_event`, `subject`, `tags`, `reason` e outros.
+- Valores de `event`: `request`, `delivered`, `deferred`, `soft_bounce`, `hard_bounce`, `blocked`, `spam`, `invalid_email`, `error`, `click`, `opened`, `unique_opened` e `unsubscribed`, entre outros. Ao **criar** o webhook pela API, os nomes são outros (`hardBounce`, `softBounce`, `blocked`, `spam`, `invalid`, `deferred`, `delivered`…).
+- **Não há assinatura** (HMAC) do corpo. As proteções documentadas são quatro: usuário e senha (na URL pela API; "Basic authentication" no painel); token (`auth` do tipo `bearer` pela API; "Token authentication" no painel); **cabeçalhos próprios**, com nome e valor, pela API e pelo painel; e restrição pelas faixas de IP da Brevo. O padrão do painel é "No authentication".
+- **Nenhuma fonte diz em qual cabeçalho, nem em que formato, o token da opção "Token" é enviado.**
 - Repetição: 4 novas tentativas (10 minutos, 1 hora, 2 horas e 8 horas depois). Resposta 4xx (menos 429) ou 5xx **encerra as tentativas e descarta o evento**.
 
 Decisão:
 
 - `POST /webhooks/brevo`, fora de `/api` e fora da descrição OpenAPI do jogo. **Só é mapeado se `Brevo__WebhookSecret` estiver preenchido**; vazio, a rota não existe (404).
-- **Segredo no cabeçalho `Authorization: Bearer <segredo>`**, comparado em tempo constante (`CryptographicOperations.FixedTimeEquals` sobre o SHA-256 dos dois valores, para não vazar nem o tamanho). Errado ou ausente: 401 sem corpo.
-- **Segredo na URL descartado:** a URL fica em registro de acesso da borda e no painel da Brevo em texto.
+- **Segredo em cabeçalho próprio:** `X-Helinho-Webhook-Secret: <segredo>`, cadastrado na Brevo como cabeçalho do webhook, com a autenticação do painel em "No authentication". Com cabeçalho próprio, o nome e o formato são nossos; com a opção "Token", a rota dependeria de um cabeçalho que a documentação não descreve. A primeira versão deste ADR usava `Authorization: Bearer` e supunha que a Brevo o enviaria.
+- Comparação em tempo constante (`CryptographicOperations.FixedTimeEquals` sobre o SHA-256 dos dois valores, para não vazar nem o tamanho). Errado ou ausente: 401 sem corpo.
+- **A confirmar no teste do runbook** ("Send test request"): que a Brevo envia o cabeçalho próprio em toda chamada, inclusive no teste e nas repetições, sem alterar o valor. Se não enviar, a rota responde 401, a Brevo descarta o evento e o webhook fica desligado até resolver. Não existe modo "sem segredo".
+- **Segredo na URL descartado**, o que inclui usuário e senha: a URL fica em registro de acesso da borda e aparece em texto no painel da Brevo. **Faixas de IP descartadas:** mudam, e são mais uma lista a manter.
 - **Lê só `event` e `message-id`.** `email`, `subject` e `reason` são ignorados: não são gravados nem logados.
-- `hard_bounce`, `blocked`, `invalid_email` e `spam` preenchem `Feedback` do trabalho com aquele `ExternalId`; os outros eventos são aceitos e ignorados. `message-id` desconhecido também responde 200.
+- **Quatro eventos entram** e preenchem `Feedback` do trabalho com aquele `ExternalId`:
+
+| Evento | Entra? | Por quê |
+|---|---|---|
+| `hard_bounce` | sim | falha definitiva de entrega: a mensagem não vai chegar àquele endereço |
+| `invalid_email` | sim | endereço inválido. É o caso do e-mail digitado errado (T16), o mais provável no cadastro do responsável; sem ele, justamente esse erro ficaria sem aviso na tela |
+| `blocked` | sim | a Brevo não enviou; a documentação não detalha o motivo |
+| `spam` | sim | o destinatário marcou a mensagem como spam: reenviar para o mesmo endereço não resolve |
+| `soft_bounce`, `deferred` | não | falha temporária ou entrega adiada; não é motivo para avisar o administrador |
+| `error` | não | sem significado documentado |
+| `request`, `delivered`, `opened`, `unique_opened`, `click`, `unsubscribed` e os de proxy | não | não mudam nada na tela, e cada evento a mais é endereço e assunto de alguém trafegando sem necessidade |
+
+A Issue e o roteiro da sprint citam três eventos (*hard bounce*, *blocked*, *spam*). O quarto, `invalid_email`, é acréscimo proposital deste ADR (D18). Os eventos não listados são aceitos com 200 e ignorados, caso alguém os ligue no painel por engano. `message-id` desconhecido também responde 200.
+
 - O `messageId` da resposta de envio vem entre `<` e `>` e o `message-id` do webhook aparece sem eles nos exemplos: os dois são guardados e comparados **sem** os sinais.
 - Idempotente: o mesmo evento duas vezes dá o mesmo estado. Corpo limitado a 64 KB.
 - Com `Feedback`, a lista de administradores e a ficha do aluno mostram "e-mail não entregue".
@@ -626,18 +718,38 @@ Decisão:
 
 ## 13. Variáveis e Terraform
 
-| Variável | Sensível | Situação no Terraform (PR #100) | O que a sprint faz |
+O que existe hoje em `infra/railway/variables.tf` (PR #100, ainda rascunho, lido na branch `issue-99-terraform-esqueleto`) e o que falta:
+
+| Variável | Sensível | Hoje no PR #100 | Falta (Issue 6) |
 |---|---|---|---|
-| `Email__Provider` | não | declarada, padrão `Fake` | nada |
-| `Brevo__ApiKey` | sim | `brevo_api_key`, com validação "Brevo exige a chave" | nada |
-| `Brevo__SenderEmail`, `Brevo__SenderName` | não | declaradas, vazias | validação: obrigatórias com `Brevo` |
-| `App__PublicBaseUrl` | não | declarada, vazia | derivar do domínio do serviço quando vazia (ADR-0002 §10.1 já previa) e exigir `https://` |
+| `Email__Provider` | não | declarada em `variaveis_web`, padrão `Fake`; só aceita `Fake` ou `Brevo` | nada |
+| `Brevo__ApiKey` | sim | `brevo_api_key`. **É a única validação que existe:** `Brevo` exige a chave | nada |
+| `Brevo__SenderEmail`, `Brevo__SenderName` | não | declaradas, vazias; vazia não é enviada à Railway; sem validação | validar: obrigatórias com `Brevo` |
+| `App__PublicBaseUrl` | não | declarada, vazia; **preenchida à mão**, copiando a saída `url_publica`; sem validação | validar: obrigatória com `Brevo`, `https://`, sem caminho. Derivar do domínio do serviço é proposta (abaixo) |
 | `Brevo__WebhookSecret` | sim | **não existe** | criar `brevo_webhook_secret` (`sensitive`, padrão vazio, 32 caracteres ou mais quando preenchida) |
-| `Email__DailyLimit` | não | não existe | acrescentar a `variaveis_web`, padrão vazio |
+| `Email__DailyLimit` | não | **não existe** | acrescentar a `variaveis_web`, padrão vazio |
+
+A primeira versão desta seção descrevia `App__PublicBaseUrl` como derivada e dava o teto diário como disponível. Não é o estado de hoje. Consequências:
+
+- **Remetente ou URL pública faltando passam no `terraform plan` e derrubam o deploy:** quem recusa é a validação de opções da aplicação, na subida (seção 7). As validações da Issue 6 trazem esse erro para o `plan`, antes de publicar.
+- **A D7 conta com `Email__DailyLimit=300` em homologação, e a variável ainda não chega à Railway.** Para o teste de fumaça isso não pesa (quatro e-mails). Antes de qualquer envio em volume, a Issue 6 precisa estar aplicada.
+- **Derivar `App__PublicBaseUrl`:** o ADR-0002 §10.1 diz que ela "pode ser derivada do domínio do serviço". Proposta para a Issue 6: quando vazia, o módulo usa o domínio que ele mesmo já conhece (o da saída `url_publica`); preenchida, vale o que foi escrito, para o dia do domínio próprio. Se isso complicar o módulo, ela continua manual, agora com validação.
+- **A Issue 6 e a Issue #182** (`Ai__Provider=Off` sem chave, pedida pelo ADR-0004) mexem nas mesmas validações do mesmo arquivo e dependem as duas do PR #100. Vão em sequência, não em paralelo.
 
 Tudo com descrição e com exemplo **sem valor real** em `terraform.tfvars.example`. Os segredos vêm de `TF_VAR_*`, como os demais. Se o PR #100 não estiver mergeado quando a Issue começar, ela cria as variáveis no mesmo padrão.
 
-**Restrição da chave por IP:** a Brevo permite aceitar chamadas só de IPs autorizados (F8). Na Railway isso provavelmente **não serve**: IP de saída fixo é recurso do plano Pro e, mesmo nele, o endereço pode ser compartilhado com outros clientes e muda com a região (F19). O runbook manda conferir se o bloqueio de IP desconhecido está ligado na conta e desligá-lo, senão a primeira chamada falha (seção 17, item 6).
+### 13.1 Dois jeitos de o envio parar sem ninguém mexer
+
+| Risco | Fato | Como aparece | O que o runbook manda fazer |
+|---|---|---|---|
+| **Chave desativada por falta de uso** | Uma chave sem nenhuma chamada bem-sucedida em 90 dias é desativada, mesmo criada sem validade; a Brevo avisa por e-mail 7 dias antes e no dia. A validade, quando escolhida, vai de 7 dias a 1 ano (F23) | o envio passa a responder erro de autenticação; o worker suspende (seção 6.3), registra `Error` e não perde a fila até o `ExpiresAt` de cada trabalho | chave com validade de 1 ano e lembrete na agenda; rotação descrita passo a passo. Em homologação, com pouco uso, é provável acontecer |
+| **Bloqueio de IP desconhecido que se liga sozinho** | Ao começar a usar a chave, a Brevo autoriza os IPs que chamam e o bloqueio fica inativo. **Se nenhum IP novo aparecer por 30 dias, ela ativa o bloqueio**, recusa chamadas de IP fora da lista e avisa por e-mail (F24). Na Railway, IP de saída fixo é só do plano Pro, sem garantia de exclusividade, e muda com a região (F19) | o serviço envia por semanas do mesmo endereço, a Brevo ativa o bloqueio, a Railway troca o IP de saída e o envio para | desativar o bloqueio para chaves de API antes do primeiro envio; reconferir cerca de 35 dias depois e sempre que o envio parar com erro de autenticação. O que compensa: chave restrita a e-mail transacional, com validade e rotação |
+
+- Nos dois casos o aviso da Brevo vai para o e-mail do dono da conta. Precisa ser uma caixa que alguém lê.
+- Os dois casos são mais um motivo para a D3: erro de conta suspende, não mata a fila.
+- **Descartado:** a aplicação fazer uma chamada periódica só para manter a chave viva. Esconderia uma integração parada e é código a mais para um problema que um lembrete resolve.
+- **Alternativa por Issue própria, só com o plano Pro da Railway:** IP de saída fixo, autorizado na Brevo, com o bloqueio ligado. Protege menos do que parece, porque o endereço pode ser de outros clientes da Railway.
+- Não confirmado: o erro exato que a API devolve em cada caso, se o bloqueio já nasce ligado em conta nova e se ele volta a se ligar depois de desativado à mão (seção 17, itens 6 e 13).
 
 ## 14. Segurança
 
@@ -647,25 +759,30 @@ Ameaças novas desta sprint, na numeração do ADR-0001 (T1 a T6):
 |---|---|---|
 | T7 | Descobrir quais e-mails têm conta pela recuperação de senha (resposta, tempo, erro ou limite) | 11.1: mesma resposta, piso de tempo, limite por conta silencioso, consulta que não quebra com e-mail repetido |
 | T8 | Link de redefinição apontando para o domínio do atacante (cabeçalho `Host` forjado) | 10.3: base só de `App__PublicBaseUrl`, montada fora de qualquer requisição |
-| T9 | Token de acesso lido no banco, em backup, em log ou em URL registrada | 5.3: token não existe em repouso; 5.6: nada de conteúdo em log; 10.3: token só consumido por `POST`, sem `Referer`; validade curta e uso único |
+| T9 | Token de acesso lido no banco, em backup, em log ou em URL registrada | 5.3: token não existe em repouso **no nosso banco**; 5.6: nada de conteúdo em log; 10.3: token só consumido por `POST`, sem `Referer`; validade curta e uso único. O que fica na Brevo é a T17 |
 | T10 | HTML ou script injetado no e-mail por um campo do cadastro | 8.2: todo parâmetro codificado; teste com `<script>` |
 | T11 | Chamada forjada ao webhook marcando mensagens como devolvidas | 12: segredo de 32 caracteres ou mais, tempo constante, rota inexistente sem segredo |
 | T12 | Uso do sistema para encher a caixa de alguém ou gastar a cota de envio | 11.6: limites por IP e por conta; 15: teto diário |
 | T13 | Administrador de uma unidade envia o acesso de aluno de outra, ou troca o e-mail do responsável para assumir a conta do aluno | 11.4: filtro de unidade e teste; troca de `GuardianEmail` e envio de acesso registrados em log de auditoria sem dado pessoal (id de quem fez e id do aluno) |
 | T14 | Chave da Brevo vazada | só em variável da Railway e `TF_VAR_*`; cabeçalho sensível no log; rotação e resposta a vazamento no runbook |
 | T15 | Filtro de e-mail abre o link e gasta o token antes da pessoa | 10.3: `GET` sem efeito |
-| T16 | E-mail do responsável digitado errado entrega o acesso a um estranho | 11.4: conteúdo mínimo, validade de 72 horas, reenvio invalida; não há confirmação de posse do endereço nesta sprint (risco aceito, registrado) |
+| T16 | E-mail do responsável digitado errado entrega o acesso a um estranho | 11.4: conteúdo mínimo, validade de 72 horas, reenvio invalida; 12: o evento `invalid_email` avisa na tela; não há confirmação de posse do endereço nesta sprint (risco aceito, registrado) |
+| T17 | O token passa pelo redirecionador de cliques da Brevo e fica guardado no fornecedor enquanto vale | 8.4: uso único, validade curta, `GET` sem efeito, rastreamento anônimo, prévias desligadas, retenção de 1 mês, acesso ao painel da Brevo restrito; plano B sem segredo na URL. Risco residual aceito só com a D13 e a D17 |
+| T18 | O link legítimo aponta para um domínio que não é o institucional: a pessoa desconfia do e-mail certo, ou aprende a confiar em link estranho | 8.4: botão com texto de ação, endereço do site por extenso, conferência na barra do navegador depois de abrir, caminho sem clicar; subdomínio de marca quando houver DNS |
+| T19 | O envio para sozinho: chave desativada por 90 dias sem uso, ou bloqueio de IP que se liga depois de 30 dias | 13.1: suspensão sem perder a fila, log `Error`, lembretes e conferências do runbook |
 
-Fica para o ADR de dado real (ADR-0001 §7): contrato de tratamento de dados com a Brevo, transferência internacional (os dados passam pela Brevo e pela Railway, fora do Brasil), prazo de guarda dos registros na Brevo e a página de política de privacidade citada no rodapé dos e-mails.
+Fica para o ADR de dado real (ADR-0001 §7): contrato de tratamento de dados com a Brevo, transferência internacional (os dados passam pela Brevo e pela Railway, fora do Brasil), as respostas do suporte da Brevo sobre os links (seção 8.4) e a página de política de privacidade citada no rodapé dos e-mails. A retenção na Brevo deixou de ser pendência de ADR futuro: é passo do runbook desde o primeiro envio (seção 5.6).
 
 ## 15. Limite do plano gratuito e pico de convites
 
-**Limite, conferido em F12 em 19/11/2026:**
+**Limite, conferido em F22 e F12 em 19/11/2026:**
 
-- Plano gratuito: **300 e-mails por dia**, somando campanhas e transacionais ("Daily email volume (campaigns & transactional): 300 emails/day"). A conta só envia depois de aprovada pela Brevo.
-- Plano Starter: a partir de **US$ 9 por mês**, com 5.000 e-mails por mês. A página diz "Upgrade to remove daily sending limit".
-- Créditos pré-pagos: "No daily sending limit, no expiration date".
-- **O que acontece ao estourar:** segundo o resumo do artigo oficial da central de ajuda (lido só pelo resultado de busca; a página devolveu 403), até 1.000 e-mails transacionais além do limite ficam numa fila da Brevo e são enviados quando a cota volta; o que passar disso não é entregue. A resposta da API nessa hora não foi confirmada (seção 17, item 1).
+- Plano gratuito: **300 envios por dia**, somando campanhas e transacionais. O limite zera todo dia e o que sobra não acumula. A conta só envia depois de aprovada pela Brevo.
+- **Ao estourar:** até **1.000 e-mails transacionais a mais ficam numa fila de nova tentativa, na Brevo**; o que passar disso **não é entregue** (F22). A resposta HTTP da API nessa hora continua sem fonte, e a hora em que o limite zera também (seção 17, item 1).
+- **Selo:** todo e-mail do plano gratuito leva "Sent with Brevo" (F22).
+- Plano Starter: a partir de **US$ 9 por mês**, com 5.000 e-mails por mês e sem limite diário; o complemento que tira o selo custa US$ 12 por mês (F12).
+- Créditos pré-pagos: "No daily sending limit, no expiration date" (F12).
+- **Nenhum plano abaixo do Enterprise desliga a reescrita dos links** (seção 8.4; fonte fraca).
 
 **Pico:** C13 não informa o volume. Com premissas explícitas, não medidas:
 
@@ -679,7 +796,11 @@ O plano gratuito comporta cerca de **150 alunos liberados por dia**. O ADR-0001 
 
 **Decisão técnica:** teto diário configurável (`Email__DailyLimit`, `0` = sem teto). Com teto, o worker conta os envios das últimas 24 horas e, ao chegar nele, adia os e-mails para a hora seguinte sem gastar tentativa. Ao passar de 80% do teto, só saem os tipos urgentes (redefinição e convite de administrador), para que um lote de acessos de alunos não deixe um administrador sem conseguir entrar. É por isso que o acesso do aluno tem `ExpiresAt` de 72 horas.
 
-**Recomendação de plano (D7):** gratuito na homologação e no teste de fumaça, com teto de 300; Starter ou créditos pré-pagos antes da primeira carga de alunos reais. O gasto é decisão da contratante (C04).
+**Por que a fila da Brevo não substitui o nosso teto.** O token nasce quando a mensagem é entregue à Brevo (seção 5.3). Uma redefinição de senha vale 1 hora: parada na fila da Brevo até a cota voltar, **chega vencida**. Um convite perde parte das 72 horas. E na fila da Brevo não somos nós que escolhemos quem sai primeiro. O teto do nosso lado segura a mensagem **antes** de gerar o token e deixa os tipos urgentes passarem na frente. A alternativa da D7, "sem teto na aplicação, confiando na fila da Brevo", fica registrada com esse custo.
+
+Se a conta da Brevo for usada também para outros envios da contratante, eles contam na mesma cota: o teto precisa ficar abaixo de 300.
+
+**Recomendação de plano (D7):** gratuito na homologação e no teste de fumaça, **com `Email__DailyLimit=300` do nosso lado**; Starter ou créditos pré-pagos antes da primeira carga de alunos reais. O que o plano pago compra: o fim do limite diário e, com o complemento, o fim do selo. **Não compra o fim da reescrita dos links.** O gasto é decisão da contratante (C04; pergunta M14).
 
 ## 16. Decisões que esperam o Henrique
 
@@ -691,35 +812,38 @@ O plano gratuito comporta cerca de **150 alunos liberados por dia**. O ADR-0001 
 | D4 | Validade dos links | **Convite e acesso do aluno 72 h; redefinição 1 h** (`PROPOSTA`) | 24 h para tudo (padrão do Identity) |
 | D5 | E-mail do responsável | **Obrigatório no formulário, anulável no banco, não único, nunca login** (`PROPOSTA`, seção 9) | esperar a resposta do Marcos antes de migrar |
 | D6 | Quem define a senha do aluno | **O responsável, pelo link** (`PROPOSTA`, 11.4) | o administrador define uma senha provisória |
-| D7 | Plano da Brevo e teto diário | **Gratuito com `Email__DailyLimit=300` em homologação; pago antes de carga real** (15) | sem teto na aplicação, confiando na fila da Brevo |
+| D7 | Plano da Brevo e teto diário | **Gratuito com `Email__DailyLimit=300` do nosso lado em homologação; pago antes de carga real** (15). Pesam na escolha: a cota, o selo "Sent with Brevo" em todo e-mail do gratuito e o fato de nenhum plano abaixo do Enterprise desligar a reescrita dos links | sem teto na aplicação, confiando na fila da Brevo: um link de redefinição de 1 h venceria parado nela |
 | D8 | Como abrir o link com o envio `Fake` em desenvolvimento | **Caixa de saída de desenvolvimento:** o fake guarda as últimas mensagens em memória e uma página só existente em `Development` as mostra; teste garante 404 fora dele | não fazer nada (localmente só se usam os usuários do seed) |
-| D9 | Retenção da fila | **30 dias** depois de terminado (`PROPOSTA`, 5.6) | 90 dias |
+| D9 | Retenção, dos dois lados | **30 dias na nossa fila e 1 mês na Brevo, com "Never store previews"** (`PROPOSTA`, 5.6). Sem configurar, a Brevo guarda os registros sem prazo | 90 dias aqui; deixar o padrão da Brevo |
 | D10 | Renderizador | **Modelo com substituição** (8.2) | Razor de e-mail |
 | D11 | Cancelar convite e e-mail único entre contas do painel | **Incluir na Issue do convite** (11.2) | deixar para depois e corrigir e-mail errado direto no banco |
 | D12 | Envio automático ao aprovar o aluno | **Sim, além do botão** (11.4) | só pelo botão |
-| D13 | Token do link na query string, exceção à ASVS 14.2.1 | **Aceitar, com as mitigações da seção 10.3** (é o padrão do Identity e do guia da OWASP) | token no fragmento (`#`), com JavaScript obrigatório |
+| D13 | Token do link na query string, exceção à ASVS 14.2.1. **Ficou maior:** com a reescrita dos links, a URL com o token também é guardada pelo redirecionador da Brevo | **Aceitar, com as mitigações da seção 10.3 e as condições da D17.** A recomendação não mudou; o tamanho do que se aceita, sim | código digitado, sem segredo na URL (8.4, opção C) |
 | D14 | Política de senha (hoje 6 caracteres com regras de composição) | **Não mudar nesta sprint; abrir Issue própria** para alinhar à ASVS (mínimo 8, sem composição, lista de senhas comuns) | mudar junto com a página de definir senha |
 | D15 | Revisar o ADR-0001, que diz "não há caso para […] fila" (`ADR-0001-stack.md:23`) | **Aceitar a revisão:** agora há caso para fila (e-mail com repetição; trabalhos de IA na Sprint 4). Sem Redis e sem broker: a fila é uma tabela no PostgreSQL (5.0) | manter o ADR-0001 como está e enviar o e-mail direto da requisição, sem repetição |
 | D16 | Ajustes pedidos pelo ADR-0004 na fila: política por tipo, laço por tratador, contrato do tratador, gravação única, gancho de encerramento | **Aceitar os sete** (6.8) | fila só para e-mail, com a IA contornando do lado dela (ADR-0004, coluna "se não for aceito") |
+| D17 | Links reescritos pela Brevo: o token passa pelo redirecionador dela e o endereço visível não é o institucional | **Manter o link com token e aceitar o redirecionamento como risco documentado, com cinco condições** (8.4): medir antes da Issue 5, rastreamento anônimo e prévias desligadas, texto do e-mail conforme 8.4, perguntas ao suporte respondidas antes de dado real, teste de fumaça a partir do e-mail recebido. Plano B já esboçado: código digitado | código digitado desde já; plano Enterprise; subdomínio de marca |
+| D18 | Webhook: eventos e autenticação | **Quatro eventos** (`hard_bounce`, `invalid_email`, `blocked`, `spam`) **e segredo em cabeçalho próprio** (12) | os três eventos do roteiro, sem `invalid_email`; a opção "Token" do painel, cujo cabeçalho a documentação não descreve |
 
-D4, D5, D6, D9, D12 e D14 dependem também do Marcos; as perguntas estão em `docs/context/pendencias.md`. O código nasce com a recomendação marcada `PROPOSTA`, e trocar qualquer uma delas não pede migração (D5 inclusive: a coluna é anulável).
+D4, D5, D6, D7, D9, D12, D14 e D17 dependem também do Marcos; as perguntas estão em `docs/context/pendencias.md`. O código nasce com a recomendação marcada `PROPOSTA`, e trocar qualquer uma delas não pede migração (D5 inclusive: a coluna é anulável). A exceção possível é a D17: se o plano B (código digitado) for o escolhido, pode ser que peça migração, o que a seção 8.4 deixa a confirmar.
 
-**O que não depende destas decisões e pode andar em paralelo:** adaptador HTTP com as opções e a validação na subida, renderizador e modelos, provedores de token e a página `/conta/definir-senha`, variáveis do Terraform e runbook.
+**O que não depende destas decisões e pode andar em paralelo:** adaptador HTTP com as opções e a validação na subida, renderizador e layout, variáveis do Terraform e runbook. **Os provedores de token e a página `/conta/definir-senha` (Issue 5) passaram a depender da D17**, e o texto dos modelos depende das regras da seção 8.4.
 
 ## 17. O que não foi possível confirmar em fonte
 
-1. **O que a API responde quando o limite diário do plano gratuito estoura** (201 com fila do lado da Brevo, 400 `not_enough_credits` ou 402). O tratamento da seção 6.3 cobre as três hipóteses.
+1. **O que a API responde quando o limite diário do plano gratuito estoura** (201 com fila do lado da Brevo, 400 `not_enough_credits` ou 402), e a hora em que o limite zera. O tratamento da seção 6.3 cobre as três hipóteses. Que existe uma fila de até 1.000 transacionais na Brevo está confirmado (F22).
 2. **Se `htmlContent` e `textContent` podem ir juntos.** A referência (F1) lista os dois campos, com `textContent` opcional; o guia (F2) diz que se escolhe um dos três tipos de corpo por requisição. O teste de fumaça confere, no código-fonte da mensagem recebida, se saíram as duas partes.
 3. **Idempotência em envio simples.** O guia (F6) apresenta a chave ao falar de lote e escreve `idempotencyKey`; a referência (F1) escreve `IdempotencyKey` e lista também o código `duplicate_request`. O adaptador aceita os dois códigos. Sem a garantia, o pior caso é uma mensagem repetida depois de um tempo esgotado.
 4. **Corpo das respostas 401 e 403 e o comportamento em 5xx**: não documentados. A referência (F1) também lista um cabeçalho `Authorization` (OAuth) como obrigatório ao lado de `api-key`; os exemplos oficiais usam só `api-key`, que é o que adotamos.
-5. **Webhook:** qual cabeçalho a Brevo envia com `auth.type = bearer` (supõe-se `Authorization: Bearer`); se a autenticação pode ser configurada pela tela ou só pela API; o `Content-Type`; qual resposta ela considera sucesso; o tempo limite. Plano B se o cabeçalho for outro: usar `headers` próprios com a chave `Authorization`.
-6. **Se o bloqueio de IP desconhecido vem ligado em conta nova** e qual erro a API devolve nesse caso.
-7. **Onde se desliga o rastreamento de cliques e aberturas** nos e-mails transacionais, e se dá para desligar por mensagem.
-8. **Se o plano gratuito acrescenta a marca da Brevo** em e-mail transacional enviado pela API.
-9. **Os registros DNS exatos.** A documentação de desenvolvedor (F13) mostra código de verificação `TXT`, DKIM em `TXT` e DMARC em `TXT`; resultados de busca da central de ajuda falam em dois `CNAME` de DKIM. O runbook manda copiar os registros que o painel da Brevo mostrar para o domínio, e não os deste ADR. Se o SPF ainda é exigido também não foi confirmado.
-10. **Quanto tempo a Brevo guarda registros e conteúdo** das mensagens e onde.
+5. **Webhook:** se a Brevo envia os cabeçalhos próprios em toda chamada, inclusive no teste e nas repetições; em qual cabeçalho vai o token da opção "Token" (que por isso não usamos); o `Content-Type`; qual resposta ela considera sucesso; o tempo limite. Que dá para configurar autenticação e cabeçalhos pelo painel está confirmado (F29).
+6. **Bloqueio de IP:** se já nasce ligado em conta nova, qual erro a API devolve e se volta a se ligar depois de desativado à mão. Confirmado: liga-se sozinho depois de 30 dias sem IP novo (F24).
+7. **Rastreamento de cliques** (seção 8.4): se o link do e-mail transacional enviado pela API chega mesmo reescrito nesta conta, no HTML e no texto puro; se o rastreamento anônimo muda isso; em que domínio fica o redirecionador e se o subdomínio de marca vale para transacional; se desligar continua restrito ao Enterprise (a fonte é fórum de 2024); o que a Brevo guarda do destino do link e por quanto tempo; se o redirecionamento preserva a URL inteira.
+8. **Resolvido:** o plano gratuito sempre põe o selo "Sent with Brevo" (F22). Resta ver, no teste de fumaça, onde ele aparece no e-mail enviado pela API.
+9. **Resolvido em parte:** código de verificação em `TXT`, DKIM em 1 `TXT` ou 2 `CNAME` conforme a conta, DMARC em `TXT`; SPF e MX não são exigidos para autenticar o domínio, só com IP dedicado (F31). Os nomes e valores exatos são os que o painel mostrar.
+10. **Resolvido em parte:** os registros ficam guardados sem prazo por padrão, com regra de 1 a 24 meses (F25). O artigo se contradiz sobre o padrão das prévias, e nenhuma fonte lida diz onde os dados ficam.
 11. **Se o registro de acesso HTTP da Railway guarda a query string.** Se guardar, o token passa por lá; a mitigação é uso único e validade curta.
-12. **`help.brevo.com` respondeu 403** à leitura automática. Os itens 1, 6, 7 e 9 são conferidos pelo Henrique no navegador, seguindo o runbook.
+12. **As páginas HTML de `help.brevo.com` respondem 403** à leitura automática; os artigos foram lidos pela API pública da central de ajuda. O que depende de tela é conferido pelo Henrique no navegador, seguindo o runbook.
+13. **O que a API responde com a chave desativada por falta de uso ou vencida.** Supõe-se erro de autenticação, tratado como suspensão.
 
 ## 18. Plano de Issues da sprint
 
@@ -730,17 +854,17 @@ D4, D5, D6, D9, D12 e D14 dependem também do Marcos; as perguntas estão em `do
 | 0 | ADR-0003 (esta, #176) | docs | — |
 | 1 | Fila: entidade `QueueJob`, **migração**, porta `IJobQueue` (enfileirar com idempotência e cancelar pendentes) e os contratos das seções 6.6 e 6.7 (`IJobHandler`, `JobContext`, `JobPolicy`, `JobResult`, `IAbandonedJobHandler`) | feat | D1, D2, D15 e D16; PR #120 mergeado (mesmo snapshot do modelo) |
 | 2 | `Student.GuardianEmail`: **migração**, campo no formulário do aluno, validação, seed sintético | feat | D5; Issue 1 (ordem das migrações); PR #158 (formulário de Alunos no tema Recreio) |
-| 3 | `BrevoEmailSender`, opções validadas na subida, registro `Fake`/`Brevo` na área `Email`, nova assinatura da porta; testes com `HttpMessageHandler` falso | feat | ADR aprovado |
-| 4 | Renderizador, modelos HTML e texto dos quatro e-mails, layout comum, importação do `fundhas.png` | feat | D10 |
-| 5 | Provedores de token (72 h e 1 h) e página `/conta/definir-senha` | feat | D4; PR #159 (telas de conta no tema Recreio) |
-| 6 | Terraform: `brevo_webhook_secret`, `Email__DailyLimit`, validações, `terraform.tfvars.example` | chore | PR #100 mergeado |
-| 7 | `docs/operations/brevo-runbook.md` e atualização de `ambientes.md` | docs | ADR aprovado; revisão "no papel" por quem não escreveu |
+| 3 | `BrevoEmailSender`, opções validadas na subida, registro `Fake`/`Brevo` na área `Email`, nova assinatura da porta; testes com `HttpMessageHandler` falso (abertas: #204 e #209) | feat | ADR aprovado |
+| 4 | Renderizador, modelos HTML e texto dos quatro e-mails, layout comum, importação do `fundhas.png` (abertas: #205 e #207). O texto e os links dos modelos seguem a seção 8.4 | feat | D10; para o texto final, D17 |
+| 5 | Provedores de token (72 h e 1 h) e página `/conta/definir-senha`. Se a D17 for pelo código digitado, esta Issue muda de conteúdo | feat | D4, D13 e **D17**, com a medição do link já feita (8.4); PR #159 (telas de conta no tema Recreio) |
+| 6 | Terraform: `brevo_webhook_secret`, `Email__DailyLimit`, validações de remetente e de URL pública com `Brevo`, `App__PublicBaseUrl` derivada quando vazia (proposta), `terraform.tfvars.example` e README | chore | PR #100 mergeado; em sequência com a **#182** (`Ai__Provider=Off`), que mexe nas mesmas validações |
+| 7 | `docs/operations/brevo-runbook.md` e atualização de `ambientes.md` (aberta: #206, PR #208). Precisa acompanhar este ADR em dois pontos: o cabeçalho próprio do webhook (12) e o envio de medição do link antes da Issue 5 (8.4) | docs | ADR aprovado; revisão "no papel" por quem não escreveu |
 | 8a | Worker genérico: `BackgroundService` com um laço por tratador, `IJobProcessor` (captura por tipo com `SKIP LOCKED`, política por tipo, gravação única com guarda de posse, expiração, suspensão, gancho de encerramento, limpeza); testes com um tratador falso | feat | 1; D3 e D16 |
 | 8b | Tratador de e-mail: resolve o destinatário, gera o token, renderiza, envia, classifica a resposta da Brevo e aplica o teto diário | feat | 1, 3, 4, 5, 8a; D7 |
 | 9 | Convite de administrador: criar sem senha, situações, reenviar, limite, cancelar convite | feat | 1, 4, 5, 8b; D11; PR #166 |
 | 10 | Redefinição real em `RecuperarSenha` (fila, resposta idêntica, piso de tempo, limites) e aviso de senha alterada | feat | 1, 4, 5, 8b, 13 |
 | 11 | Acesso do aluno: botão, gatilho na aprovação, segregação por unidade | feat | 1, 2, 4, 5, 8b; D6 e D12 |
-| 12 | Webhook da Brevo e "e-mail não entregue" nas telas | feat | 1, 3; as telas, depois de 9 e 11 |
+| 12 | Webhook da Brevo (quatro eventos, cabeçalho próprio) e "e-mail não entregue" nas telas | feat | 1, 3, 6; D18; as telas, depois de 9 e 11 |
 | 13 | Correção: contas com e-mail repetido quebram `FindByEmailAsync` no login e na recuperação (**já aberta: #184**, sem `agent:authorized`) | fix | — |
 | 14 | Caixa de saída de desenvolvimento | feat | 3; D8 |
 | 15 | Aviso de bloqueio de conta (opcional) | feat | 8b |
@@ -750,7 +874,7 @@ Ondas: **1** em paralelo — Issues 1, 3, 4, 5, 6, 7 e 13 (a 2 e a 8a entram log
 
 A antiga Issue 8 foi dividida em duas. O worker genérico (8a) cresceu com os ajustes do ADR-0004 e não depende de nada de e-mail; o tratador de e-mail (8b) é o que depende do adaptador, dos modelos e dos tokens. **A Sprint 4 só precisa das Issues 1 e 8a**: pode começar o tratador de IA sem esperar os e-mails.
 
-A Issue 13 (#184) é defeito que já existe na `main` e independe da sprint; está aqui porque a Issue 10 esbarra nele. As outras Issues da tabela ainda não foram abertas: esperam o aceite deste ADR.
+A Issue 13 (#184) é defeito que já existe na `main` e independe da sprint; está aqui porque a Issue 10 esbarra nele. As Issues 3, 4 e 7 já foram abertas pelo coordenador, com os números indicados na tabela; as demais esperam o aceite deste ADR.
 
 ## 19. Alternativas descartadas
 
@@ -763,6 +887,10 @@ A Issue 13 (#184) é defeito que já existe na `main` e independe da sprint; est
 | Fila em memória (`Channel`) | perde tudo num deploy: um convite enfileirado sumiria sem deixar rastro |
 | Redis, broker ou serviço de fila | mais um serviço para pagar e operar, com um mantenedor só. O ADR-0001 diz que "um PostgreSQL único resolve" (`ADR-0001-stack.md:23`), e a fila em tabela mantém isso |
 | Renovar a posse a cada item | seção 6.8 (A4) |
+| Exigir "rastreamento desligado" na Brevo | o controle não existe fora do plano Enterprise (seção 8.4) |
+| Plano Enterprise só para desligar a reescrita dos links | preço sob consulta, contra a orientação de gasto mínimo (C04), apoiado em fonte fraca |
+| Opção "Token" do painel para o webhook; `Authorization: Bearer` | a documentação não diz qual cabeçalho a Brevo envia (seção 12) |
+| Chamada periódica para manter a chave da Brevo ativa | seção 13.1 |
 | `email_outbox` específica; Hangfire ou Quartz | seção 5.2 |
 | Corpo renderizado na fila | seção 5.3 |
 | `FrameworkReference` do ASP.NET Core na infraestrutura | seção 4.4 |
@@ -795,3 +923,6 @@ A Issue 13 (#184) é defeito que já existe na `main` e independe da sprint; est
 - Os itens da seção 17 dependem de conferência manual; o runbook e o teste de fumaça precisam cobri-los.
 - Várias regras nascem como `PROPOSTA` (seção 16); uma resposta diferente do Marcos muda validação e textos, não o esquema.
 - Não há confirmação de que o responsável controla o endereço informado (T16).
+- **O link de acesso passa pelo redirecionador da Brevo** e aparece com um domínio que não é o institucional; no plano gratuito todo e-mail leva o selo "Sent with Brevo". As duas coisas pesam na aparência de legitimidade de um e-mail que pede para definir a senha de uma criança (T17, T18, D7, D17).
+- O envio pode parar sozinho por regras da Brevo (chave sem uso por 90 dias, bloqueio de IP depois de 30 dias); a defesa é operacional, no runbook (seção 13.1).
+- A retenção de 30 dias só vale de ponta a ponta se a regra de 1 mês for configurada na conta da Brevo.
