@@ -32,6 +32,10 @@ public sealed class IndexModel(IAppDbContext db, ICurrentUser user, IClock clock
 
     public DashboardAttention Attention { get; private set; } = null!;
 
+    public DashboardHeatmap Heatmap { get; private set; } = null!;
+
+    public DashboardFeed Feed { get; private set; } = null!;
+
     public string Greeting { get; private set; } = "Olá";
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
@@ -43,6 +47,8 @@ public sealed class IndexModel(IAppDbContext db, ICurrentUser user, IClock clock
         Engagement = await GetDashboardEngagement.HandleAsync(db, user, clock, query, cancellationToken);
         Rankings = await GetDashboardRankings.HandleAsync(db, user, clock, query, cancellationToken);
         Attention = await GetDashboardAttention.HandleAsync(db, user, clock, query, cancellationToken);
+        Heatmap = await GetDashboardHeatmap.HandleAsync(db, user, clock, query, cancellationToken);
+        Feed = await GetDashboardFeed.HandleAsync(db, user, clock, query, cancellationToken);
         Greeting = BrasiliaTime.ToLocal(clock.UtcNow).Hour switch { < 12 => "Bom dia", < 18 => "Boa tarde", _ => "Boa noite" };
     }
 
@@ -83,6 +89,24 @@ public sealed class IndexModel(IAppDbContext db, ICurrentUser user, IClock clock
         QuizType.Cultural => ("Luna", "com a Luna", "luna", 141),
         _ => ("Lia", "com a Lia", "lia", 125),
     };
+
+    private static readonly string[] WeekdayLong = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+
+    public static string WeekdayName(DayOfWeek d) => char.ToUpperInvariant(WeekdayLong[(int)d][0]) + WeekdayLong[(int)d][1..];
+
+    public static string WeekdayShort(DayOfWeek d) => DayNames[(int)d];
+
+    public static string ShiftLabel(DayShift s) => s switch { DayShift.Morning => "Manhã", DayShift.Afternoon => "Tarde", _ => "Noite (em casa)" };
+
+    public static string ShiftWord(DayShift s) => s switch { DayShift.Morning => "manhã", DayShift.Afternoon => "tarde", _ => "noite" };
+
+    /// <summary>"terça à tarde", "sábado de manhã", "domingo à noite".</summary>
+    public static string PeakText(HeatmapCell c) =>
+        $"{WeekdayLong[(int)c.Day]} {c.Shift switch { DayShift.Morning => "de manhã", DayShift.Afternoon => "à tarde", _ => "à noite" }}";
+
+    public static string Initial(string name) => name.Length == 0 ? "?" : name[..1].ToUpperInvariant();
+
+    public static string LocalTime(DateTimeOffset at) => BrasiliaTime.ToLocal(at).ToString("HH:mm", CultureInfo.InvariantCulture);
 
     public static string TypeClass(QuizType type) => "quiz-" + type.ToString().ToLowerInvariant();
 

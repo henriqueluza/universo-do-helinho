@@ -1,0 +1,37 @@
+@model Helinho.Web.Pages.Dashboard.IndexModel
+@using Helinho.Application.Painel
+@using Helinho.Web.Pages.Dashboard
+@{
+    var dias = new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday };
+    var turnos = new[] { DayShift.Morning, DayShift.Afternoon, DayShift.Night };
+    var calor = Model.Heatmap;
+}
+<section class="panel panel-pad" style="min-width:0" aria-labelledby="t-quando">
+    <div class="panel-head"><div><h2 id="t-quando">Quando a turma joga</h2><p>Respostas por dia e turno nos últimos @Model.Dias dias</p></div>
+        <span class="heat-scale" aria-hidden="true">menos<i></i>mais</span></div>
+    @if (calor.IsEmpty)
+    {
+        <p class="foot-note">Nenhuma resposta neste período.</p>
+    }
+    else
+    {
+        <div class="tscroll" style="position:relative"><table class="heat">
+            <caption class="sr">Respostas por dia da semana e turno</caption>
+            <thead><tr><td></td>@foreach (var d in dias){<th scope="col"><abbr title="@IndexModel.WeekdayName(d)">@IndexModel.WeekdayShort(d)</abbr></th>}</tr></thead>
+            <tbody>
+                @foreach (var turno in turnos)
+                {
+                    <tr>
+                        <th scope="row">@IndexModel.ShiftLabel(turno)</th>
+                        @foreach (var d in dias)
+                        {
+                            var cel = calor.Cells.Single(c => c.Day == d && c.Shift == turno);
+                            <td style="--v:@IndexModel.Inv(Math.Round(cel.Intensity, 2))" data-tip="@IndexModel.WeekdayName(d), @IndexModel.ShiftWord(turno)|@IndexModel.Num(cel.Answers) respostas" tabindex="0"><span>@IndexModel.Num(cel.Answers)</span></td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table></div>
+        <p class="foot-note"><b>Pico:</b> @IndexModel.PeakText(calor.Peak!) (@IndexModel.Num(calor.Peak!.Answers) respostas).</p>
+    }
+</section>
