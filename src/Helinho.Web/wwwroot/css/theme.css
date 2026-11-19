@@ -287,6 +287,8 @@
 
   /* alternativas da questão */
   .alts { display: grid; gap: var(--sp-3); border: 0; padding: 0; margin: 0; min-width: 0; }
+  /* O reboot do Bootstrap (que fica) dá à legend fonte grande, float e width 100%; só as três legends do painel precisam do reset. */
+  :is(.alts legend, .field-legend, legend.step-h) { font-size: inherit; line-height: inherit; float: none; width: auto; }
   .alts legend, .field-legend { font-weight: 800; margin-bottom: var(--sp-2); padding: 0; }
   .alt { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: var(--sp-3); align-items: center; padding: 8px 8px 8px 10px; border: 2px solid var(--rule); border-radius: var(--r-md); transition: border-color var(--dur), background var(--dur); }
   .alt:has(input[type="radio"]:checked) { border-color: oklch(from var(--ok) l c h / .6); background: var(--ok-bg); }
@@ -983,24 +985,6 @@
     .js .reveal:not(.vis) :is(.lc-series, .lc-today, .rk-bar i, .hit-bar i, .heat tbody td) { animation-play-state: paused; }
     .chart-table[open] .tscroll { animation: rise 360ms var(--ease-out); }
   }
-}
-
-/* ---- PONTE do legado (remover junto com o legado) ----
-   A base do Recreio zera a margem de h1/h2/p e define o tamanho do h1, e camada
-   vence especificidade: sem isto, os títulos do tema antigo perderiam o espaço. */
-@layer components {
-  .page-title { margin-bottom: var(--gap); }
-  .section-title { margin-bottom: 12px; }
-  /* O .table do Recreio tem th sem quebra de linha; a tabela larga rola dentro do cartão. */
-  .card-panel:has(> .table) { overflow-x: auto; }
-  /* O reboot do Bootstrap dá a legend fonte grande e float; a preview usa a legend nativa. */
-  legend { font-size: inherit; line-height: inherit; float: none; width: auto; }
-  :root[data-theme="dark"] .form-control, :root[data-theme="dark"] .form-select { background-color: var(--stage); color: var(--ink); }
-  /* No escuro, as superfícies do legado seguiam brancas com texto claro (ilegível). */
-  :root[data-theme="dark"] { --surface: var(--stage); --raised: var(--canvas); --border: var(--rule); --text: var(--ink); --muted: var(--ink-2); --bs-body-color: var(--ink); --bs-secondary-color: var(--ink-2); --bs-border-color: var(--rule); }
-  :root[data-theme="dark"] .card { --bs-card-bg: var(--stage); --bs-card-border-color: var(--rule); --bs-card-cap-bg: var(--canvas); }
-  :root[data-theme="dark"] .table { --bs-table-color: var(--ink); --bs-table-border-color: var(--rule); --bs-table-hover-bg: var(--canvas); }
-  :root[data-theme="dark"] .table > thead { --bs-table-bg: var(--canvas); }
 }
 
 /* PONTE (remover com o legado): o .auth do Recreio tem duas colunas (marca + formulário);
