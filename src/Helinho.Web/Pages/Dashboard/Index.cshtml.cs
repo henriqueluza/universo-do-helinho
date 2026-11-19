@@ -136,12 +136,13 @@ public sealed class IndexModel(IAppDbContext db, ICurrentUser user, IClock clock
         _ => "i-event",
     };
 
-    public static string AlertStyle(AttentionAlert a) => a.Kind switch
+    /// <summary>Classe do ícone do alerta (a cor vem do CSS; sem <c>style=</c> inline).</summary>
+    public static string AlertTone(AttentionAlert a) => a.Kind switch
     {
-        AttentionKind.InactiveStudents => "background:var(--warn-bg);color:var(--warn-ink)",
-        AttentionKind.LowAccuracy => "background:var(--qb);color:var(--qi)",
-        AttentionKind.DraftQuestions => "background:var(--neutral-bg);color:var(--neutral-ink)",
-        _ => "background:var(--select-bg);color:var(--select-ink)",
+        AttentionKind.InactiveStudents => "ic-warn",
+        AttentionKind.LowAccuracy => "ic-q",
+        AttentionKind.DraftQuestions => "ic-neutral",
+        _ => "",
     };
 
     public string Link(AgeBand? faixa, int? dias = null, Guid? unidade = null) =>

@@ -117,7 +117,7 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
         var html = await GetAsync(RoleNames.Admin, true);
 
         Assert.Contains("Precisa de atenção", html, StringComparison.Ordinal);
-        Assert.Matches("""<a class="attn" href="/Desempenho"><span class="ic cul".*Cultural abaixo de 65%""", html);
+        Assert.Matches("""<a class="attn" href="/Desempenho"><span class="ic ic-q cul".*Cultural abaixo de 65%""", html);
         Assert.Matches("""href="/Questoes/Editar/[0-9a-f-]{36}">Revisar""", html);
         Assert.DoesNotContain("href=\"\"", html, StringComparison.Ordinal);
     }

@@ -100,7 +100,7 @@ else
     </section>
 
     <div class="two">
-        <section class="panel panel-pad chart-card" style="min-width:0" aria-labelledby="t-resp">
+        <section class="panel panel-pad chart-card" aria-labelledby="t-resp">
             <div class="panel-head">
                 <div><h2 id="t-resp">Respostas por dia</h2><p>Últimos @periodo dias · @IndexModel.Num(t.Answers.Value ?? 0) respostas, <b class="@(t.Answers.Trend.Direction == TrendDirection.Up ? "txt-good" : null)">@t.Answers.Trend.Text</b> sobre os @periodo anteriores</p></div>
                 <ul class="legend" aria-hidden="true"><li><i class="sw sw-data"></i>Últimos @periodo dias</li><li><i class="sw sw-ref"></i>@periodo dias anteriores</li></ul>
@@ -122,7 +122,7 @@ else
             </details>
         </section>
 
-        <section class="panel panel-pad" style="min-width:0" aria-labelledby="t-attn">
+        <section class="panel panel-pad" aria-labelledby="t-attn">
             <div class="panel-head"><h2 id="t-attn">Precisa de atenção</h2></div>
             @if (Model.Attention.IsEmpty)
             {
@@ -133,7 +133,7 @@ else
                 <div class="attention">
                     @foreach (var al in Model.Attention.Alerts)
                     {
-                        <a class="attn" href="@Model.AlertHref(al)"><span class="ic @(al.QuizType is { } aq ? IndexModel.TypeShort(aq) : null)" style="@IndexModel.AlertStyle(al)"><svg aria-hidden="true"><use href="#@IndexModel.AlertIcon(al)" /></svg></span><span><b>@IndexModel.AlertTitle(al)</b><small>@al.Detail</small></span><svg class="icon go" aria-hidden="true"><use href="#i-go" /></svg></a>
+                        <a class="attn" href="@Model.AlertHref(al)"><span class="ic @IndexModel.AlertTone(al) @(al.QuizType is { } aq ? IndexModel.TypeShort(aq) : null)"><svg aria-hidden="true"><use href="#@IndexModel.AlertIcon(al)" /></svg></span><span><b>@IndexModel.AlertTitle(al)</b><small>@al.Detail</small></span><svg class="icon go" aria-hidden="true"><use href="#i-go" /></svg></a>
                     }
                 </div>
             }
@@ -173,7 +173,7 @@ else
     {
         <div class="two">
             <partial name="_Confusing" model="Model" />
-            <section class="panel panel-pad" style="min-width:0" aria-labelledby="t-unid">
+            <section class="panel panel-pad" aria-labelledby="t-unid">
                 <div class="panel-head"><h2 id="t-unid">Unidades que mais jogam</h2></div>
                 @if (tops.Count == 0)
                 {
