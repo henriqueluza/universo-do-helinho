@@ -1,11 +1,13 @@
 # ADR-0003 — E-mails de acesso com Brevo e fila persistente
 
 **Data:** 19/11/2026 · **Status:** proposto (aguarda o Henrique; ver seção 16) · **Decisor:** Henrique
-**Base:** ADR-0001 (§2 "provedores externos atrás de portas", §7 ameaças), ADR-0002 (§9 Data Protection, §10 variáveis), Issue #176, skills `engineering-standards`, `owasp-security`, `site-compliance` e `devops-standards`, respostas da contratante C05, C13, C14, C15 e C20.
+**Base:** ADR-0001 (§2, provedores externos atrás de portas; §7, ameaças; e o parágrafo "Dados" da §1, que este ADR revisa), ADR-0002 (§9 Data Protection, §10 variáveis), Issue #176, skills `engineering-standards`, `owasp-security`, `site-compliance` e `devops-standards`, respostas da contratante C05, C13, C14, C15 e C20.
 
 Os códigos C04, C05, C09, C13, C14, C15, C20 e A01 são itens do Q&A com a contratante, "Perguntas e Respostas — Universo do Hélinho", mantido pelo Henrique fora do repositório. O ADR-0002 ainda não está na `main`: foi lido em `origin/issue-93-adr-hospedagem` (PR #101).
 
 Este ADR não muda código. Ele fecha as decisões da Sprint 3 para que as Issues de código possam ser abertas.
+
+**Este ADR revisa um ponto do ADR-0001** (aceito): o parágrafo "Dados" diz que "não há caso para consistência eventual, cache distribuído ou fila" (`docs/architecture/ADR-0001-stack.md:23`). Agora há caso para fila. A revisão está na seção 5 e espera o Henrique (seção 16, D15).
 
 ---
 
@@ -83,9 +85,10 @@ O que não foi possível confirmar está na seção 17. A central de ajuda da Br
 |---|---|---|
 | Integração | API transacional v3 por `HttpClient` tipado; sem SDK e sem pacote novo | 4 |
 | Modelos | HTML e texto puro versionados no repositório e renderizados pela aplicação; nada criado no editor da Brevo | 8 |
+| Relação com o ADR-0001 | **Revisa** o trecho "não há caso para […] fila". Mantém "um PostgreSQL único resolve": sem Redis e sem broker, a fila é uma tabela no PostgreSQL | 5 |
 | Fila | Uma tabela genérica de trabalhos (`QueueJobs`), com tipo e parâmetros; a "outbox de e-mail" são as linhas de tipo `email.*` | 5 |
 | O que fica gravado | Só referências (tipo e id do usuário ou do aluno). Destinatário, corpo e token **não ficam em repouso**: o token nasce na hora do envio | 5.3 |
-| Worker | `BackgroundService` em lote, `FOR UPDATE SKIP LOCKED`, retry exponencial com teto, erro permanente direto para falha | 6 |
+| Worker | `BackgroundService` com um laço por tratador, `FOR UPDATE SKIP LOCKED`, política de repetição por tipo (e-mail: exponencial, teto de 8), erro permanente direto para falha | 6 |
 | Retenção | Linhas terminadas são apagadas depois de 30 dias (`PROPOSTA`) | 5.6 |
 | Provedor | `Email__Provider` = `Fake` (padrão) ou `Brevo`; `Brevo` com configuração incompleta derruba a inicialização; `Development` sempre `Fake` | 7 |
 | Tokens | Tokens do Identity com dois provedores próprios: convite 72 h, redefinição 1 h; uso único pelo carimbo de segurança; link só de `App__PublicBaseUrl` | 10 |
@@ -94,7 +97,7 @@ O que não foi possível confirmar está na seção 17. A central de ajuda da Br
 | Webhook | `POST /webhooks/brevo`, desligado sem segredo, `Authorization: Bearer` comparado em tempo constante | 12 |
 | Terraform | Acrescenta `Brevo__WebhookSecret` e validações; o resto já está declarado | 13 |
 
-As linhas de fila, gravação, retenção, tokens, e-mail do responsável e senha do aluno são **recomendações** que esperam o Henrique (seção 16).
+As linhas de relação com o ADR-0001, fila, gravação, retenção, tokens, e-mail do responsável e senha do aluno são **recomendações** que esperam o Henrique (seção 16).
 
 ## 4. Integração com a Brevo
 
@@ -165,7 +168,20 @@ Alternativa descartada: acrescentar `FrameworkReference Microsoft.AspNetCore.App
 
 ## 5. Fila persistente
 
-O ADR-0001 já decidiu "`BackgroundService` + fila persistente no PostgreSQL, sem Redis". Aqui se decide o formato.
+### 5.0 O que o ADR-0001 diz, e o que este ADR revisa
+
+O ADR-0001 **não** decidiu fila. A palavra aparece nele uma vez, no parágrafo "Dados" (`docs/architecture/ADR-0001-stack.md:23`):
+
+> "Um PostgreSQL único resolve; não há caso para consistência eventual, cache distribuído ou fila."
+
+O que ele decide para os provedores externos é outra coisa: "E-mail, push e IA atrás de portas em `Application`, com implementação fake em `Infrastructure`" (`ADR-0001-stack.md:44`). A frase "`BackgroundService` + fila persistente no PostgreSQL, sem Redis" vem do roteiro das sprints, que a atribui ao ADR-0001; a primeira versão deste ADR a repetiu sem conferir no arquivo. Quem apontou o erro foi o ADR-0004 (PR #181, seção 10.5).
+
+**Este ADR revisa o trecho "não há caso para […] fila".** Quando o ADR-0001 foi escrito, e-mail, push e IA eram fakes e nenhum trabalho dependia de terceiro. Agora há caso:
+
+- **Sprint 3:** enviar e-mail depende da Brevo, que pode demorar, recusar por limite de taxa ou estar fora do ar. Sem fila, a página ficaria presa ao tempo da Brevo, não haveria nova tentativa e o tempo de resposta da recuperação de senha denunciaria a conta (seção 11.1).
+- **Sprint 4:** gerar rascunhos de questões por IA é uma chamada de dezenas de segundos, com uma pessoa esperando na tela.
+
+O que **continua valendo** do ADR-0001: "um PostgreSQL único resolve". **Sem Redis e sem broker: a fila é uma tabela no PostgreSQL.** Consistência eventual e cache distribuído continuam sem caso. A revisão é só da palavra "fila", e é decisão do Henrique (seção 16, D15). O ADR-0001 ganha uma nota de uma linha apontando para cá; a seção dele não é reescrita.
 
 ### 5.1 Uma tabela genérica
 
@@ -176,7 +192,7 @@ O ADR-0001 já decidiu "`BackgroundService` + fila persistente no PostgreSQL, se
 | `Id` | `uuid`, chave primária | identifica o trabalho; é também a chave de idempotência enviada à Brevo |
 | `Type` | `varchar(60)`, obrigatória | `email.admin-invite`, `email.password-reset`, `email.password-changed`, `email.student-access`; na Sprint 4, `ai.question-drafts` |
 | `SubjectId` | `uuid`, opcional | a quem o trabalho se refere: id do usuário (convite, redefinição) ou do aluno (acesso). Sem chave estrangeira |
-| `Payload` | `jsonb`, obrigatória | parâmetros do tipo, com versão (`{"v":1,…}`). **Sem destinatário, corpo, token ou dado cadastral** |
+| `Payload` | `jsonb`, obrigatória | parâmetros do tipo, com versão (`{"v":1,…}`). **Sem destinatário, corpo, token, dado cadastral ou texto livre digitado por alguém**; quando o trabalho tem dados próprios, o `Payload` leva só o id do registro que os guarda |
 | `Status` | `varchar(20)`, obrigatória | `Pending`, `Processing`, `Succeeded`, `Failed`, `Cancelled` (texto, como os outros enums do banco) |
 | `Attempts` | `int`, obrigatória | tentativas já iniciadas |
 | `NextAttemptAt` | `timestamptz`, obrigatória | quando o trabalho volta a ficar visível para o worker (seção 6.1) |
@@ -198,9 +214,11 @@ Pending ──(worker pega)──▶ Processing ──▶ Succeeded
 Pending ──(reenvio ou cancelamento)──▶ Cancelled
 ```
 
+`Cancelled` nunca é decisão da fila: só acontece por `IJobQueue.CancelPending(...)`, chamado por um caso de uso dentro da transação dele (por exemplo, o reenvio de convite).
+
 Índices:
 
-- `IX_QueueJobs_NextAttemptAt`, parcial em `Status IN ('Pending','Processing')`: a busca do próximo lote.
+- `IX_QueueJobs_Type_NextAttemptAt`, parcial em `Status IN ('Pending','Processing')`: a busca do próximo lote, que é feita por tipo (seção 6.1).
 - `UX_QueueJobs_IdempotencyKey`, único e parcial em `IdempotencyKey IS NOT NULL`.
 - `IX_QueueJobs_Type_SubjectId_CreatedAt`: contagem dos limites por conta e situação mostrada nas telas.
 - `IX_QueueJobs_ExternalId`, parcial em `ExternalId IS NOT NULL`: localizar o trabalho quando o webhook chega.
@@ -240,7 +258,7 @@ O limite por hora de cada fluxo (seção 11) é contado na própria tabela, por 
 
 ### 5.5 Enfileirar junto com a regra de negócio
 
-A porta `IJobQueue.Enqueue(...)` acrescenta a linha ao contexto **sem salvar**, como `IStudentAccounts.StageAsync` já faz; quem chama salva junto. Assim a conta do administrador e o convite dele são gravados na mesma transação: ou os dois, ou nenhum.
+A porta `IJobQueue.Enqueue(...)` acrescenta a linha ao contexto **sem salvar**, como `IStudentAccounts.StageAsync` já faz; quem chama salva junto. Assim a conta do administrador e o convite dele são gravados na mesma transação: ou os dois, ou nenhum. Na saída vale a mesma regra, espelhada: o que o tratador deixa no contexto é salvo junto com a conclusão do trabalho (seção 6.6).
 
 ### 5.6 Retenção (LGPD)
 
@@ -257,7 +275,7 @@ Como não há destinatário nem corpo na fila, não há o que anonimizar. O que 
 
 ### 6.1 Pegar o próximo lote
 
-Um comando SQL cru, em transação curta:
+Um comando SQL cru, em transação curta, **uma vez por tratador**. Cada tratador declara os tipos que atende, o tamanho do lote e o prazo de posse (seção 6.6):
 
 ```sql
 UPDATE "QueueJobs"
@@ -266,7 +284,8 @@ UPDATE "QueueJobs"
        "NextAttemptAt" = now() + @lease
  WHERE "Id" IN (
         SELECT "Id" FROM "QueueJobs"
-         WHERE "Status" IN ('Pending', 'Processing')
+         WHERE "Type" = ANY(@types)
+           AND "Status" IN ('Pending', 'Processing')
            AND "NextAttemptAt" <= now()
          ORDER BY "NextAttemptAt"
          LIMIT @batch
@@ -275,18 +294,31 @@ RETURNING *;
 ```
 
 - **`FOR UPDATE SKIP LOCKED`** garante que dois processos não peguem a mesma linha. Hoje há uma réplica, mas durante um deploy o contêiner antigo e o novo rodam juntos por alguns segundos.
-- **`NextAttemptAt` faz também o papel de prazo de posse.** Ao pegar, o worker empurra a data para `agora + posse` (2 minutos no e-mail). Se o processo morrer no meio, a linha reaparece sozinha depois desse prazo, sem coluna extra de trava.
-- A chamada HTTP acontece **fora** de transação. Segurar uma transação aberta durante a chamada à Brevo prenderia uma conexão do banco por até 10 s por item.
+- **`NextAttemptAt` faz também o papel de prazo de posse.** Ao pegar, o worker empurra a data para `agora + posse`. Se o processo morrer no meio, a linha reaparece sozinha depois desse prazo, sem coluna extra de trava.
+- **Lote e posse são do tipo, não da fila.** E-mails e trabalhos de IA nunca dividem um lote: cada tratador tem a própria captura e o próprio laço (seção 6.4). Uma chamada de IA de 90 s não fica na frente de um e-mail, nem no lote nem na espera.
+- **A posse cobre o lote inteiro:** `lote × tempo máximo por item ≤ posse`, conferido na subida da aplicação. No e-mail, 10 × 10 s = 100 s, dentro dos 2 minutos. O tempo máximo por item é imposto pelo `CancellationToken` entregue ao tratador.
+- **Última defesa:** a conclusão de um item só é gravada se a linha ainda estiver em `Processing` com o mesmo `Attempts` de quando foi pega (seção 6.6). Se a posse venceu e outro processo pegou o trabalho, a gravação do primeiro é recusada inteira, junto com o resultado dele.
+- A chamada externa acontece **fora** de transação. Segurar uma transação aberta durante a chamada à Brevo prenderia uma conexão do banco por até 10 s por item.
 - A tentativa é contada ao pegar, então uma queda no meio do envio também conta.
 - A forma de executar `UPDATE … RETURNING` pelo EF Core é confirmada no Context7 pela Issue do worker.
 
 Como `Web` não pode usar o `AppDbContext` nem Npgsql, o processamento fica em `Helinho.Infrastructure`, atrás de uma porta `IJobProcessor` em `Application`. O `BackgroundService` em si é uma classe pequena em `Helinho.Web` (área nova `Composition/Areas/Fila.cs`), que só chama a porta em laço: o projeto Web é quem tem o hosting. Cada tipo de trabalho tem um tratador (`IJobHandler`) que devolve sucesso, repetir, falhar ou suspender.
 
-### 6.2 Repetição
+### 6.2 Repetição: política por tipo
 
-- Espera depois da tentativa *n* que falhou: `min(1 min × 2^(n−1), 60 min)`, com variação aleatória de ±20%.
-- **Teto de 8 tentativas** (aproximadamente 1, 3, 7, 15, 31, 63 e 123 minutos depois da primeira). Estourou, `Failed` com o último código.
-- **`ExpiresAt` por tipo:** redefinição de senha 30 minutos; convite e aviso de senha alterada 24 horas; acesso do aluno 72 horas. Passou do prazo, `Failed` com `expired`, mesmo que restem tentativas.
+Teto de tentativas, espera, lote, tempo por item e posse são **do tratador**, declarados em código junto com ele (`JobPolicy`, seção 6.6). Não há teto global.
+
+| Política | E-mail (`email.*`) | IA (`ai.question-drafts`; valores do ADR-0004) |
+|---|---|---|
+| Teto de tentativas | **8** | **2**; a segunda só existe para recuperar processo que morreu no meio |
+| Espera depois da tentativa *n* que falhou | `min(1 min × 2^(n−1), 60 min)`, com variação aleatória de ±20% (aproximadamente 1, 3, 7, 15, 31, 63 e 123 minutos depois da primeira) | não se aplica: o tratador de IA nunca devolve "repetir" |
+| Lote | 10 | 1 |
+| Tempo máximo por item | 10 s (o tempo limite do `HttpClient`) | `Ai__TimeoutSeconds` (90 s na proposta do ADR-0004) |
+| Prazo de posse | 2 minutos | tempo máximo por item + 60 s (150 s) |
+| `ExpiresAt` | redefinição de senha 30 minutos; convite e aviso de senha alterada 24 horas; acesso do aluno 72 horas | 10 minutos |
+
+- Estourou o teto, `Failed` com o último código.
+- Passou de `ExpiresAt`, `Failed` com `expired`, mesmo que restem tentativas. Se a próxima espera cairia depois de `ExpiresAt`, o trabalho falha na hora em vez de esperar para expirar.
 - **Erro permanente vai direto para `Failed`**, sem gastar as outras tentativas (tabela da seção 4.2).
 
 ### 6.3 Suspensão: quando o problema é da conta, não da mensagem
@@ -294,32 +326,110 @@ Como `Web` não pode usar o `AppDbContext` nem Npgsql, o processamento fica em `
 401, 402 e 403 não melhoram repetindo e também não são defeito da mensagem: a chave está errada, a conta ainda não foi validada ou os créditos do dia acabaram. O worker:
 
 - devolve o trabalho para `Pending` **sem consumir a tentativa**, com `NextAttemptAt` em 15 minutos e `LastError` com o código;
-- para de enviar e-mail até lá (os outros tipos de trabalho continuam);
+- pausa **o laço daquele tratador** até lá; os outros tratadores têm laço próprio e continuam;
 - registra um log em `Error`, que é o gatilho de alerta;
 - o trabalho só falha de vez quando passar de `ExpiresAt`.
 
+"Suspender" é um resultado que só o tratador de e-mail devolve. O de IA não o usa: com uma pessoa esperando na tela, o certo é falhar com o motivo (ADR-0004, seção 10.2).
+
 Alternativa descartada: mandar 401 e 402 direto para `Failed`. Uma chave colada errada no primeiro dia mataria todos os convites da fila e o master teria de reenviar um por um.
 
-### 6.4 Lote, parada e ambiente
+### 6.4 Laços, parada e ambiente
 
-- Lote de 10; com a fila vazia, nova consulta a cada 5 s; com lote cheio, sem espera.
-- **Parada limpa:** ao receber o sinal de parada, o worker não pega lote novo e deixa terminar o item em curso. O que não terminar reaparece pelo prazo de posse.
+- **Um laço por tratador**, dentro do mesmo `BackgroundService`. Com a fila daquele tipo vazia, nova consulta a cada 5 s; com lote cheio, sem espera. Dentro de um laço os itens são processados um por vez.
+- **Parada limpa:** ao receber o sinal de parada, nenhum laço pega lote novo. O item em curso segue até terminar, até o tempo máximo dele ou até a janela de parada do host acabar, o que vier primeiro. O que for interrompido continua em `Processing` e reaparece pelo prazo de posse, com a tentativa contada.
 - Os comandos `migrate` e `seed` saem antes de `app.RunAsync()` (`Program.cs:16-19`), então o worker não sobe neles.
 - Nos testes de integração o serviço hospedado fica desligado (`Fila__Worker__Enabled=false` na fábrica) e o teste chama `IJobProcessor` diretamente, para ser determinístico.
-- Configuração com padrão no código (`Fila__BatchSize`, `Fila__PollInterval`, `Fila__MaxAttempts`, `Fila__RetentionDays`). Não entram no Terraform enquanto ninguém precisar mudá-las.
+- Configuração com padrão no código: `Fila__Worker__Enabled`, `Fila__PollInterval` e `Fila__RetentionDays`. Teto de tentativas e lote saíram da configuração: são da política de cada tratador. Nada disso entra no Terraform enquanto ninguém precisar mudar.
 
 ### 6.5 Como a Sprint 4 reaproveita
 
-| Peça | E-mail (Sprint 3) | IA (Sprint 4) |
+| Peça | E-mail (Sprint 3) | IA (Sprint 4, ADR-0004 seção 10.2) |
 |---|---|---|
 | `Type` | `email.*` | `ai.question-drafts` |
-| `Payload` | quase vazio (versão e motivo) | tipo de quiz, faixa etária, quantidade, assunto |
+| `Payload` | quase vazio (versão e motivo) | `{"v":1,"aiJobId":"<id do pedido>"}` **e mais nada**. Tipo de quiz, faixa, quantidade e assunto ficam no registro do pedido (`AiGenerationJobs`), não na fila: o assunto é texto livre e pode trazer um nome |
 | `SubjectId` | usuário ou aluno | quem pediu |
-| Tratador | resolve destinatário, gera token, renderiza, envia | chama `IQuestionDraftGenerator` e grava os rascunhos na mesma transação que conclui o trabalho |
-| Classes de erro | as da seção 4.2 | as mesmas: 429 e 5xx repetem, 400 falha, 401 e 402 suspendem |
-| Prazo de posse | 2 minutos | maior, definido pelo ADR-0004 (a chamada a um modelo pode passar de um minuto) |
+| Tratador | resolve destinatário, gera token, renderiza, envia | lê o pedido, chama `IQuestionDraftGenerator` fora de transação e deixa as sugestões no contexto; o processador grava tudo junto com a conclusão (seção 6.6) |
+| Resultados que o tratador devolve | sucesso, repetir, falhar e suspender, conforme a seção 4.2 | **só sucesso ou falha.** 429 e 5xx são repetidos dentro do adaptador de IA, no máximo duas vezes e dentro do prazo; 401, 402 e limite de gasto falham com o motivo, sem suspensão |
+| Política | 8 tentativas, espera de 1 a 60 min, lote 10, posse de 2 min | 2 tentativas, lote 1, posse de 150 s, `ExpiresAt` de 10 min (seção 6.2) |
+| Encerramento pela fila | não precisa de aviso: as telas leem a própria fila | o tratador implementa o gancho da seção 6.7 para tirar o pedido de "gerando" |
 
-O mecanismo (tabela, trava, repetição, expiração, idempotência, limpeza) serve sem migração nova. O que a Sprint 4 ainda precisa decidir no ADR-0004 é como a tela liga os rascunhos gerados ao pedido, o que é coluna em tabela de questões, não na fila.
+O mecanismo (tabela, trava, repetição, expiração, idempotência, limpeza) serve sem migração nova. A fonte da verdade da tela de IA é a tabela de pedidos do ADR-0004, não a `QueueJobs`, cujas linhas são apagadas em 30 dias.
+
+### 6.6 Contrato do tratador
+
+Fica em `Helinho.Application/Abstractions`, sem tipo de framework. Os nomes são ilustrativos; a Issue 1 os fixa.
+
+```csharp
+public interface IJobHandler
+{
+    IReadOnlyCollection<string> Types { get; }
+    JobPolicy Policy { get; }
+    Task<JobResult> HandleAsync(JobContext job, CancellationToken cancellationToken);
+}
+
+public sealed record JobContext(
+    Guid Id, string Type, Guid? SubjectId, JsonElement Payload,
+    int Attempts, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt);
+
+public sealed record JobPolicy(
+    int MaxAttempts, TimeSpan MinBackoff, TimeSpan MaxBackoff,
+    int BatchSize, TimeSpan ItemTimeout, TimeSpan Lease);
+
+// JobResult: Succeeded(externalId?) | Retry(errorCode, notBefore?)
+//          | Fail(errorCode)        | Suspend(errorCode, pauseFor)
+```
+
+Regras do contrato:
+
+- **Escopo próprio por item.** O processador abre um escopo de injeção de dependência para cada item; o tratador e o que ele usa (contexto do banco, `UserManager`) nascem e morrem ali.
+- **`Attempts` já conta a tentativa em curso** (1 na primeira). É o que permite a um tratador recusar uma tentativa a mais.
+- **`CancellationToken`** é cancelado quando o tempo máximo por item se esgota ou quando a janela de parada do host acaba. O sinal de parada, sozinho, não cancela o item em curso (seção 6.4). O tratador repassa o token a toda chamada de I/O.
+- **Resultado e conclusão na mesma gravação.** O tratador **não salva** o resultado final: o que ele deixar no contexto ao retornar é salvo pelo processador no mesmo `SaveChanges` que muda o `Status` do trabalho, uma transação só. Vale para qualquer resultado (sucesso, falha ou repetir). É o espelho do que `Enqueue` faz na entrada (seção 5.5).
+- **Guarda de posse nessa gravação:** a atualização do trabalho leva a condição `Status = 'Processing'` e `Attempts` igual ao recebido (`Attempts` como token de concorrência). Se a posse foi perdida, nada é gravado: nem a conclusão, nem o resultado.
+- **Gravação intermediária é permitida** e fica por conta do tratador (por exemplo, marcar um pedido como "gerando" antes da chamada externa). Ela precisa suportar ser executada de novo.
+- **Nenhuma transação fica aberta durante `HandleAsync`.** A chamada externa acontece antes da gravação única.
+- **Exceção não tratada:** nada do contexto do tratador é salvo; o processador registra `handler_exception` e trata como "repetir", dentro da política.
+- **O que a transação não cobre:** o efeito externo. Se o e-mail saiu (201) e a gravação final falhou, o trabalho será executado de novo; a chave de idempotência enviada à Brevo cobre os primeiros 30 minutos (seção 5.4). Depois disso o pior caso é uma mensagem repetida.
+
+### 6.7 Quando a fila encerra um trabalho sem o tratador decidir
+
+A fila encerra por conta própria em dois casos:
+
+- `expired`: passou de `ExpiresAt`, visto ao pegar o item ou ao calcular a próxima espera;
+- `max_attempts`: o teto foi atingido, seja ao pegar de novo um trabalho cujo processo morreu, seja depois de um "repetir" na última tentativa.
+
+Nos dois, quem enfileirou pode não ficar sabendo. Por isso existe um gancho **opcional**, em interface separada para que só o implemente quem precisa:
+
+```csharp
+public interface IAbandonedJobHandler
+{
+    Task OnAbandonedAsync(JobContext job, string reason, CancellationToken cancellationToken);
+}
+```
+
+- Se o tratador do tipo implementa a interface, o processador a chama no escopo do item e grava o que ela deixar no contexto **junto** com o `Failed`, pelo mesmo mecanismo da seção 6.6.
+- Se o gancho lançar exceção, o `Failed` é gravado do mesmo jeito e o erro vai para o log. Quem depende do aviso deve manter também uma conferência na leitura, como o ADR-0004 faz.
+- O tratador de e-mail **não** implementa: as telas de convite e de acesso leem a situação direto da fila (seção 11.2).
+- `Cancelled` não passa pelo gancho. Quem cancela é sempre um caso de uso, por `IJobQueue.CancelPending(...)`, dentro da própria transação: quem cancela é quem sabe.
+
+### 6.8 Ajustes pedidos pelo ADR-0004
+
+O ADR-0004 (PR #181, seção 10.4) confrontou os requisitos da IA com esta fila e pediu sete ajustes. Decisão em cada um:
+
+| # | Pedido | Decisão | Onde ficou |
+|---|---|---|---|
+| A1 | Tentativas e espera por tipo de trabalho | **Aceito.** A política é do tratador; o teto global (`Fila__MaxAttempts`) deixou de existir | 6.2 |
+| A2 | Contrato de `IJobHandler` escrito, com `Attempts` e `CancellationToken` | **Aceito** | 6.6 |
+| A3 | Resultado e conclusão na mesma transação, com mecanismo | **Aceito, com um acréscimo:** a mesma gravação leva a guarda de posse, para que um trabalho pego duas vezes não grave dois resultados | 6.6 |
+| A4 | Prazo de posse por tipo e por item | **Aceito com mudança.** Em vez de renovar a posse a cada item, cada tratador tem captura, lote e laço próprios, e a aplicação confere na subida que a posse cobre o lote. Um trabalho de IA nunca divide lote com e-mail | 6.1, 6.2, 6.4 |
+| A5 | Corrigir a tabela da seção 6.5 (`Payload` e classes de erro da IA) | **Aceito.** O `Payload` da IA leva só o id do pedido, e a regra geral da coluna passou a proibir texto livre | 5.1, 6.5 |
+| A6 | Aviso quando a fila encerra sem chamar o tratador | **Aceito com mudança.** Gancho opcional para `expired` e `max_attempts`. `Cancelled` fica de fora, porque quem cancela é sempre o próprio caso de uso | 6.7 |
+| A7 | Corrigir a citação do ADR-0001 e declarar a revisão | **Aceito.** A citação estava errada | 5.0, 16 (D15), 19 |
+
+Nenhum foi recusado. Renovar a posse a cada item (a outra saída sugerida para o A4) foi descartado: com laço e lote por tratador e a conferência na subida, a renovação seria uma segunda escrita por item para um caso que já não acontece.
+
+**O desenho do e-mail não mudou.** A fila continua só com referências (D2): o A5 apertou a regra do `Payload`. 401, 402 e 403 continuam suspendendo sem gastar tentativa (D3): a suspensão passou a pausar o laço do tratador de e-mail, o que é o mesmo efeito com menos código. Tentativas, espera, lote, posse e `ExpiresAt` do e-mail são os de antes.
 
 ## 7. Seleção do provedor e validação na inicialização
 
@@ -589,6 +699,8 @@ O plano gratuito comporta cerca de **150 alunos liberados por dia**. O ADR-0001 
 | D12 | Envio automático ao aprovar o aluno | **Sim, além do botão** (11.4) | só pelo botão |
 | D13 | Token do link na query string, exceção à ASVS 14.2.1 | **Aceitar, com as mitigações da seção 10.3** (é o padrão do Identity e do guia da OWASP) | token no fragmento (`#`), com JavaScript obrigatório |
 | D14 | Política de senha (hoje 6 caracteres com regras de composição) | **Não mudar nesta sprint; abrir Issue própria** para alinhar à ASVS (mínimo 8, sem composição, lista de senhas comuns) | mudar junto com a página de definir senha |
+| D15 | Revisar o ADR-0001, que diz "não há caso para […] fila" (`ADR-0001-stack.md:23`) | **Aceitar a revisão:** agora há caso para fila (e-mail com repetição; trabalhos de IA na Sprint 4). Sem Redis e sem broker: a fila é uma tabela no PostgreSQL (5.0) | manter o ADR-0001 como está e enviar o e-mail direto da requisição, sem repetição |
+| D16 | Ajustes pedidos pelo ADR-0004 na fila: política por tipo, laço por tratador, contrato do tratador, gravação única, gancho de encerramento | **Aceitar os sete** (6.8) | fila só para e-mail, com a IA contornando do lado dela (ADR-0004, coluna "se não for aceito") |
 
 D4, D5, D6, D9, D12 e D14 dependem também do Marcos; as perguntas estão em `docs/context/pendencias.md`. O código nasce com a recomendação marcada `PROPOSTA`, e trocar qualquer uma delas não pede migração (D5 inclusive: a coluna é anulável).
 
@@ -616,24 +728,27 @@ D4, D5, D6, D9, D12 e D14 dependem também do Marcos; as perguntas estão em `do
 | # | Issue | Tipo | Depende de |
 |---|---|---|---|
 | 0 | ADR-0003 (esta, #176) | docs | — |
-| 1 | Fila: entidade `QueueJob`, **migração**, porta `IJobQueue` com idempotência | feat | D1 e D2; PR #120 mergeado (mesmo snapshot do modelo) |
+| 1 | Fila: entidade `QueueJob`, **migração**, porta `IJobQueue` (enfileirar com idempotência e cancelar pendentes) e os contratos das seções 6.6 e 6.7 (`IJobHandler`, `JobContext`, `JobPolicy`, `JobResult`, `IAbandonedJobHandler`) | feat | D1, D2, D15 e D16; PR #120 mergeado (mesmo snapshot do modelo) |
 | 2 | `Student.GuardianEmail`: **migração**, campo no formulário do aluno, validação, seed sintético | feat | D5; Issue 1 (ordem das migrações); PR #158 (formulário de Alunos no tema Recreio) |
 | 3 | `BrevoEmailSender`, opções validadas na subida, registro `Fake`/`Brevo` na área `Email`, nova assinatura da porta; testes com `HttpMessageHandler` falso | feat | ADR aprovado |
 | 4 | Renderizador, modelos HTML e texto dos quatro e-mails, layout comum, importação do `fundhas.png` | feat | D10 |
 | 5 | Provedores de token (72 h e 1 h) e página `/conta/definir-senha` | feat | D4; PR #159 (telas de conta no tema Recreio) |
 | 6 | Terraform: `brevo_webhook_secret`, `Email__DailyLimit`, validações, `terraform.tfvars.example` | chore | PR #100 mergeado |
 | 7 | `docs/operations/brevo-runbook.md` e atualização de `ambientes.md` | docs | ADR aprovado; revisão "no papel" por quem não escreveu |
-| 8 | Worker: `BackgroundService`, `IJobProcessor` (lote, `SKIP LOCKED`, backoff, expiração, suspensão, teto diário, limpeza), tratador de e-mail | feat | 1, 3, 4, 5; D3 e D7 |
-| 9 | Convite de administrador: criar sem senha, situações, reenviar, limite, cancelar convite | feat | 1, 4, 5, 8; D11; PR #166 |
-| 10 | Redefinição real em `RecuperarSenha` (fila, resposta idêntica, piso de tempo, limites) e aviso de senha alterada | feat | 1, 4, 5, 8, 13 |
-| 11 | Acesso do aluno: botão, gatilho na aprovação, segregação por unidade | feat | 1, 2, 4, 5, 8; D6 e D12 |
+| 8a | Worker genérico: `BackgroundService` com um laço por tratador, `IJobProcessor` (captura por tipo com `SKIP LOCKED`, política por tipo, gravação única com guarda de posse, expiração, suspensão, gancho de encerramento, limpeza); testes com um tratador falso | feat | 1; D3 e D16 |
+| 8b | Tratador de e-mail: resolve o destinatário, gera o token, renderiza, envia, classifica a resposta da Brevo e aplica o teto diário | feat | 1, 3, 4, 5, 8a; D7 |
+| 9 | Convite de administrador: criar sem senha, situações, reenviar, limite, cancelar convite | feat | 1, 4, 5, 8b; D11; PR #166 |
+| 10 | Redefinição real em `RecuperarSenha` (fila, resposta idêntica, piso de tempo, limites) e aviso de senha alterada | feat | 1, 4, 5, 8b, 13 |
+| 11 | Acesso do aluno: botão, gatilho na aprovação, segregação por unidade | feat | 1, 2, 4, 5, 8b; D6 e D12 |
 | 12 | Webhook da Brevo e "e-mail não entregue" nas telas | feat | 1, 3; as telas, depois de 9 e 11 |
 | 13 | Correção: contas com e-mail repetido quebram `FindByEmailAsync` no login e na recuperação (**já aberta: #184**, sem `agent:authorized`) | fix | — |
 | 14 | Caixa de saída de desenvolvimento | feat | 3; D8 |
-| 15 | Aviso de bloqueio de conta (opcional) | feat | 8 |
+| 15 | Aviso de bloqueio de conta (opcional) | feat | 8b |
 | 16 | Teste de ponta a ponta com capturador de e-mail | test | 9, 10, 11 |
 
-Ondas: **1** em paralelo — Issues 1, 3, 4, 5, 6, 7 e 13 (a 2 entra logo depois da 1). **2** — Issues 8 a 12 e 14. **3** — Issue 16 e a revisão independente de cada PR, com `security-reviewer` e `compliance-reviewer` obrigatórios nos fluxos e nos modelos.
+Ondas: **1** em paralelo — Issues 1, 3, 4, 5, 6, 7 e 13 (a 2 e a 8a entram logo depois da 1). **2** — Issues 8b a 12 e 14. **3** — Issue 16 e a revisão independente de cada PR, com `security-reviewer` e `compliance-reviewer` obrigatórios nos fluxos e nos modelos.
+
+A antiga Issue 8 foi dividida em duas. O worker genérico (8a) cresceu com os ajustes do ADR-0004 e não depende de nada de e-mail; o tratador de e-mail (8b) é o que depende do adaptador, dos modelos e dos tokens. **A Sprint 4 só precisa das Issues 1 e 8a**: pode começar o tratador de IA sem esperar os e-mails.
 
 A Issue 13 (#184) é defeito que já existe na `main` e independe da sprint; está aqui porque a Issue 10 esbarra nele. As outras Issues da tabela ainda não foram abertas: esperam o aceite deste ADR.
 
@@ -645,8 +760,9 @@ A Issue 13 (#184) é defeito que já existe na `main` e independe da sprint; est
 | SMTP da Brevo | exige cliente SMTP e uma segunda credencial (a chave SMTP não é a chave da API), e não devolve `messageId` nem erro estruturado para a fila classificar |
 | Modelos no editor da Brevo | seção 8.1 |
 | Enviar direto da requisição, sem fila | a página ficaria presa ao tempo da Brevo, sem repetição, e o tempo de resposta denunciaria a conta |
-| Fila em memória (`Channel`) | perde tudo num deploy; o ADR-0001 já pede fila persistente |
-| Redis ou serviço de fila | serviço pago a mais; o ADR-0001 já descartou |
+| Fila em memória (`Channel`) | perde tudo num deploy: um convite enfileirado sumiria sem deixar rastro |
+| Redis, broker ou serviço de fila | mais um serviço para pagar e operar, com um mantenedor só. O ADR-0001 diz que "um PostgreSQL único resolve" (`ADR-0001-stack.md:23`), e a fila em tabela mantém isso |
+| Renovar a posse a cada item | seção 6.8 (A4) |
 | `email_outbox` específica; Hangfire ou Quartz | seção 5.2 |
 | Corpo renderizado na fila | seção 5.3 |
 | `FrameworkReference` do ASP.NET Core na infraestrutura | seção 4.4 |
@@ -664,15 +780,16 @@ A Issue 13 (#184) é defeito que já existe na `main` e independe da sprint; est
 
 - Nenhum pacote novo e nada criado à mão na Brevo além de conta, domínio, remetente e chave.
 - Nenhum link de acesso nem endereço de destinatário em repouso; a fila guarda só referências.
-- Um mecanismo de fila para e-mail e para os trabalhos de IA da Sprint 4.
+- Um mecanismo de fila para e-mail e para os trabalhos de IA da Sprint 4, já confrontado com os requisitos do ADR-0004 (seção 6.8).
 - Sem chave, tudo continua funcionando com o envio fake; com configuração pela metade, a aplicação recusa subir em vez de falhar no primeiro e-mail.
 - Uma chave errada ou uma cota esgotada não queima a fila.
 - Há um freio simples: voltar `Email__Provider` para `Fake` desliga o envio real sem mudar código.
 
 **Negativas e riscos**
 
+- Revisa um ponto de um ADR já aceito (ADR-0001, "não há caso para […] fila"); a revisão precisa do aceite do Henrique (D15).
 - Duas migrações em uma sprint, em sequência obrigatória, e dependência do PR #120.
-- O worker fica mais complexo que um repassador: tratador por tipo, quatro classes de resultado e teto diário.
+- O worker fica mais complexo que um repassador: um laço e uma política por tratador, quatro classes de resultado, gravação única com guarda de posse, gancho de encerramento e teto diário. Por isso virou duas Issues (8a e 8b).
 - O banco não registra para qual endereço cada mensagem foi; essa resposta está no painel da Brevo.
 - Com o envio fake, convite e redefinição não se completam em homologação até a Brevo ser configurada.
 - Os itens da seção 17 dependem de conferência manual; o runbook e o teste de fumaça precisam cobri-los.
