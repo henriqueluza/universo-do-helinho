@@ -93,11 +93,9 @@ public class QuestoesRecreioTests(PostgresFixture postgres)
             ["Input.OptionA"] = "Um",
             ["Input.OptionC"] = "Três",
         };
-
         var response = await client.PostAsync("/Questoes/Editar", new FormUrlEncodedContent(fields), Ct);
         var raw = await response.Content.ReadAsStringAsync(Ct);
         var html = WebUtility.HtmlDecode(raw);
-
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Matches("id=\"resumo-erros\"[^>]*role=\"alert\"|role=\"alert\"[^>]*id=\"resumo-erros\"", html);
         Assert.Contains("tabindex=\"-1\"", html, StringComparison.Ordinal);
