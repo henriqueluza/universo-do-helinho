@@ -31,6 +31,7 @@ public static class Panel
             options.Cookie.Name = "helinho.panel";
             options.Cookie.HttpOnly = true;
             options.Cookie.SameSite = SameSiteMode.Lax;
+            // Fora de Development, a área Hospedagem força Secure em todo cookie (CookiePolicy).
             options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
             options.LoginPath = LoginPath;
             options.AccessDeniedPath = "/acesso-negado";
