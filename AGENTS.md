@@ -34,13 +34,16 @@ Regras deste repositório (somam-se a `~/.codex/AGENTS.md`; os padrões detalhad
 - Migrações do EF Core (`**/Migrations/*.cs`) são código gerado e não contam no tamanho.
 - Depois da demonstração esta seção é removida e volta a valer o orçamento de `size:m`.
 
-## Design no sprint do MVP (protocolo reduzido — decisão do Henrique em 10/11/2026)
+## Design (tema Recreio)
 
-O protocolo completo de `.claude/rules/10-ui-design.md` (oito skills) **não se aplica neste sprint**. O front será refeito com o protocolo completo em um sprint futuro. Até lá, toda Issue ou PR que toca UI (`*.cshtml`, `Pages/`, `wwwroot/css`, componentes) segue o protocolo reduzido:
+Vale o protocolo completo de `.claude/rules/10-ui-design.md`, com duas adaptações:
 
-1. **`DESIGN.md` manda.** Use os tokens e componentes de `wwwroot/css/theme.css`; não invente paleta, tipografia nem espaçamento.
-2. **`unslop-design`:** rode `python3 .claude/skills/unslop-design/scripts/scan.py <pasta alterada>` e corrija os sinais encontrados (ou justifique).
-3. **`web-design-guidelines`:** auto-revisão dos arquivos de UI alterados — contraste, foco visível, labels, navegação por teclado, estados (vazio, erro, carregando) e responsividade.
-4. **Registre na seção Design do PR, só o que foi feito de verdade:** "Protocolo reduzido do sprint — DESIGN.md: seções seguidas · unslop-design: N sinais → corrigidos/justificados · web-design-guidelines: itens verificados · verificação visual: não realizada (sem navegador)". Nunca registre skill que não rodou.
+- **(a) `design-references` é dispensado.** A referência é a preview em `docs/design/recreio/preview/`, não galerias públicas.
+- **(b) A preview manda sobre gosto pessoal.** `ui-ux-pro-max`, `design-taste-frontend`, `impeccable`, `frontend-design` e `emil-design-eng` servem para corrigir o que estiver quebrado ou fraco na preview, nunca para mudar a identidade. `unslop-design` e `web-design-guidelines` continuam obrigatórios.
 
-**Para a revisão (`review-pr`, `ui-reviewer`):** neste sprint, o registro reduzido acima **satisfaz** o protocolo de design. A ausência das outras skills (`ui-ux-pro-max`, `design-taste-frontend`, `impeccable`, `frontend-design`, `emil-design-eng`, `design-references`) e da verificação visual **não é bloqueante** e não precisa de decisão humana. Continuam bloqueantes: registro reduzido ausente, registro falso, tela que contradiz o `DESIGN.md`, e problemas de acessibilidade.
+**Verificação visual obrigatória em cada PR de tela:** capturas em 1440 px e 375 px, nos temas claro e escuro, comparadas com a preview. Sem navegador na sessão, registre isso no PR e peça a captura ao Henrique. Nunca marque verificação visual sem ter feito.
+
+## Tema do painel (Recreio)
+Antes de tocar em `*.cshtml`, `Pages/` ou `wwwroot/css|js`, leia `docs/design/TEMA-PARA-IA.md` e siga-o.
+Tela, campo, gráfico ou animação nova seguem as receitas de `docs/design/GUIA-DE-EVOLUCAO.md`.
+Não crie cor, tamanho, raio ou duração fora dos tokens de `wwwroot/css/theme.css`.
