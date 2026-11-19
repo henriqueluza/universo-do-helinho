@@ -14,6 +14,7 @@ Root module do Terraform que descreve a hospedagem do backend na Railway, confor
 | `main.tf` | Uma instância do módulo `ambiente` por chave de `var.ambientes` |
 | `outputs.tf` | URLs e ids por ambiente; nenhuma saída com segredo |
 | `modules/ambiente/` | Os recursos de um ambiente: projeto, `Postgres`, `helinho-web`, variáveis e domínio |
+| `tests/validacoes.tftest.hcl` | `terraform test` das validações, com providers simulados |
 | `terraform.tfvars.example` | Modelo de `terraform.tfvars` (o arquivo real é ignorado pelo git) |
 | `.terraform.lock.hcl` | Hashes dos providers para `linux_amd64`, `darwin_arm64` e `darwin_amd64`; fica versionado |
 | `.tflint.hcl` | Configuração do `tflint` (ruleset `terraform`, preset `recommended`) |
@@ -39,7 +40,10 @@ terraform -chdir=infra/railway fmt -check -recursive
 terraform -chdir=infra/railway init -backend=false -lockfile=readonly
 terraform -chdir=infra/railway validate
 (cd infra/railway && tflint --init && tflint --recursive)
+terraform -chdir=infra/railway test
 ```
+
+O `terraform test` roda `tests/validacoes.tftest.hcl` com os dois providers simulados (`mock_provider`): só planeja em memória, sem token e sem falar com a Railway. É ele que exercita as validações de `variables.tf` e o caso com produção ligada.
 
 Requer Terraform `>= 1.16.0, < 1.18.0` e, para o lint, `tflint` `>= 0.66`. O `--recursive` inclui `modules/ambiente`.
 
