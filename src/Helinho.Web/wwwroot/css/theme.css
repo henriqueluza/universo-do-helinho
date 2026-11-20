@@ -200,6 +200,9 @@
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .input { font: 600 var(--fs-md) var(--font); color: var(--ink); width: 100%; height: var(--h-control-lg); padding: 0 14px; border: 2px solid var(--rule-strong); border-radius: var(--r-md); background: var(--stage); transition: border-color var(--dur), box-shadow var(--dur); }
   .input:focus { outline: none; border-color: var(--select-line); box-shadow: 0 0 0 4px var(--select-bg); }
+  /* erro (recreio.css 301-302): depois de :focus para a borda --bad vencer no campo focado */
+  .input[aria-invalid="true"] { border-color: var(--bad); }
+  .input[aria-invalid="true"]:focus { box-shadow: 0 0 0 4px var(--bad-bg); }
   .field { display: grid; gap: 6px; }
   .field label { font-weight: 800; }
   .field small { color: var(--ink-3); font-weight: 600; }
@@ -436,7 +439,7 @@
   /* elenco em foco: Helinho na frente e nítido; a turma atrás, desfocada como profundidade de campo */
   .faces { --u: clamp(9px, min(2cqi, 1.7vh), 18px); position: relative; list-style: none; margin: var(--sp-2) 0 0; padding: 0; width: calc(var(--u) * 40); max-width: 100%; height: calc(var(--u) * 19); }
   .faces::before { content: ""; position: absolute; left: 50%; top: 52%; width: calc(var(--u) * 22); aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; background: radial-gradient(circle, oklch(0.87 0.175 90 / .45), oklch(0.87 0.175 90 / 0) 66%); }
-  .face { position: absolute; width: calc(var(--u) * var(--w)); left: calc(var(--u) * var(--x)); top: calc(var(--u) * var(--y)); filter: blur(var(--b)) drop-shadow(0 calc(var(--u) * .8) calc(var(--u) * 1.2) oklch(0.12 0.08 260 / .35)); opacity: var(--o, 1); z-index: var(--z); transition: filter 400ms var(--ease-out), opacity 400ms var(--ease-out), scale 400ms var(--ease-out); }
+  .face { position: absolute; width: calc(var(--u) * var(--w)); left: calc(var(--u) * var(--x)); top: calc(var(--u) * var(--y)); filter: blur(var(--b)) drop-shadow(0 calc(var(--u) * .8) calc(var(--u) * 1.2) oklch(0.12 0.08 260 / .35)); opacity: var(--o, 1); z-index: var(--z); }
   .face img { display: block; width: 100%; height: auto; }
   .face.f-byte  { --w: 8.4; --x: 5.2;  --y: 1.4; --b: 2.6px; --o: .78; --z: 1; }
   .face.f-luna  { --w: 8.4; --x: 26.6; --y: 1;   --b: 2.6px; --o: .78; --z: 1; }
@@ -445,7 +448,7 @@
   .face.f-lia   { --w: 7.2; --x: 33.2; --y: 0;   --b: 3.4px; --o: .62; --z: 0; }
   .face.lead    { --w: 15.5; --x: 12.3; --y: 2.4; --b: 0px; --z: 5; filter: drop-shadow(0 calc(var(--u) * 1.2) calc(var(--u) * 2) oklch(0.12 0.08 260 / .45)); }
   /* passar o mouse traz o personagem para o foco */
-  .face:not(.lead):hover { --b: 0px; --o: 1; scale: 1.06; z-index: 6; }
+  @media (hover: hover) { .face:not(.lead):hover { --b: 0px; --o: 1; scale: 1.06; z-index: 6; } }
   .auth-foot { color: oklch(0.82 0.04 250); font-size: var(--fs-sm); font-weight: 700; display: flex; align-items: center; gap: var(--sp-2); }
   .auth-foot svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
   /* lado do formulário: céu claro + cartão elevado, nada de vazio branco */
@@ -462,7 +465,6 @@
   .auth-form .btn { width: 100%; gap: var(--sp-2); }
   .auth-form .link { justify-self: start; font-weight: 800; color: var(--select-ink); text-decoration-thickness: 2px; text-underline-offset: 4px; }
   .auth-help { color: var(--ink-3); font-size: var(--fs-sm); font-weight: 600; text-align: center; }
-  .field label { transition: color var(--dur); }
   .field:focus-within label { color: var(--select-ink); }
   /* botão ocupado: girador + rótulo; sem clique duplo */
   .btn[aria-busy="true"] { pointer-events: none; }
@@ -514,13 +516,13 @@
   .phone .screen::before { content: ""; position: absolute; top: 10px; left: 50%; translate: -50% 0; width: 84px; height: 20px; border-radius: 99px; background: oklch(0.24 0.03 262); }
   .phone .is-empty { color: var(--ink-3); font-style: italic; font-weight: 600; }
   .scr-title { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; color: var(--qi); text-align: center; }
-  .gq-head { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: var(--fs-xs); color: var(--qi); }
+  .gq-head { display: flex; align-items: center; gap: var(--sp-2); font-weight: 800; font-size: var(--fs-xs); color: var(--qi); }
   .gq-head img { width: 36px; height: 36px; object-fit: contain; }
   .gq-head .lvl { margin-left: auto; padding: 3px 9px; border-radius: 99px; background: var(--stage); color: var(--ink-2); }
   .gq { padding: 14px; border-radius: 18px; background: var(--stage); border: 2px solid oklch(from var(--q) l c h / .3); font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; line-height: 1.25; min-height: 84px; overflow-wrap: anywhere; }
-  .gq-alts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  .gq-alts li { display: flex; gap: 8px; align-items: center; min-height: 42px; padding: 8px 10px; border-radius: 14px; background: var(--stage); border: 2px solid var(--rule); border-bottom-width: 4px; font-weight: 800; font-size: var(--fs-sm); overflow-wrap: anywhere; }
-  .gq-alts li::before { content: attr(data-k); width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; background: var(--neutral-bg); color: var(--neutral-ink); font-size: var(--fs-xs); flex: none; font-style: normal; }
+  .gq-alts { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+  .gq-alts li { display: flex; gap: var(--sp-2); align-items: center; min-height: 42px; padding: var(--sp-2) 10px; border-radius: 14px; background: var(--stage); border: 2px solid var(--rule); border-bottom-width: 4px; font-weight: 800; font-size: var(--fs-sm); overflow-wrap: anywhere; }
+  .gq-alts li::before { content: attr(data-k); width: 24px; height: 24px; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--neutral-bg); color: var(--neutral-ink); font-size: var(--fs-xs); flex: none; font-style: normal; }
   .gq-alts li.right { border-color: oklch(from var(--ok) l c h / .6); background: var(--ok-bg); color: var(--ok-ink); }
   .gq-alts li.right::before { background: var(--ok); color: oklch(1 0 0); }
   .gq-why { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); }
@@ -599,6 +601,7 @@
     @keyframes pick { 40% { scale: 1.22; rotate: -7deg; } }
     .tp:has(:checked)::after, .ready li.ok::before { animation: pop 380ms var(--ease-pop) both; }
     .phone .screen { transition: background var(--dur-slow); }
+    .field label { transition: color var(--dur); }
     .phone [data-face], .phone [data-body] { animation: none; }
     /* entrar: o cartão sobe, o conteúdo entra em cascata, as estrelas piscam */
     .auth-card > *, .auth-card form > *, .auth-help, .auth-say, .auth-note, .auth-logos > * { animation: rise var(--dur-enter) var(--ease-out) both; animation-delay: calc(var(--i, 0) * var(--stagger)); }
@@ -648,7 +651,7 @@
     @keyframes shake { 20% { translate: -8px 0; } 40% { translate: 7px 0; } 60% { translate: -4px 0; } 80% { translate: 2px 0; } }
     /* a turma entra desfocada e flutua; o Helinho chega por último, em foco */
     .face img { animation: drift var(--t, 5s) ease-in-out var(--d, 0s) infinite alternate; }
-    .face { animation: focus-in 900ms var(--ease-out) both; animation-delay: var(--in, 200ms); }
+    .face { animation: focus-in 900ms var(--ease-out) both; animation-delay: var(--in, 200ms); transition: filter 400ms var(--ease-out), opacity 400ms var(--ease-out), scale 400ms var(--ease-out); }
     .f-byte { --t: 5.2s; --d: -1s; --in: 150ms; } .f-luna { --t: 4.6s; --d: -2.2s; --in: 220ms; } .f-lia { --t: 5.8s; --d: -.6s; --in: 290ms; }
     .f-flora { --t: 4.4s; --d: -3s; --in: 330ms; } .f-max { --t: 4.9s; --d: -1.7s; --in: 400ms; }
     .face.lead { animation: hero-in 900ms var(--ease-pop) 620ms both; }
@@ -994,7 +997,7 @@
 
 /* ---- LEGADO: tema antigo, intacto, a remover na limpeza do Recreio ---- */
 @layer legado {
-/* Tema do painel: tokens de docs/design/DESIGN.md (seção 9). Carregar depois do Bootstrap. */
+/* Tema do painel: tokens de docs/design/DESIGN.md (seção 9). O Bootstrap fica abaixo, na camada bootstrap (@import no topo). */
 @font-face { font-family: "DM Sans"; font-weight: 400; font-style: normal; font-display: swap; src: url("../fonts/dm-sans-latin-400-normal.woff2") format("woff2"); }
 @font-face { font-family: "DM Sans"; font-weight: 500; font-style: normal; font-display: swap; src: url("../fonts/dm-sans-latin-500-normal.woff2") format("woff2"); }
 @font-face { font-family: "DM Sans"; font-weight: 600; font-style: normal; font-display: swap; src: url("../fonts/dm-sans-latin-600-normal.woff2") format("woff2"); }
