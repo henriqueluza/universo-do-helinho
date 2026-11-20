@@ -99,50 +99,99 @@ else
             IndexModel.Spark(e.LastDays.Select(d => (double?)d.InactiveStudents)), Url.Page("/Alunos/Index")))" />
     </section>
 
-    <section class="panel panel-pad chart-card" aria-labelledby="t-resp">
-        <div class="panel-head">
-            <div><h2 id="t-resp">Respostas por dia</h2><p>Últimos @periodo dias · @IndexModel.Num(t.Answers.Value ?? 0) respostas, <b class="@(t.Answers.Trend.Direction == TrendDirection.Up ? "txt-good" : null)">@t.Answers.Trend.Text</b> sobre os @periodo anteriores</p></div>
-            <ul class="legend" aria-hidden="true"><li><i class="sw sw-data"></i>Últimos @periodo dias</li><li><i class="sw sw-ref"></i>@periodo dias anteriores</li></ul>
-        </div>
-        <div class="linechart" data-fonte="tab-resp" tabindex="0" role="img" aria-label="Linha de respostas por dia nos últimos @periodo dias, comparada aos @periodo anteriores. Use as setas para percorrer os dias; os números estão na tabela logo abaixo."></div>
-        <details class="chart-table"><summary><svg class="icon" aria-hidden="true"><use href="#i-table" /></svg>Ver em tabela</summary>
-            <div class="tscroll">
-                <table id="tab-resp" class="dtable">
-                    <caption class="sr">Respostas por dia</caption>
-                    <thead><tr><th scope="col">Dia</th><th scope="col">Últimos @periodo dias</th><th scope="col">@periodo dias anteriores</th></tr></thead>
-                    <tbody>
-                        @foreach (var d in t.AnswersByDay)
-                        {
-                            <tr><th scope="row" data-curto="@IndexModel.DateShort(d.Day)">@IndexModel.DayLabel(d.Day)</th><td>@d.Answers</td><td>@d.PreviousAnswers</td></tr>
-                        }
-                    </tbody>
-                </table>
+    <div class="two">
+        <section class="panel panel-pad chart-card" style="min-width:0" aria-labelledby="t-resp">
+            <div class="panel-head">
+                <div><h2 id="t-resp">Respostas por dia</h2><p>Últimos @periodo dias · @IndexModel.Num(t.Answers.Value ?? 0) respostas, <b class="@(t.Answers.Trend.Direction == TrendDirection.Up ? "txt-good" : null)">@t.Answers.Trend.Text</b> sobre os @periodo anteriores</p></div>
+                <ul class="legend" aria-hidden="true"><li><i class="sw sw-data"></i>Últimos @periodo dias</li><li><i class="sw sw-ref"></i>@periodo dias anteriores</li></ul>
             </div>
-        </details>
+            <div class="linechart" data-fonte="tab-resp" tabindex="0" role="img" aria-label="Linha de respostas por dia nos últimos @periodo dias, comparada aos @periodo anteriores. Use as setas para percorrer os dias; os números estão na tabela logo abaixo."></div>
+            <details class="chart-table"><summary><svg class="icon" aria-hidden="true"><use href="#i-table" /></svg>Ver em tabela</summary>
+                <div class="tscroll">
+                    <table id="tab-resp" class="dtable">
+                        <caption class="sr">Respostas por dia</caption>
+                        <thead><tr><th scope="col">Dia</th><th scope="col">Últimos @periodo dias</th><th scope="col">@periodo dias anteriores</th></tr></thead>
+                        <tbody>
+                            @foreach (var d in t.AnswersByDay)
+                            {
+                                <tr><th scope="row" data-curto="@IndexModel.DateShort(d.Day)">@IndexModel.DayLabel(d.Day)</th><td>@d.Answers</td><td>@d.PreviousAnswers</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+        </section>
+
+        <section class="panel panel-pad" style="min-width:0" aria-labelledby="t-attn">
+            <div class="panel-head"><h2 id="t-attn">Precisa de atenção</h2></div>
+            @if (Model.Attention.IsEmpty)
+            {
+                <p class="foot-note">Nada precisa de atenção agora.</p>
+            }
+            else
+            {
+                <div class="attention">
+                    @foreach (var al in Model.Attention.Alerts)
+                    {
+                        <a class="attn" href="@Model.AlertHref(al)"><span class="ic @(al.QuizType is { } aq ? IndexModel.TypeShort(aq) : null)" style="@IndexModel.AlertStyle(al)"><svg aria-hidden="true"><use href="#@IndexModel.AlertIcon(al)" /></svg></span><span><b>@IndexModel.AlertTitle(al)</b><small>@al.Detail</small></span><svg class="icon go" aria-hidden="true"><use href="#i-go" /></svg></a>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+
+    <section aria-labelledby="t-tipos">
+        <div class="panel-head"><h2 id="t-tipos">Acertos por tipo de quiz</h2><p>Cada personagem do jogo cuida de um tema</p><span class="cast-hint" aria-hidden="true">Deslize para ver os 5 temas →</span></div>
+        <div class="cast">
+            @foreach (var tipo in t.AccuracyByType)
+            {
+                var ch = IndexModel.Character(tipo.QuizType);
+                <a class="castcard @IndexModel.TypeShort(tipo.QuizType)" href="@Url.Page("/Desempenho/Index")">
+                    <img src="~/img/@(ch.Slug)-corpo.webp" width="@ch.BodyWidth" height="300" alt="" />
+                    <span class="name">@IndexModel.TypeLabel(tipo.QuizType)<span>@ch.With</span></span>
+                    @if (tipo.AccuracyPercent is { } pct)
+                    {
+                        <span class="pct"><span data-count="@pct">@pct</span><small>%</small></span>
+                        <span class="meter"><i style="width:@(pct)%"></i></span>
+                    }
+                    else
+                    {
+                        <span class="pct">—</span>
+                    }
+                    <span class="count">@(tipo.Answers == 0 ? "Sem respostas" : $"{IndexModel.Num(tipo.Answers)} respostas")</span>
+                </a>
+            }
+        </div>
     </section>
 
-    <h2 class="section-title">Acerto médio por tipo de quiz</h2>
-    <div class="kpi-grid mb-4">
-        @foreach (var tipo in t.AccuracyByType)
-        {
-            <div class="card-panel kpi @IndexModel.TypeClass(tipo.QuizType)">
-                <p class="muted kpi-label"><span class="type-mark" aria-hidden="true"></span>@IndexModel.TypeLabel(tipo.QuizType)</p>
-                @if (tipo.AccuracyPercent is { } pct)
+    var tops = Model.Rankings.TopUnits;
+    @if (tops is null)
+    {
+        <partial name="_Confusing" model="Model" />
+    }
+    else
+    {
+        <div class="two">
+            <partial name="_Confusing" model="Model" />
+            <section class="panel panel-pad" style="min-width:0" aria-labelledby="t-unid">
+                <div class="panel-head"><h2 id="t-unid">Unidades que mais jogam</h2></div>
+                @if (tops.Count == 0)
                 {
-                    <p class="kpi-value">@pct%</p>
-                    <div class="progress" role="progressbar" aria-label="Acerto em @IndexModel.TypeLabel(tipo.QuizType)" aria-valuenow="@pct" aria-valuemin="0" aria-valuemax="100">
-                        <div class="progress-bar type-bar" style="width: @(pct)%"></div>
-                    </div>
-                    <p class="muted kpi-context">@tipo.Answers respostas</p>
+                    <p class="foot-note">Nenhuma unidade com respostas no período.</p>
                 }
                 else
                 {
-                    <p class="kpi-value">—</p>
-                    <p class="muted kpi-context">Sem respostas</p>
+                    <ol class="rank">
+                        @for (var i = 0; i < tops.Count; i++)
+                        {
+                            <li style="--v:@IndexModel.Inv(tops[i].Share);--k:@i"><span class="pos">@(i + 1)</span><span class="rk-name">@tops[i].UnitName<small>@IndexModel.Num(tops[i].ActiveStudents) alunos ativos</small></span><b>@IndexModel.Num(tops[i].Answers)</b><span class="rk-bar" aria-hidden="true"><i></i></span></li>
+                        }
+                    </ol>
+                    <p class="foot-note">Respostas nos últimos @periodo dias</p>
                 }
-            </div>
-        }
-    </div>
+            </section>
+        </div>
+    }
 
     <h2 class="section-title">Atividade recente</h2>
     <div class="card-panel p-0">
