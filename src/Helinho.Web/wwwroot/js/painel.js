@@ -157,7 +157,19 @@ const calmo = () => reduz.matches;
     tip.style.translate = `${L}px ${T}px`;
   };
   const esconder = () => tip.classList.remove('on');
-  addEventListener('scroll', esconder, { passive: true });
+  // Foco por teclado numa célula fora da tela: o navegador rola a página até ela e essa rolagem não
+  // pode apagar a dica recém-aberta. Enquanto o alvo ainda tem foco e a rolagem é a do próprio foco
+  // (logo após o focus, e sem roda, toque ou tecla do usuário no meio), a dica é reposicionada em vez
+  // de escondida. A janela se renova a cada rolagem do foco, porque a rolagem pode ser suave
+  // (scroll-behavior do Bootstrap) e durar mais que o intervalo. Qualquer outra rolagem esconde.
+  const JANELA_FOCO = 400;
+  let alvoFoco = null, focoEm = 0;
+  addEventListener('scroll', () => {
+    if (alvoFoco && document.activeElement === alvoFoco.alvo && performance.now() - focoEm < JANELA_FOCO) { focoEm = performance.now(); alvoFoco.on(); }
+    else esconder();
+  }, { passive: true });
+  // Roda, toque ou tecla do usuário encerram a janela do foco (o Tab seguinte abre uma nova no focus).
+  ['wheel', 'touchmove', 'keydown'].forEach((ev) => addEventListener(ev, () => { focoEm = 0; }, { passive: true }));
   // Esc fecha a dica e tira a mira (.hover) dos gráficos de linha (WCAG 1.4.13).
   addEventListener('keydown', (e) => { if (e.key === 'Escape') { esconder(); graficos.forEach((b) => b.classList.remove('hover')); } });
 
@@ -166,7 +178,8 @@ const calmo = () => reduz.matches;
     const [t, ...resto] = alvo.dataset.tip.split('|');
     const on = () => { const r = alvo.getBoundingClientRect(); mostrar([t, ...resto.map((x) => [null, x])], r.left + r.width / 2, r.top); };
     alvo.addEventListener('pointerenter', on); alvo.addEventListener('pointerleave', esconder);
-    alvo.addEventListener('focus', on); alvo.addEventListener('blur', esconder);
+    alvo.addEventListener('focus', () => { alvoFoco = { alvo, on }; focoEm = performance.now(); on(); });
+    alvo.addEventListener('blur', () => { if (alvoFoco && alvoFoco.alvo === alvo) alvoFoco = null; esconder(); });
   });
 
   // Minigráfico dos indicadores.
