@@ -1,0 +1,14 @@
+Convite para administrar {{unidade}} no Universo do Helinho
+Defina a sua senha em até {{validade}} para entrar no painel.
+
+Olá, {{nome}}.
+
+Você recebeu um convite para administrar {{unidade}} no painel do Universo do Helinho, o jogo educativo da FUNDHAS. Para começar, defina a sua senha neste link:
+
+{{link}}
+
+A página que vai abrir fica em {{painel}}. Depois de abrir, confira esse endereço na barra do navegador antes de digitar a senha.
+
+O link vale por {{validade}} e só pode ser usado uma vez. Depois desse prazo, peça um novo convite a quem cadastrou você.
+
+Se você não esperava este convite, ignore esta mensagem: a conta só passa a funcionar depois que a senha é definida. Na dúvida, não use o link e fale com quem cadastrou você.
