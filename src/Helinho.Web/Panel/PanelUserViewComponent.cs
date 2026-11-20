@@ -5,7 +5,26 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Helinho.Web.Panel;
 
-public sealed record PanelUserModel(string Name, string Role, string Unit, IReadOnlyList<NavItem> Items);
+public sealed record PanelUserModel(string Name, string Role, string Unit, IReadOnlyList<NavItem> Items)
+{
+    /// <summary>Iniciais para o avatar: primeira letra do primeiro e do último nome.</summary>
+    public string Initials
+    {
+        get
+        {
+            var parts = Name.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return parts.Length switch
+            {
+                0 => "?",
+                1 => char.ToUpperInvariant(parts[0][0]).ToString(),
+                _ => string.Concat(char.ToUpperInvariant(parts[0][0]), char.ToUpperInvariant(parts[^1][0])),
+            };
+        }
+    }
+
+    /// <summary>Itens agrupados na ordem do menu; o grupo inicial vem com rótulo nulo.</summary>
+    public IEnumerable<IGrouping<string?, NavItem>> Groups => Items.GroupBy(i => i.Group);
+}
 
 /// <summary>Dados do menu lateral: itens permitidos ao papel, nome, papel e unidade do usuário (PRD B1).</summary>
 public sealed class PanelUserViewComponent(ICurrentUser currentUser, IAppDbContext db) : ViewComponent
