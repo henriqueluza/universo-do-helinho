@@ -251,8 +251,8 @@
   .table-wrap { position: relative; overflow-x: auto;
     background: linear-gradient(to right, var(--stage) 30%, transparent) left / 28px 100% no-repeat local,
       linear-gradient(to left, var(--stage) 30%, transparent) right / 28px 100% no-repeat local,
-      linear-gradient(to right, oklch(from var(--ink) l c h / .16), transparent) left / 12px 100% no-repeat scroll,
-      linear-gradient(to left, oklch(from var(--ink) l c h / .16), transparent) right / 12px 100% no-repeat scroll; }
+      linear-gradient(to right, oklch(from var(--ink) l c h / .16), transparent) left / var(--sp-3) 100% no-repeat scroll,
+      linear-gradient(to left, oklch(from var(--ink) l c h / .16), transparent) right / var(--sp-3) 100% no-repeat scroll; }
   .table { width: 100%; border-collapse: separate; border-spacing: 0; }
   .table thead th { background: none; border-bottom: 0; text-align: left; padding: 0 12px 10px; color: var(--ink-3); font-size: var(--fs-xs); font-weight: 800; letter-spacing: .02em; white-space: nowrap; }
   .table td, .table tbody th { padding: 12px; border-top: 2px solid var(--rule); border-bottom: 0; font-weight: 600; vertical-align: middle; text-align: left; }
@@ -346,7 +346,8 @@
   .tema-btn[aria-pressed="true"] { background: var(--select-bg); border-color: var(--select-line); color: var(--select-ink); }
   @media (scripting: none) { .tema-btn { display: none; } }
   .main > .page-title { margin-bottom: 0; }
-  /* a preview põe o subtítulo a 6px do título; o layout renderiza os dois como irmãos do grid (gap de 24px) */
+  /* a preview põe o subtítulo a 6px do título; o layout renderiza os dois como irmãos do grid de .main.
+     Depende de ".main { gap: var(--sp-6) }" (acima): se esse gap mudar, mude este valor junto. */
   .main > .page-title:has(+ .page-head) { margin-bottom: calc(-1 * var(--sp-6)); }
   .skip-link { position: absolute; z-index: 2000; left: var(--sp-2); top: -64px; padding: 10px 16px; border-radius: var(--r-md); background: var(--ink); color: var(--stage); font-weight: 800; text-decoration: none; }
   .skip-link:focus { top: var(--sp-2); }
