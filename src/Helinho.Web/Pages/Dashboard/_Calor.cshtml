@@ -26,7 +26,7 @@
                         @foreach (var d in dias)
                         {
                             var cel = calor.Cells.Single(c => c.Day == d && c.Shift == turno);
-                            <td style="--v:@IndexModel.Inv(Math.Round(cel.Intensity, 2))" data-tip="@IndexModel.WeekdayName(d), @IndexModel.ShiftWord(turno)|@IndexModel.Num(cel.Answers) respostas" tabindex="0"><span>@IndexModel.Num(cel.Answers)</span></td>
+                            <td style="--v:@IndexModel.Inv(Math.Round(cel.Intensity, 2))" data-tip="@IndexModel.WeekdayName(d), @IndexModel.ShiftWord(turno)|@IndexModel.Num(cel.Answers) respostas" tabindex="0"><span><span class="sr">@IndexModel.WeekdayName(d), @IndexModel.ShiftWord(turno): </span>@IndexModel.Num(cel.Answers)<span class="sr"> respostas</span></span></td>
                         }
                     </tr>
                 }
