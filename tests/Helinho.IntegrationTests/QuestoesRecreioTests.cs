@@ -187,12 +187,13 @@ public class QuestoesRecreioTests(PostgresFixture postgres)
             foreach (var i in new[] { 0, 1, 2, 3 })
             {
                 Assert.Contains($"data-bind=\"a{i}\"", html, StringComparison.Ordinal);
-                Assert.Matches($"data-show=\"a{i}\" data-alt=\"{i}\" data-empty=\"Alternativa [ABCD]\"", html);
+                Assert.Contains($"data-show=\"a{i}\"", html, StringComparison.Ordinal);
+                Assert.Contains($"data-alt=\"{i}\"", html, StringComparison.Ordinal);
+                Assert.Contains($"data-empty=\"Alternativa {"ABCD"[i]}\"", html, StringComparison.Ordinal);
             }
 
             Assert.Matches("data-show=\"q\" data-empty=\"Sua pergunta aparece aqui\"", html);
-            Assert.Matches("<span class=\"count-hint\" data-count-for=\"Input_Statement\" hidden></span>", html);
-            Assert.Contains("Até 500 caracteres.", html, StringComparison.Ordinal);
+            Assert.Contains("<small>Até 500 caracteres.<span class=\"count-hint\" data-count-for=\"Input_Statement\" hidden></span></small>", html, StringComparison.Ordinal);
             Assert.Matches("<span data-ready-hint></span>Fica como rascunho até ser aprovada\\.", html);
             Assert.Equal(5, Regex.Count(html, "<li class=\"(ok)?\" data-check=\"(tema|age|q|alts|right)\""));
             Assert.DoesNotMatch("<script(?![^>]*\\bsrc=)", html);

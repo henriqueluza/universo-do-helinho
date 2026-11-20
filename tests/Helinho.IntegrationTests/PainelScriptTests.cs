@@ -217,6 +217,8 @@ public partial class PainelScriptTests(PostgresFixture postgres)
         Assert.Contains("document.createElement('span')", maker, StringComparison.Ordinal);
         Assert.DoesNotContain("innerHTML", maker, StringComparison.Ordinal);
         Assert.DoesNotContain("insertAdjacentHTML", maker, StringComparison.Ordinal);
+        Assert.Contains("querySelectorAll('[data-bind]')", maker, StringComparison.Ordinal);
+        Assert.Contains("[data-show=\"${k}\"]", maker, StringComparison.Ordinal);
     }
 
     // Issue #160: os ganchos que o servidor emite em Editar.cshtml são os que o módulo procura.
@@ -234,21 +236,24 @@ public partial class PainelScriptTests(PostgresFixture postgres)
         var maker = Modulo(await GetBodyAsync(), "[data-maker]");
 
         Assert.Contains(gancho, maker, StringComparison.Ordinal);
-        Assert.Contains("querySelectorAll('[data-bind]')", maker, StringComparison.Ordinal);
-        Assert.Contains("[data-show=\"${k}\"]", maker, StringComparison.Ordinal);
     }
 
-    // Issue #160: o checklist repete as regras do servidor (enunciado com texto depois do trim); a regra
-    // de 10 caracteres da preview não existe aqui.
+    private static readonly string[] ChavesDoCriador =
+    [
+        "tema:", "age:", "q:", "alts:", "right:", "['a0', 'a1', 'a2', 'a3']", "show('tname'", "show('age'",
+    ];
+
+    // Issue #160: as chaves do checklist e da prévia são as mesmas que QuestoesRecreioTests confere no HTML
+    // (data-check e data-bind); renomear um lado quebra um teste. Nenhuma regra de tamanho mínimo da preview.
     [Fact]
-    public async Task Criador_checklist_usa_as_regras_do_servidor_e_os_textos_feito_e_falta()
+    public async Task Criador_checklist_usa_as_chaves_do_servidor_e_os_textos_feito_e_falta()
     {
         var maker = Modulo(await GetBodyAsync(), "[data-maker]");
 
         Assert.Contains("' (feito)'", maker, StringComparison.Ordinal);
         Assert.Contains("' (falta)'", maker, StringComparison.Ordinal);
+        Assert.All(ChavesDoCriador, chave => Assert.Contains(chave, maker, StringComparison.Ordinal));
         Assert.DoesNotContain(">= 10", maker, StringComparison.Ordinal);
-        Assert.DoesNotContain(">=10", maker, StringComparison.Ordinal);
     }
 
     // Issue #160: a dica viva só é gravada quando muda (não repete o anúncio do leitor de tela) e o
@@ -260,12 +265,12 @@ public partial class PainelScriptTests(PostgresFixture postgres)
 
         Assert.Contains("[data-ready-hint]", maker, StringComparison.Ordinal);
         Assert.Contains("'Tudo pronto para salvar. '", maker, StringComparison.Ordinal);
-        Assert.Contains("Falta", maker, StringComparison.Ordinal);
-        Assert.Matches(@"Falta\$\{[^}]*'m'", maker); // plural: "Falta" / "Faltam"
-        Assert.Contains("dica.textContent !== t", maker, StringComparison.Ordinal);
-        var primeira = maker.IndexOf("atualizar();", StringComparison.Ordinal);
+        Assert.Contains("'Falta 1 item. '", maker, StringComparison.Ordinal);
+        Assert.Contains("`Faltam ${faltam} itens. `", maker, StringComparison.Ordinal);
+        Assert.Contains("dica.textContent !== textoDaDica", maker, StringComparison.Ordinal);
+        var primeira = maker.LastIndexOf("atualizar();", StringComparison.Ordinal);
         var live = maker.IndexOf("dica?.setAttribute('aria-live', 'polite')", StringComparison.Ordinal);
-        Assert.True(primeira >= 0, "Falta a primeira chamada atualizar();");
+        Assert.True(primeira >= 0, "Falta a chamada atualizar();");
         Assert.True(live > primeira, "aria-live deve ser ligado depois da primeira atualizar();");
     }
 
@@ -277,8 +282,28 @@ public partial class PainelScriptTests(PostgresFixture postgres)
 
         Assert.Contains("[data-count-for]", maker, StringComparison.Ordinal);
         Assert.Contains("c.hidden = false;", maker, StringComparison.Ordinal);
-        Assert.Contains("${campo.value.length}/${campo.maxLength}", maker, StringComparison.Ordinal);
+        Assert.Contains("${comoEnviado(campo.value).length}/${campo.maxLength}", maker, StringComparison.Ordinal);
         Assert.DoesNotMatch(Ocultacao(), maker);
+    }
+
+    // Issue #160: prévia e contador contam a quebra de linha como o servidor (\r\n), senão o contador
+    // diria 500 e o servidor recusaria.
+    [Fact]
+    public async Task Criador_conta_a_quebra_de_linha_como_o_servidor()
+    {
+        var maker = Modulo(await GetBodyAsync(), "[data-maker]");
+
+        Assert.Contains(@"const comoEnviado = (s) => s.replace(/\r?\n/g, '\r\n');", maker, StringComparison.Ordinal);
+        Assert.Contains("comoEnviado(campo.value).length", maker, StringComparison.Ordinal);
+    }
+
+    // Issue #160: o ✓ só muda de lugar quando a alternativa certa muda.
+    [Fact]
+    public async Task Criador_move_o_tick_so_quando_a_certa_muda()
+    {
+        var maker = Modulo(await GetBodyAsync(), "[data-maker]");
+
+        Assert.Contains("if (alvo && tick.parentElement !== alvo) alvo.append(tick);", maker, StringComparison.Ordinal);
     }
 
     // Issue #160: sem animação por JS; o movimento da prévia é CSS e já respeita reduced-motion.
