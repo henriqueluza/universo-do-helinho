@@ -18,7 +18,7 @@ O critério do #153 pede ".table com .meter para o acerto" na lista de Desempenh
 - **Cálculo:** duas subconsultas escalares correlacionadas sobre `QuizAnswers ⨝ QuizSessions` por `StudentId`, dentro da projeção paginada de `StudentPerformanceQueries.ListAsync`. São 2 comandos SQL por página (contagem e página), sem N+1.
 - **Segregação:** a raiz da consulta é `db.Students`, então o filtro global por unidade vale (T1). `QuizAnswers` e `QuizSessions` não têm filtro próprio e herdam o recorte pelo aluno.
 - **Apresentação:** o percentual é calculado na página por `AlunoModel.CorrectPercent`, o mesmo helper da ficha do aluno. Sem respostas, a coluna mostra "—".
-- **Contrato congelado:** não é tocado. `PerformanceRow` é read model interno do painel, não DTO nem rota da API do jogo. Não há entidade, coluna, migração nem pacote novo.
+- **Contrato congelado:** a regra do `CLAUDE.md` congela entidades, migração única, DTOs e rotas da API do jogo, e veda migração, DTO ou pacote novo fora das Issues de abertura. Este ADR não a viola: `PerformanceRow` é read model interno do painel (consumido só pela página Razor `Desempenho/Index`), não DTO nem rota de `/api`. Não há entidade, coluna, migração nem pacote novo; só muda a projeção da consulta e o formato do record. O ADR existe porque a revisão do #163 exigiu registro para alterar consulta já entregue, não porque o contrato seja alterado.
 
 ## 3. Alternativas consideradas
 
