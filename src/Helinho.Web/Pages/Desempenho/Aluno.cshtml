@@ -1,5 +1,6 @@
 @page "{id:guid}"
 @model Helinho.Web.Pages.Desempenho.AlunoModel
+@using Helinho.Web.Painel
 @{
     ViewData["Title"] = Model.Student.FullName;
     var s = Model.Student;
@@ -33,7 +34,7 @@
                 <tbody>
                     @foreach (var t in s.Scores)
                     {
-                        var tema = Helinho.Web.Painel.TemaQuiz.Of(t.Type);
+                        var tema = TemaQuiz.Of(t.Type);
                         var pct = AlunoModel.CorrectPercent(t.Answered, t.Correct);
                         <tr>
                             <td><span class="tag tag-type @tema.Css"><img src="~/img/@tema.Imagem" alt="" width="@tema.Largura" height="@tema.Altura" />@tema.Nome · @tema.Personagem</span></td>

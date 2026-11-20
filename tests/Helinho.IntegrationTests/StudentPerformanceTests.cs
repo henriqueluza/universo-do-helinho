@@ -191,13 +191,18 @@ public partial class StudentPerformanceTests(PostgresFixture postgres)
         var html = await (await client.GetAsync("/Desempenho", ct)).Content.ReadAsStringAsync(ct);
         var vazio = await (await client.GetAsync("/Desempenho?faixa=Age13To14", ct)).Content.ReadAsStringAsync(ct);
 
+        Assert.True(HasClasses(html, "page-head"), "lista sem o cabeçalho da página");
         Assert.True(HasClasses(html, "filters-bar"), "lista sem a barra de filtros");
+        Assert.True(HasClasses(html, "table"), "lista sem a tabela do tema");
+        Assert.Contains("<th scope=\"row\"><a class=\"name\"", html, StringComparison.Ordinal);
         Assert.Contains(">Aplicar</button>", html, StringComparison.Ordinal);
         Assert.True(HasClasses(html, "tag", "tag-neutral"), "nível sem a tag do tema");
         Assert.Contains("2 alunos", html, StringComparison.Ordinal);
         Assert.DoesNotContain("111.111.111-11", html, StringComparison.Ordinal);
         Assert.Contains("id=\"desempenho-vazio\"", vazio, StringComparison.Ordinal);
         Assert.Contains("width=\"117\" height=\"120\"", vazio, StringComparison.Ordinal);
+        AssertSemScriptInlineNemOnchange(html);
+        AssertSemScriptInlineNemOnchange(vazio);
     }
 
     [Fact]
@@ -227,7 +232,7 @@ public partial class StudentPerformanceTests(PostgresFixture postgres)
         var cultural = LinhaDoTipo("Cultural · Luna").Match(html);
         Assert.True(cultural.Success, "tabela sem a linha do tipo Cultural");
         Assert.Contains("<span>—</span>", cultural.Value, StringComparison.Ordinal); // sem respostas: sem barra e sem 0% inventado
-        Assert.DoesNotMatch(BarraDecorativa(0), cultural.Value);
+        Assert.DoesNotContain("class=\"meter", cultural.Value, StringComparison.Ordinal);
 
         // .badges > .badge-card: cada selo é um cartão com o nome em texto, o nome acessível e a data no fuso de Brasília.
         var cartoes = CartaoDeSelo().Matches(html).Select(m => m.Groups["c"].Value).ToList();
@@ -237,6 +242,15 @@ public partial class StudentPerformanceTests(PostgresFixture postgres)
         Assert.Contains("Desbloqueado em 10/11/2026", cem, StringComparison.Ordinal);
         var semArte = Assert.Single(cartoes, c => c.Contains("Explorador do Bosque", StringComparison.Ordinal));
         Assert.Contains("role=\"img\" aria-label=\"Selo Explorador do Bosque\"", semArte, StringComparison.Ordinal);
+        AssertSemScriptInlineNemOnchange(html);
+    }
+
+    /// <summary>Contrato da #153: filtros com botão Aplicar, sem onchange, &lt;noscript&gt; nem script inline.</summary>
+    private static void AssertSemScriptInlineNemOnchange(string html)
+    {
+        Assert.DoesNotContain("<noscript", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("onchange=", html, StringComparison.Ordinal);
+        Assert.DoesNotMatch("""<script(?![^>]*\bsrc=)""", html);
     }
 
     private static async Task GiveBadgeAsync(HelinhoWebFactory factory, Guid studentId, string title)
@@ -263,12 +277,13 @@ public partial class StudentPerformanceTests(PostgresFixture postgres)
     private static Regex BarraDecorativa(int percent) =>
         new($"<span class=\"[^\"]*\\bmeter\\b[^\"]*\" aria-hidden=\"true\"[^>]*><i style=\"width: {percent}%\"></i></span>", RegexOptions.None, TimeSpan.FromSeconds(1));
 
-    [GeneratedRegex("class=\"(?<c>[^\"]*)\"")]
+    [GeneratedRegex("class=\"(?<c>[^\"]*)\"", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex AtributoClass();
 
-    [GeneratedRegex("""<div class="[^"]*\blevel\b[^"]*" id="aluno-nivel">[\s\S]*?</div>""")]
+    // .level e .badge-card não têm <div> aninhado: o bloco vai até o primeiro </div>. Se ganharem, troque o fim do padrão.
+    [GeneratedRegex("""<div class="[^"]*\blevel\b[^"]*" id="aluno-nivel">[\s\S]*?</div>""", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex BlocoNivel();
 
-    [GeneratedRegex("""<div class="[^"]*\bbadge-card\b[^"]*">(?<c>[\s\S]*?)</div>""")]
+    [GeneratedRegex("""<div class="[^"]*\bbadge-card\b[^"]*">(?<c>[\s\S]*?)</div>""", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex CartaoDeSelo();
 }
