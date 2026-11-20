@@ -71,7 +71,7 @@ public class PanelUnidadesAdminsRecreioTests(PostgresFixture postgres)
         Assert.Contains("Novo administrador", html);
         // O seed sintético cria admin.norte e admin.sul ativos: a situação sai em texto, não só em cor.
         Assert.Contains("admin.norte", html);
-        Assert.Matches("<span class=\"tag tag-ok\">Ativo</span>", html);
+        Assert.Contains("<span class=\"tag tag-ok\">Ativo</span>", html);
         Assert.DoesNotContain("btn-ai", html);
         Assert.DoesNotContain("Reenviar convite", html);
     }
