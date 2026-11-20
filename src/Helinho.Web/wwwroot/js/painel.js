@@ -270,4 +270,77 @@ const calmo = () => reduz.matches;
     new ResizeObserver(() => { if (box.clientWidth !== w) { w = box.clientWidth; desenhar(); } }).observe(box);
   });
 })();
+
+// Criador de questões: prévia ao vivo. O servidor (#154) já entrega prévia e checklist ao enviar o formulário;
+// aqui só acompanha a digitação. Texto sempre por textContent; nenhuma animação por JS
+// (o pop do checklist é CSS dentro de prefers-reduced-motion: no-preference).
+(() => {
+  const maker = document.querySelector('[data-maker]');
+  if (!maker) return;
+  const pv = maker.querySelector('[data-preview]');
+  const dica = maker.querySelector('[data-ready-hint]');
+  const temas = maker.querySelectorAll('.theme-pick input[data-k]');
+  const val = (b) => maker.querySelector(`[data-bind="${b}"]`)?.value.trim() ?? '';
+  const show = (k, v) => maker.querySelectorAll(`[data-show="${k}"]`).forEach((el) => {
+    const max = Number(el.dataset.max);
+    const texto = max && v.length > max ? `${v.slice(0, max)}…` : v;
+    el.textContent = texto || (el.dataset.empty ?? '');
+    el.classList.toggle('is-empty', !texto && 'empty' in el.dataset);
+  });
+  const atualizar = () => {
+    const marcado = [...temas].find((i) => i.checked);
+    temas.forEach((i) => pv?.classList.toggle(i.dataset.k, i === marcado));
+    show('tname', marcado?.closest('label')?.querySelector('b')?.textContent.trim() ?? '');
+    const img = marcado?.closest('label')?.querySelector('img');
+    if (pv && img) {
+      let face = pv.querySelector('[data-face]');
+      if (!face) {
+        face = document.createElement('img');
+        face.alt = '';
+        face.dataset.face = '';
+        pv.querySelector('.gq-head')?.prepend(face);
+      }
+      ['src', 'width', 'height'].forEach((a) => { if (img.getAttribute(a) !== null) face.setAttribute(a, img.getAttribute(a)); });
+    }
+    const faixa = maker.querySelector('[data-group="age"] input:checked');
+    show('age', faixa?.closest('label')?.querySelector('span')?.textContent.trim() ?? '');
+    maker.querySelectorAll('[data-bind]').forEach((el) => show(el.dataset.bind, el.value.trim()));
+    const certa = maker.querySelector('input[name="Input.Correct"]:checked')?.value;
+    maker.querySelectorAll('[data-alt]').forEach((s) => s.parentElement.classList.toggle('right', s.dataset.alt === certa));
+    let tick = maker.querySelector('[data-tick]');
+    if (certa == null) tick?.remove();
+    else {
+      if (!tick) {
+        tick = document.createElement('span');
+        tick.dataset.tick = '';
+        tick.textContent = ' ✓';
+      }
+      maker.querySelector(`[data-alt="${certa}"]`)?.parentElement.append(tick);
+    }
+    maker.querySelectorAll('[data-count-for]').forEach((c) => {
+      const campo = document.getElementById(c.dataset.countFor);
+      if (!campo) return;
+      c.textContent = `${campo.value.length}/${campo.maxLength}`;
+      c.hidden = false;
+    });
+    // Mesmas regras do servidor para o checklist.
+    const ok = { tema: !!marcado, age: !!faixa, q: !!val('q'), alts: ['a0', 'a1', 'a2', 'a3'].every((b) => val(b)), right: certa != null };
+    let faltam = 0;
+    maker.querySelectorAll('[data-check]').forEach((li) => {
+      const feito = !!ok[li.dataset.check];
+      if (!feito) faltam++;
+      li.classList.toggle('ok', feito);
+      const t = li.querySelector('[data-check-text]');
+      if (t) t.textContent = feito ? ' (feito)' : ' (falta)';
+    });
+    if (!dica) return;
+    const t = faltam ? `Falta${faltam > 1 ? 'm' : ''} ${faltam} ${faltam > 1 ? 'itens' : 'item'}. ` : 'Tudo pronto para salvar. ';
+    if (dica.textContent !== t) dica.textContent = t;
+  };
+  maker.addEventListener('input', atualizar);
+  maker.addEventListener('change', atualizar);
+  atualizar();
+  // Região viva só depois da primeira passada: não anuncia ao carregar.
+  dica?.setAttribute('aria-live', 'polite');
+})();
 })();
