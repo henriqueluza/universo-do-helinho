@@ -27,6 +27,10 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
     [GeneratedRegex(@"@import\s+url\(""\.\./lib/bootstrap/bootstrap\.min\.css""\)\s+layer\(bootstrap\)\s*;")]
     private static partial Regex BootstrapImport();
 
+    // O CSS busca recurso por url(...), image-set("...") ou @import "...": nenhum pode apontar para fora (http:, https: ou //).
+    [GeneratedRegex(@"(?:url\(\s*|image-set\(\s*|@import\s+)[""']?\s*(?:https?:)?//", RegexOptions.IgnoreCase)]
+    private static partial Regex ExternalResource();
+
     [Fact]
     public async Task Tema_declara_a_ordem_das_camadas_e_isola_bootstrap_e_legado()
     {
@@ -161,9 +165,26 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
         {
             Assert.DoesNotContain(host, css);
         }
-        // O único endereço permitido é o namespace do SVG embutido em data: URI.
-        var semNamespaceSvg = css.Replace("http://www.w3.org/2000/svg", string.Empty, StringComparison.Ordinal);
-        Assert.DoesNotContain("http://", semNamespaceSvg);
-        Assert.DoesNotContain("https://", semNamespaceSvg);
+        // Endereço em comentário ou no namespace de um SVG em data: URI não carrega nada; só url()/@import importam.
+        Assert.Empty(ExternalResource().Matches(css));
     }
+
+    [Theory]
+    [InlineData("a { background: url(https://cdn.example/x.png); }")]
+    [InlineData("a { background: url( 'http://cdn.example/x.png' ); }")]
+    [InlineData("@font-face { src: url(\"//cdn.example/f.woff2\"); }")]
+    [InlineData("@import \"https://cdn.example/a.css\";")]
+    [InlineData("@import url(https://cdn.example/a.css) layer(x);")]
+    [InlineData("a { background: URL(HTTPS://cdn.example/x.png); }")]
+    [InlineData("a { background-image: image-set(\"https://cdn.example/x.png\" 1x); }")]
+    public void Detector_de_recurso_externo_pega_url_e_import_para_fora(string css) =>
+        Assert.NotEmpty(ExternalResource().Matches(css));
+
+    [Theory]
+    [InlineData("/* origem: https://fonts.google.com/specimen/Nunito */")]
+    [InlineData("a { background: url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>\"); }")]
+    [InlineData("@import url(\"../lib/bootstrap/bootstrap.min.css\") layer(bootstrap);")]
+    [InlineData("@font-face { src: url(\"../fonts/nunito-latin-wght-normal.woff2\"); }")]
+    public void Detector_de_recurso_externo_ignora_comentario_data_uri_e_caminho_local(string css) =>
+        Assert.Empty(ExternalResource().Matches(css));
 }
