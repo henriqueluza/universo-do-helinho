@@ -27,6 +27,10 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
     [GeneratedRegex(@"@import\s+url\(""\.\./lib/bootstrap/bootstrap\.min\.css""\)\s+layer\(bootstrap\)\s*;")]
     private static partial Regex BootstrapImport();
 
+    // O CSS busca recurso por url(...), image-set("...") ou @import "...": nenhum pode apontar para fora (http:, https: ou //).
+    [GeneratedRegex(@"(?:url\(\s*|image-set\(\s*|@import\s+)[""']?\s*(?:https?:)?//", RegexOptions.IgnoreCase)]
+    private static partial Regex ExternalResource();
+
     [Fact]
     public async Task Tema_declara_a_ordem_das_camadas_e_isola_o_bootstrap()
     {
@@ -107,6 +111,8 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
     [InlineData(".btn-lg {")]
     [InlineData(".btn-sm {")]
     [InlineData(".input {")]
+    [InlineData(".input[aria-invalid=\"true\"] {")]
+    [InlineData(".input[aria-invalid=\"true\"]:focus {")]
     [InlineData(".select {")]
     [InlineData(".field {")]
     [InlineData(".panel {")]
@@ -127,10 +133,12 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
 
         var css = await client.GetStringAsync("/css/theme.css", Ct);
 
+        // Só a camada components (até a camada screens), e o seletor no início da regra:
+        // ".input {" não pode passar por causa de ".alt .input {".
         var start = css.IndexOf("@layer components {", StringComparison.Ordinal);
-        var end = css.IndexOf("@layer screens {", StringComparison.Ordinal);
+        var end = css.IndexOf("@layer screens {", start, StringComparison.Ordinal);
         Assert.True(start >= 0 && end > start);
-        Assert.Contains(selector, css[start..end]);
+        Assert.Matches(new Regex(@"(?m)^\s*" + Regex.Escape(selector)), css[start..end]);
     }
 
     [Fact]
@@ -185,9 +193,26 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
         {
             Assert.DoesNotContain(host, css);
         }
-        // O único endereço permitido é o namespace do SVG embutido em data: URI.
-        var semNamespaceSvg = css.Replace("http://www.w3.org/2000/svg", string.Empty, StringComparison.Ordinal);
-        Assert.DoesNotContain("http://", semNamespaceSvg);
-        Assert.DoesNotContain("https://", semNamespaceSvg);
+        // Endereço em comentário ou no namespace de um SVG em data: URI não carrega nada; só url()/@import importam.
+        Assert.Empty(ExternalResource().Matches(css));
     }
+
+    [Theory]
+    [InlineData("a { background: url(https://cdn.example/x.png); }")]
+    [InlineData("a { background: url( 'http://cdn.example/x.png' ); }")]
+    [InlineData("@font-face { src: url(\"//cdn.example/f.woff2\"); }")]
+    [InlineData("@import \"https://cdn.example/a.css\";")]
+    [InlineData("@import url(https://cdn.example/a.css) layer(x);")]
+    [InlineData("a { background: URL(HTTPS://cdn.example/x.png); }")]
+    [InlineData("a { background-image: image-set(\"https://cdn.example/x.png\" 1x); }")]
+    public void Detector_de_recurso_externo_pega_url_e_import_para_fora(string css) =>
+        Assert.NotEmpty(ExternalResource().Matches(css));
+
+    [Theory]
+    [InlineData("/* origem: https://fonts.google.com/specimen/Nunito */")]
+    [InlineData("a { background: url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>\"); }")]
+    [InlineData("@import url(\"../lib/bootstrap/bootstrap.min.css\") layer(bootstrap);")]
+    [InlineData("@font-face { src: url(\"../fonts/nunito-latin-wght-normal.woff2\"); }")]
+    public void Detector_de_recurso_externo_ignora_comentario_data_uri_e_caminho_local(string css) =>
+        Assert.Empty(ExternalResource().Matches(css));
 }
