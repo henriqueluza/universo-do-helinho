@@ -36,6 +36,7 @@ public partial class TemaAcabamentoCascataTests
 
     /// <summary>Variáveis que o Bootstrap pinta na célula por <c>box-shadow: inset 0 0 0 9999px</c>, que <c>background: none</c> não desfaz.</summary>
     private static readonly string[] PintamPorSombra = ["--bs-table-accent-bg", "--bs-table-bg-type", "--bs-table-bg-state"];
+    private static readonly string[] Herdadas = ["color", "font-style", "font-weight"];
 
     [Fact]
     public void Cabecalho_e_bordas_da_tabela_sao_os_do_Recreio_nos_dois_temas()
@@ -192,6 +193,32 @@ public partial class TemaAcabamentoCascataTests
             Assert.True(regra.Posicao > padrao.Posicao, $"{tema} precisa vir depois do padrão do .phone");
             Assert.True(regra.Declaracoes.ContainsKey("--qb"), $"{tema} precisa definir --qb");
         }
+    }
+
+    // #160: o texto da alternativa da prévia fica num span. Vazia, o li se pinta como em #154 (cinza, itálico e
+    // peso 600; verde se for a certa) e o span herda, com e sem JavaScript.
+    [Fact]
+    public void Alternativa_vazia_da_previa_se_pinta_como_em_154()
+    {
+        var regras = Regras(Css());
+
+        var vazia = regras.Single(r => r.Camada == "screens" && r.Medias.Count == 0
+            && r.Seletor.Split(',').Select(s => s.Trim()).Contains(".gq-alts li:has(> .is-empty)"));
+        Assert.Contains(".phone .is-empty", vazia.Seletor.Split(',').Select(s => s.Trim()));
+        Assert.Equal("var(--ink-3)", vazia.Declaracoes["color"]);
+        Assert.Equal("italic", vazia.Declaracoes["font-style"]);
+        Assert.Equal("600", vazia.Declaracoes["font-weight"]);
+
+        var texto = Unica(regras, ".gq-alts li > .is-empty", "screens");
+        Assert.All(Herdadas, p => Assert.Equal("inherit", texto.Declaracoes[p]));
+
+        // O peso 600 vence o 800 do li comum: (0,2,1) contra (0,1,1).
+        Assert.Equal("800", Unica(regras, ".gq-alts li", "screens").Declaracoes["font-weight"]);
+
+        // A certa vazia fica verde: mesma especificidade (0,2,1), declarada depois.
+        var certa = Unica(regras, ".gq-alts li.right", "screens");
+        Assert.True(certa.Posicao > vazia.Posicao, ".gq-alts li.right precisa vir depois da regra da alternativa vazia");
+        Assert.True(certa.Declaracoes.ContainsKey("color"), ".gq-alts li.right precisa definir a cor");
     }
 
     /// <summary>Alguma parte do seletor mira th/thead/td da tabela: com <c>.table</c> ou só com elementos (<c>th</c>, <c>thead th</c>).</summary>

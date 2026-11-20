@@ -193,7 +193,8 @@ public class QuestoesRecreioTests(PostgresFixture postgres)
             }
 
             Assert.Matches("data-show=\"q\" data-empty=\"Sua pergunta aparece aqui\"", html);
-            Assert.Contains("<small>Até 500 caracteres.<span class=\"count-hint\" data-count-for=\"Input_Statement\" hidden></span></small>", html, StringComparison.Ordinal);
+            Assert.Contains("<small id=\"Input_Statement-ajuda\">Até 500 caracteres.<span class=\"count-hint\" data-count-for=\"Input_Statement\" hidden></span></small>", html, StringComparison.Ordinal);
+            Assert.Matches("<textarea [^>]*aria-describedby=\"Input_Statement-ajuda\"[^>]*data-bind=\"q\"", html);
             Assert.Matches("<span data-ready-hint></span>Fica como rascunho até ser aprovada\\.", html);
             Assert.Equal(5, Regex.Count(html, "<li class=\"(ok)?\" data-check=\"(tema|age|q|alts|right)\""));
             Assert.DoesNotMatch("<script(?![^>]*\\bsrc=)", html);

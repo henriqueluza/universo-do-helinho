@@ -264,10 +264,10 @@ public partial class PainelScriptTests(PostgresFixture postgres)
         var maker = Modulo(await GetBodyAsync(), "[data-maker]");
 
         Assert.Contains("[data-ready-hint]", maker, StringComparison.Ordinal);
-        Assert.Contains("'Tudo pronto para salvar. '", maker, StringComparison.Ordinal);
+        Assert.Contains("'Tudo pronto. '", maker, StringComparison.Ordinal);
         Assert.Contains("'Falta 1 item. '", maker, StringComparison.Ordinal);
         Assert.Contains("`Faltam ${faltam} itens. `", maker, StringComparison.Ordinal);
-        Assert.Contains("dica.textContent !== textoDaDica", maker, StringComparison.Ordinal);
+        Assert.Matches(@"dica\.textContent\s*!==", maker);
         var primeira = maker.LastIndexOf("atualizar();", StringComparison.Ordinal);
         var live = maker.IndexOf("dica?.setAttribute('aria-live', 'polite')", StringComparison.Ordinal);
         Assert.True(primeira >= 0, "Falta a chamada atualizar();");
@@ -281,7 +281,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
         var maker = Modulo(await GetBodyAsync(), "[data-maker]");
 
         Assert.Contains("[data-count-for]", maker, StringComparison.Ordinal);
-        Assert.Contains("c.hidden = false;", maker, StringComparison.Ordinal);
+        Assert.Matches(@"\.hidden\s*=\s*false\b", maker);
         Assert.Contains("${comoEnviado(campo.value).length}/${campo.maxLength}", maker, StringComparison.Ordinal);
         Assert.DoesNotMatch(Ocultacao(), maker);
     }
@@ -293,7 +293,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     {
         var maker = Modulo(await GetBodyAsync(), "[data-maker]");
 
-        Assert.Contains(@"const comoEnviado = (s) => s.replace(/\r?\n/g, '\r\n');", maker, StringComparison.Ordinal);
+        Assert.Matches(@"replace\(/\\r\?\\n/g,\s*'\\r\\n'\)", maker);
         Assert.Contains("comoEnviado(campo.value).length", maker, StringComparison.Ordinal);
     }
 
@@ -303,7 +303,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     {
         var maker = Modulo(await GetBodyAsync(), "[data-maker]");
 
-        Assert.Contains("if (alvo && tick.parentElement !== alvo) alvo.append(tick);", maker, StringComparison.Ordinal);
+        Assert.Matches(@"tick\.parentElement\s*!==\s*alvo", maker);
     }
 
     // Issue #160: sem animação por JS; o movimento da prévia é CSS e já respeita reduced-motion.

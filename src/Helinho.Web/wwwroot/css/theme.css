@@ -527,7 +527,9 @@
   .phone { width: min(320px, 100%); border-radius: 40px; padding: 10px; background: oklch(0.24 0.03 262); box-shadow: 0 30px 60px -28px oklch(0.2 0.08 260 / .6), inset 0 0 0 2px oklch(1 0 0 / .08); }
   .phone .screen { position: relative; min-height: 520px; border-radius: 31px; overflow: hidden; display: grid; align-content: start; gap: var(--sp-3); padding: 40px 14px 18px; background: linear-gradient(180deg in oklch, var(--qb), var(--stage) 80%); }
   .phone .screen::before { content: ""; position: absolute; top: 10px; left: 50%; translate: -50% 0; width: 84px; height: 20px; border-radius: 99px; background: oklch(0.24 0.03 262); }
-  .phone .is-empty { color: var(--ink-3); font-style: italic; font-weight: 600; }
+  /* a alternativa da prévia guarda o texto num span (#160): vazia, o li se pinta como em #154 e o span herda */
+  .phone .is-empty, .gq-alts li:has(> .is-empty) { color: var(--ink-3); font-style: italic; font-weight: 600; }
+  .gq-alts li > .is-empty { color: inherit; font-style: inherit; font-weight: inherit; }
   .scr-title { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; color: var(--qi); text-align: center; }
   .gq-head { display: flex; align-items: center; gap: var(--sp-2); font-weight: 800; font-size: var(--fs-xs); color: var(--qi); }
   .gq-head img { width: 36px; height: 36px; object-fit: contain; }

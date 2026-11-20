@@ -99,9 +99,9 @@
             <legend class="step-h"><span class="n" aria-hidden="true">3</span>Escreva a pergunta</legend>
             <div class="field">
                 <label asp-for="Input.Statement">Enunciado <span class="req">(obrigatório)</span></label>
-                <textarea class="input textarea" asp-for="Input.Statement" rows="3" maxlength="500" aria-invalid="@Bad("Statement")" aria-describedby="@Desc("Statement")" data-bind="q"></textarea>
+                <textarea class="input textarea" asp-for="Input.Statement" rows="3" maxlength="500" aria-invalid="@Bad("Statement")" aria-describedby="Input_Statement-ajuda@(Err("Statement") is null ? "" : " Input_Statement-erro")" data-bind="q"></textarea>
                 @* Contador: só o painel.js o mostra (#160), na mesma linha da ajuda; sem JS a tela fica igual. *@
-                <small>Até 500 caracteres.<span class="count-hint" data-count-for="Input_Statement" hidden></span></small>
+                <small id="Input_Statement-ajuda">Até 500 caracteres.<span class="count-hint" data-count-for="Input_Statement" hidden></span></small>
                 @if (Err("Statement") is { } statementError)
                 {
                     <span class="field-error" id="Input_Statement-erro">@statementError</span>

@@ -347,7 +347,7 @@ const calmo = () => reduz.matches;
   };
   const atualizarDica = (faltam) => {
     if (!dica) return;
-    const textoDaDica = faltam === 0 ? 'Tudo pronto para salvar. ' : faltam === 1 ? 'Falta 1 item. ' : `Faltam ${faltam} itens. `;
+    const textoDaDica = faltam === 0 ? 'Tudo pronto. ' : faltam === 1 ? 'Falta 1 item. ' : `Faltam ${faltam} itens. `;
     if (dica.textContent !== textoDaDica) dica.textContent = textoDaDica;
   };
   const atualizar = () => {
