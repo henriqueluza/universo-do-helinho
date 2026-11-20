@@ -165,6 +165,29 @@ public partial class PainelScriptTests(PostgresFixture postgres)
         Assert.DoesNotContain(api, body, StringComparison.Ordinal);
     }
 
+    // Issue #196: o foco por teclado numa célula fora da tela rola a página; essa rolagem não pode apagar
+    // a dica. O comportamento em si só se vê no navegador (roteiro em docs/handoff/196.md); aqui o teste
+    // trava a forma do código: o scroll não é mais ligado direto a esconder(), reposiciona a dica do alvo
+    // que ainda tem foco, e roda, toque e tecla do usuário encerram essa exceção.
+    [Fact]
+    public async Task Rolagem_causada_pelo_foco_reposiciona_a_dica_em_vez_de_escondela()
+    {
+        var body = await GetBodyAsync();
+        var dicas = Modulo(body, "tip.replaceChildren(");
+
+        Assert.DoesNotContain("addEventListener('scroll', esconder", dicas, StringComparison.Ordinal);
+        var rolagem = Assert.Single(RolagemDaDica().Matches(dicas)).Value;
+        Assert.Contains("document.activeElement === alvoFoco.alvo", rolagem, StringComparison.Ordinal);
+        Assert.Contains("alvoFoco.on()", rolagem, StringComparison.Ordinal);
+        Assert.Contains("else esconder()", rolagem, StringComparison.Ordinal);
+        Assert.Contains("['wheel', 'touchmove', 'keydown']", dicas, StringComparison.Ordinal);
+        Assert.Contains("addEventListener('blur', () => {", dicas, StringComparison.Ordinal);
+        Assert.Contains("e.key === 'Escape') { esconder();", dicas, StringComparison.Ordinal);
+    }
+
+    [GeneratedRegex(@"addEventListener\('scroll', \(\) => \{.*?\}, \{ passive: true \}\);", RegexOptions.Singleline)]
+    private static partial Regex RolagemDaDica();
+
     [Fact]
     public async Task Painel_js_nao_usa_manipulador_inline_nem_armazenamento_alem_do_tema()
     {
