@@ -23,13 +23,13 @@
     var explanation = Model.Input.Explanation?.Trim();
     if (explanation is { Length: > 160 }) { explanation = explanation[..160] + "…"; }
     var correct = Model.Input.Correct;
-    var checklist = new (string Label, bool Done)[]
+    var checklist = new (string Key, string Label, bool Done)[]
     {
-        ("Tema escolhido", quiz is not null),
-        ("Faixa etária", age is not null),
-        ("Enunciado escrito", !string.IsNullOrWhiteSpace(statement)),
-        ("4 alternativas preenchidas", optionValues.All(v => !string.IsNullOrWhiteSpace(v))),
-        ("Alternativa correta marcada", correct is >= 0 and <= 3),
+        ("tema", "Tema escolhido", quiz is not null),
+        ("age", "Faixa etária", age is not null),
+        ("q", "Enunciado escrito", !string.IsNullOrWhiteSpace(statement)),
+        ("alts", "4 alternativas preenchidas", optionValues.All(v => !string.IsNullOrWhiteSpace(v))),
+        ("right", "Alternativa correta marcada", correct is >= 0 and <= 3),
     };
 }
 <div>
@@ -44,7 +44,7 @@
     <div class="note info"><svg aria-hidden="true"><use href="#i-info"/></svg><span>Ao salvar, a questão volta para rascunho e precisa ser aprovada de novo para chegar ao jogo.</span></div>
 }
 
-<div class="maker">
+<div class="maker" data-maker>
     <form class="maker-form" method="post" novalidate>
         @if (errors.Count > 0)
         {
@@ -66,7 +66,7 @@
                 {
                     var tema = TemaQuiz.Of(t);
                     <label class="tp @tema.Css">
-                        <input type="radio" name="Input.QuizType" value="@t" id="@(t == quizTypes[0] ? "Input_QuizType" : "Input_QuizType_" + t)" checked="@(quiz == t)" aria-invalid="@Bad("QuizType")" aria-describedby="@Desc("QuizType")" />
+                        <input type="radio" name="Input.QuizType" value="@t" id="@(t == quizTypes[0] ? "Input_QuizType" : "Input_QuizType_" + t)" checked="@(quiz == t)" aria-invalid="@Bad("QuizType")" aria-describedby="@Desc("QuizType")" data-k="@tema.Css" />
                         <img src="~/img/@tema.Imagem" width="@tema.Largura" height="@tema.Altura" alt="" />
                         <b>@tema.Nome</b>
                         <small>@tema.Personagem</small>
@@ -81,7 +81,7 @@
 
         <fieldset class="step">
             <legend class="step-h"><span class="n" aria-hidden="true">2</span>Para quem é? <span class="visually-hidden">Faixa etária, obrigatória.</span></legend>
-            <div class="pill-pick">
+            <div class="pill-pick" data-group="age">
                 @for (var i = 0; i < bands.Length; i++)
                 {
                     <label class="pp">
@@ -100,8 +100,9 @@
             <legend class="step-h"><span class="n" aria-hidden="true">3</span>Escreva a pergunta</legend>
             <div class="field">
                 <label asp-for="Input.Statement">Enunciado <span class="req">(obrigatório)</span></label>
-                <textarea class="input textarea" asp-for="Input.Statement" rows="3" maxlength="500" aria-invalid="@Bad("Statement")" aria-describedby="@Desc("Statement")"></textarea>
-                <small>Até 500 caracteres.</small>
+                <textarea class="input textarea" asp-for="Input.Statement" rows="3" maxlength="500" aria-invalid="@Bad("Statement")" aria-describedby="Input_Statement-ajuda@(Err("Statement") is null ? "" : " Input_Statement-erro")" data-bind="q"></textarea>
+                @* Contador: só o painel.js o mostra (#160), na mesma linha da ajuda; sem JS a tela fica igual. *@
+                <small id="Input_Statement-ajuda">Até 500 caracteres.<span class="count-hint" data-count-for="Input_Statement" hidden></span></small>
                 @if (Err("Statement") is { } statementError)
                 {
                     <span class="field-error" id="Input_Statement-erro">@statementError</span>
@@ -117,7 +118,7 @@
                         <div>
                             <label class="visually-hidden" for="Input_@field">Alternativa @letters[i]</label>
                             <input class="input" id="Input_@field" name="Input.@field" value="@optionValues[i]" maxlength="300" autocomplete="off"
-                                   aria-invalid="@Bad(field)" aria-describedby="@Desc(field)" />
+                                   aria-invalid="@Bad(field)" aria-describedby="@Desc(field)" data-bind="a@(i)" />
                         </div>
                         <label class="correct">
                             <input type="radio" name="Input.Correct" id="@(i == 0 ? "Input_Correct" : "Input_Correct_" + i)" value="@i" checked="@(correct == i)" aria-invalid="@Bad("Correct")" aria-describedby="@Desc("Correct")" />
@@ -136,7 +137,7 @@
             </fieldset>
             <div class="field">
                 <label asp-for="Input.Explanation">Explicação <span class="req">(obrigatório)</span></label>
-                <textarea class="input textarea" asp-for="Input.Explanation" rows="3" maxlength="1000" aria-invalid="@Bad("Explanation")" aria-describedby="Input_Explanation-ajuda@(Err("Explanation") is null ? "" : " Input_Explanation-erro")"></textarea>
+                <textarea class="input textarea" asp-for="Input.Explanation" rows="3" maxlength="1000" data-bind="why" aria-invalid="@Bad("Explanation")" aria-describedby="Input_Explanation-ajuda@(Err("Explanation") is null ? "" : " Input_Explanation-erro")"></textarea>
                 <small id="Input_Explanation-ajuda">Mostrada ao aluno depois que ele responde.</small>
                 @if (Err("Explanation") is { } explanationError)
                 {
@@ -148,50 +149,42 @@
         <div class="maker-bar">
             <button class="btn btn-primary" type="submit">Salvar</button>
             <a class="link" asp-page="Index">Cancelar</a>
-            <span class="hint">Fica como rascunho até ser aprovada.</span>
+            <span class="hint"><span data-ready-hint></span>Fica como rascunho até ser aprovada.</span>
         </div>
     </form>
 
     <aside class="maker-preview" aria-labelledby="t-prev-q">
         <p class="pv-label"><span id="t-prev-q">Como o aluno vê</span><span>mostra o que está no formulário</span></p>
         @* Ilustração: repete o que o formulário já diz, então fica fora da leitura de tela. *@
-        <div class="phone @(quiz is { } qt ? TemaQuiz.Of(qt).Css : "")" aria-hidden="true">
+        <div class="phone @(quiz is { } qt ? TemaQuiz.Of(qt).Css : "")" aria-hidden="true" data-preview>
             <div class="screen">
                 <div class="gq-head">
                     @if (quiz is { } pt)
                     {
                         var ptema = TemaQuiz.Of(pt);
-                        <img src="~/img/@ptema.Imagem" width="@ptema.Largura" height="@ptema.Altura" alt="" />
-                        <span>@ptema.Nome</span>
+                        <img src="~/img/@ptema.Imagem" width="@ptema.Largura" height="@ptema.Altura" alt="" data-face />
                     }
-                    else
-                    {
-                        <span class="is-empty">Escolha o tema</span>
-                    }
-                    @if (age is { } pa)
-                    {
-                        <span class="lvl">@IndexModel.BandLabel(pa)</span>
-                    }
+                    <span class="@(quiz is null ? "is-empty" : null)" data-show="tname" data-empty="Escolha o tema">@(quiz is { } pn ? TemaQuiz.Of(pn).Nome : "Escolha o tema")</span>
+                    <span class="lvl" data-show="age">@(age is { } pa ? IndexModel.BandLabel(pa) : "")</span>
                 </div>
-                <p class="gq @(string.IsNullOrWhiteSpace(statement) ? "is-empty" : "")">@(string.IsNullOrWhiteSpace(statement) ? "Sua pergunta aparece aqui" : statement)</p>
+                <p class="gq @(string.IsNullOrWhiteSpace(statement) ? "is-empty" : "")" data-show="q" data-empty="Sua pergunta aparece aqui">@(string.IsNullOrWhiteSpace(statement) ? "Sua pergunta aparece aqui" : statement)</p>
                 <ol class="gq-alts">
                     @for (var i = 0; i < 4; i++)
                     {
                         var text = optionValues[i]?.Trim();
                         var isRight = correct == i;
-                        <li data-k="@letters[i]" class="@(string.IsNullOrEmpty(text) ? "is-empty" : "") @(isRight ? "right" : "")">@(string.IsNullOrEmpty(text) ? "Alternativa " + letters[i] : text)@if (isRight) { <span> ✓</span> }</li>
+                        @* Atributos do li nesta ordem (o teste do #154 confere a forma). O texto fica no span para o painel.js trocá-lo sem apagar o ✓. *@
+                        <li data-k="@letters[i]" class="@(isRight ? "right" : "")"><span class="@(string.IsNullOrEmpty(text) ? "is-empty" : null)" data-show="a@(i)" data-alt="@i" data-empty="Alternativa @letters[i]">@(string.IsNullOrEmpty(text) ? "Alternativa " + letters[i] : text)</span>@if (isRight) { <span data-tick> ✓</span> }</li>
                     }
                 </ol>
-                @if (!string.IsNullOrWhiteSpace(explanation))
-                {
-                    <p class="gq-why">@explanation</p>
-                }
+                @* Sempre emitido; vazio, some pelo CSS (.gq-why:empty). *@
+                <p class="gq-why" data-show="why" data-max="160">@explanation</p>
             </div>
         </div>
         <ul class="ready" aria-label="O que falta">
             @foreach (var item in checklist)
             {
-                <li class="@(item.Done ? "ok" : "")">@item.Label<span class="visually-hidden">@(item.Done ? " (feito)" : " (falta)")</span></li>
+                <li class="@(item.Done ? "ok" : "")" data-check="@item.Key">@item.Label<span class="visually-hidden" data-check-text>@(item.Done ? " (feito)" : " (falta)")</span></li>
             }
         </ul>
     </aside>

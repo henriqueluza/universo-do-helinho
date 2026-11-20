@@ -164,4 +164,60 @@ public class QuestoesRecreioTests(PostgresFixture postgres)
         Assert.Matches("<li data-k=\"C\" class=\"\\s*right\">", html);
         Assert.Contains("Quantos jogadores ficam em quadra?", html, StringComparison.Ordinal);
     }
+
+    // Issue #160: os ganchos do painel.js são só atributos; sem JavaScript a tela fica igual à de #154.
+    [Fact]
+    public async Task Criador_emite_os_ganchos_da_previa_ao_vivo_sem_mudar_a_tela_sem_JavaScript()
+    {
+        await using var factory = await NewFactoryAsync();
+        var id = await SeedAsync(factory, "Quantos jogadores ficam em quadra?", approved: false);
+        using var client = factory.CreateClientAs(RoleNames.Master);
+
+        var nova = await GetAsync(client, "/Questoes/Editar");
+        var edicao = await GetAsync(client, $"/Questoes/Editar/{id}");
+
+        foreach (var html in new[] { nova, edicao })
+        {
+            Assert.Matches("<div class=\"maker\" data-maker>", html);
+            Assert.Matches("class=\"phone[^\"]*\" aria-hidden=\"true\" data-preview>", html);
+            Assert.Equal(5, Regex.Count(html, "name=\"Input\\.QuizType\"[^>]*data-k=\"\\w+\""));
+            Assert.Contains("data-group=\"age\"", html, StringComparison.Ordinal);
+            Assert.Matches("<textarea [^>]*data-bind=\"q\"", html);
+            Assert.Matches("<textarea [^>]*data-bind=\"why\"", html);
+            foreach (var i in new[] { 0, 1, 2, 3 })
+            {
+                Assert.Contains($"data-bind=\"a{i}\"", html, StringComparison.Ordinal);
+                Assert.Contains($"data-show=\"a{i}\"", html, StringComparison.Ordinal);
+                Assert.Contains($"data-alt=\"{i}\"", html, StringComparison.Ordinal);
+                Assert.Contains($"data-empty=\"Alternativa {"ABCD"[i]}\"", html, StringComparison.Ordinal);
+            }
+
+            Assert.Matches("data-show=\"q\" data-empty=\"Sua pergunta aparece aqui\"", html);
+            Assert.Contains("<small id=\"Input_Statement-ajuda\">Até 500 caracteres.<span class=\"count-hint\" data-count-for=\"Input_Statement\" hidden></span></small>", html, StringComparison.Ordinal);
+            Assert.Matches("<textarea [^>]*aria-describedby=\"Input_Statement-ajuda\"[^>]*data-bind=\"q\"", html);
+            Assert.Matches("<span data-ready-hint></span>Fica como rascunho até ser aprovada\\.", html);
+            Assert.Equal(5, Regex.Count(html, "<li class=\"(ok)?\" data-check=\"(tema|age|q|alts|right)\""));
+            Assert.DoesNotMatch("<script(?![^>]*\\bsrc=)", html);
+        }
+
+        Assert.Matches("class=\"phone\\s*\" aria-hidden=\"true\" data-preview>", nova);
+        Assert.Contains("class=\"phone esp\" aria-hidden=\"true\" data-preview>", edicao, StringComparison.Ordinal);
+
+        // Nova: tudo por fazer, e o que não tem conteúdo some pelo CSS (:empty).
+        Assert.Equal(5, Regex.Count(nova, "data-check-text> \\(falta\\)</span>"));
+        Assert.DoesNotContain("(feito)", nova, StringComparison.Ordinal);
+        Assert.Matches("<span class=\"lvl\" data-show=\"age\"></span>", nova);
+        Assert.Matches("<p class=\"gq-why\" data-show=\"why\" data-max=\"160\"></p>", nova);
+        Assert.DoesNotContain("data-tick", nova, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-face", nova, StringComparison.Ordinal);
+
+        // Edição: tudo feito, conteúdo preenchido e o ✓ só na alternativa certa.
+        Assert.Equal(5, Regex.Count(edicao, "data-check-text> \\(feito\\)</span>"));
+        Assert.DoesNotContain("(falta)", edicao, StringComparison.Ordinal);
+        Assert.Matches("<span class=\"lvl\" data-show=\"age\">[^<]+</span>", edicao);
+        Assert.Matches("<p class=\"gq-why\" data-show=\"why\" data-max=\"160\">Explicação\\.</p>", edicao);
+        Assert.Equal(1, Regex.Count(edicao, "data-tick"));
+        Assert.Matches("<li data-k=\"C\" class=\"right\">\\s*<span[^>]*data-show=\"a2\"[^>]*>[^<]*</span>\\s*<span data-tick>\\s*✓\\s*</span>", edicao);
+        Assert.Contains("data-face", edicao, StringComparison.Ordinal);
+    }
 }
