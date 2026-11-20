@@ -10,9 +10,40 @@ namespace Helinho.IntegrationTests;
 
 /// <summary>Eventos no tema Recreio (#173): classes-chave, tema com personagem, imagens e erros acessíveis.</summary>
 [Collection(PostgresCollection.Name)]
-public class EventosRecreioTests(PostgresFixture postgres)
+public class EventosRecreioTests(PostgresFixture postgres, EventosRecreioTests.SharedHost shared)
+    : IClassFixture<EventosRecreioTests.SharedHost>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    /// <summary>
+    /// Um host para os três testes da classe: o primeiro troca os eventos do banco e os outros dois só postam formulários
+    /// inválidos, que não gravam nada. Cada host deixa observadores de arquivo (inotify no Linux), e o runner do CI
+    /// limita a 128 instâncias (#215).
+    /// </summary>
+    public sealed class SharedHost : IAsyncDisposable
+    {
+        private HelinhoWebFactory? _factory;
+
+        internal async Task<HelinhoWebFactory> GetAsync(PostgresFixture postgres)
+        {
+            if (_factory is null)
+            {
+                var factory = new HelinhoWebFactory(postgres);
+                await factory.EnsureDatabaseAsync();
+                _factory = factory;
+            }
+
+            return _factory;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_factory is not null)
+            {
+                await _factory.DisposeAsync();
+            }
+        }
+    }
 
     private static void NoLegacyNoAi(string html)
     {
@@ -34,8 +65,7 @@ public class EventosRecreioTests(PostgresFixture postgres)
     [Fact]
     public async Task Eventos_mostram_tema_com_personagem_e_radios_do_modelo_sem_JavaScript()
     {
-        await using var factory = new HelinhoWebFactory(postgres);
-        await factory.EnsureDatabaseAsync();
+        var factory = await shared.GetAsync(postgres);
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -64,8 +94,7 @@ public class EventosRecreioTests(PostgresFixture postgres)
     [Fact]
     public async Task Evento_com_erro_mostra_resumo_e_marca_os_radios()
     {
-        await using var factory = new HelinhoWebFactory(postgres);
-        await factory.EnsureDatabaseAsync();
+        var factory = await shared.GetAsync(postgres);
         using var client = factory.CreateClientAs(RoleNames.Master);
 
         var html = await PostEventoAsync(client, new Dictionary<string, string>
@@ -89,8 +118,7 @@ public class EventosRecreioTests(PostgresFixture postgres)
     [Fact]
     public async Task Evento_sem_termino_liga_ajuda_e_erro_no_aria_describedby()
     {
-        await using var factory = new HelinhoWebFactory(postgres);
-        await factory.EnsureDatabaseAsync();
+        var factory = await shared.GetAsync(postgres);
         using var client = factory.CreateClientAs(RoleNames.Master);
 
         var html = await PostEventoAsync(client, new Dictionary<string, string>
