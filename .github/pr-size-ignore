@@ -34,3 +34,6 @@
 
 # Migrações do EF Core (geradas por `dotnet ef migrations add`)
 **/Migrations/*.cs
+
+# Preview do tema Recreio: material de referência do design, não código
+docs/design/recreio/**

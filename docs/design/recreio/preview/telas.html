@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Telas · Universo do Helinho — v2 Recreio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito:wght@500..900&display=swap" rel="stylesheet">
+<link rel="icon" href="img/cara-helinho.webp" type="image/webp">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="recreio.css">
+<link rel="stylesheet" href="telas.css">
+<script>try { const t = localStorage.getItem('tema'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<style>
+  /* Barra da preview (não faz parte do sistema) */
+  .pv { position: fixed; z-index: 50; right: 12px; bottom: 12px; font: 800 13px var(--font); }
+  .pv summary { list-style: none; cursor: pointer; padding: 8px 12px; border-radius: 12px; background: var(--ink); color: var(--stage); box-shadow: var(--shadow-float); opacity: .55; transition: opacity .2s; }
+  .pv summary:hover, .pv[open] summary, .pv summary:focus-visible { opacity: 1; }
+  .pv summary::-webkit-details-marker { display: none; }
+  .pv nav { position: absolute; bottom: calc(100% + 6px); right: 0; display: grid; grid-template-columns: repeat(2, max-content); gap: 2px; padding: 6px; border-radius: 14px; background: var(--stage); border: 2px solid var(--rule); box-shadow: var(--shadow-float); max-height: 70vh; overflow: auto; }
+  .pv a, .pv button { font: inherit; text-align: left; color: var(--ink-2); background: none; border: 0; padding: 7px 10px; border-radius: 10px; text-decoration: none; cursor: pointer; }
+  .pv a:hover, .pv button:hover { background: var(--canvas); color: var(--ink); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-dash" viewBox="0 0 16 16"><path d="M2 9.5h5v4.5H2zM9 2h5v12H9zM2 2h5v5H2z"/></symbol>
+    <symbol id="i-alunos" viewBox="0 0 16 16"><path d="M8 7.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3 14c0-2.8 2.2-4.5 5-4.5s5 1.7 5 4.5"/></symbol>
+    <symbol id="i-unid" viewBox="0 0 16 16"><path d="M2 14V6l6-4 6 4v8zM6.5 14v-4h3v4"/></symbol>
+    <symbol id="i-adm" viewBox="0 0 16 16"><path d="M8 1.5l5 2v4c0 3-2 5.5-5 7-3-1.5-5-4-5-7v-4z"/></symbol>
+    <symbol id="i-quest" viewBox="0 0 16 16"><path d="M6 6a2 2 0 1 1 3 1.7c-.7.4-1 .8-1 1.6M8 12v.5M2 2h12v12H2z"/></symbol>
+    <symbol id="i-curio" viewBox="0 0 16 16"><path d="M6 13h4M6.5 15h3M8 1.5a4.5 4.5 0 0 0-2.6 8.2c.4.3.6.7.6 1.1v.7h4v-.7c0-.4.2-.8.6-1.1A4.5 4.5 0 0 0 8 1.5z"/></symbol>
+    <symbol id="i-event" viewBox="0 0 16 16"><path d="M2 3.5h12V14H2zM5 1.5v3M11 1.5v3M2 7h12"/></symbol>
+    <symbol id="i-miss" viewBox="0 0 16 16"><path d="M3 14V2M3 3h9l-2 3 2 3H3"/></symbol>
+    <symbol id="i-desemp" viewBox="0 0 16 16"><path d="M2 14h12M4 14V9M8 14V4M12 14V7"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+    <symbol id="i-back" viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"/></symbol>
+    <symbol id="i-ok" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+    <symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 16 16"><path d="M10.5 2.5l3 3L6 13H3v-3z"/></symbol>
+    <symbol id="i-info" viewBox="0 0 16 16"><path d="M8 7v4.5M8 4.5v.5M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 16 16"><path d="M8 5v4M8 11.5v.5M8 1.5l6.5 12h-13z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 16 16"><path d="M4 7h8v7H4zM5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12"/></symbol>
+    <symbol id="i-shuffle" viewBox="0 0 16 16"><path d="M2 4.5h2.5c3.5 0 4.5 7 8 7H14M2 11.5h2.5c1.4 0 2.4-1.1 3.2-2.4M10 5.3c.7-.5 1.5-.8 2.5-.8H14M12 2.5l2 2-2 2M12 9.5l2 2-2 2"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 16 16"><path d="M8 14.5s5-4.3 5-8.2a5 5 0 0 0-10 0c0 3.9 5 8.2 5 8.2zM8 8a1.7 1.7 0 1 0 0-3.4A1.7 1.7 0 0 0 8 8z"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 16 16"><path d="M3.5 2h2.5l1.2 3-1.6 1a8 8 0 0 0 3.9 3.9l1-1.6 3 1.2V12a1.5 1.5 0 0 1-1.6 1.5C6.8 13.1 2.9 9.2 2.5 3.6A1.5 1.5 0 0 1 3.5 2z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 16 16"><path d="M8 4.5V8l2.5 1.5M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z"/></symbol>
+    <symbol id="i-target" viewBox="0 0 16 16"><path d="M8 1v3M8 12v3M1 8h3M12 8h3M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 16 16"><path d="M6 13h4M6.5 15h3M8 1.5a4.5 4.5 0 0 0-2.6 8.2c.4.3.6.7.6 1.1v.7h4v-.7c0-.4.2-.8.6-1.1A4.5 4.5 0 0 0 8 1.5z"/></symbol>
+    <symbol id="i-palette" viewBox="0 0 16 16"><path d="M8 1.5a6.5 6.5 0 0 0 0 13c1 0 1.5-.6 1.5-1.3 0-1-1-1.2-1-2.1 0-.7.6-1.1 1.3-1.1h1.7a3 3 0 0 0 3-3C14.5 4 11.6 1.5 8 1.5zM5 7.5h.01M7 4.5h.01M10.5 5h.01"/></symbol>
+    <symbol id="i-cap" viewBox="0 0 16 16"><path d="M1 6l7-3.5L15 6 8 9.5zM4 7.5V11c0 1 1.8 2 4 2s4-1 4-2V7.5M14.5 6v4"/></symbol>
+    <symbol id="i-ai" viewBox="0 0 24 24"><path d="M10 2c.6 4.4 3.6 7.4 8 8-4.4.6-7.4 3.6-8 8-.6-4.4-3.6-7.4-8-8 4.4-.6 7.4-3.6 8-8zM19 14c.3 2.1 1.4 3.2 3.5 3.5-2.1.3-3.2 1.4-3.5 3.5-.3-2.1-1.4-3.2-3.5-3.5 2.1-.3 3.2-1.4 3.5-3.5z"/></symbol>
+  </defs>
+</svg>
+
+<div class="shell" id="shell">
+  <div class="scrim" hidden></div>
+  <aside class="rail" aria-label="Menu">
+    <button class="rail-close" type="button" aria-label="Fechar menu"><svg class="icon"><use href="#i-x"/></svg></button>
+    <a class="rail-logo" href="v2.html"><img src="img/logo-jogo.webp" width="480" height="162" alt="Universo do Helinho"></a>
+    <ul class="nav" id="menu">
+      <li><a href="v2.html"><span class="tile" style="--t:var(--tile-1)"><svg><use href="#i-dash"/></svg></span>Painel</a></li>
+      <li><a href="#alunos" data-sec="alunos"><span class="tile" style="--t:var(--tile-2)"><svg><use href="#i-alunos"/></svg></span>Alunos</a></li>
+      <li><a href="#desempenho" data-sec="desempenho"><span class="tile" style="--t:var(--tile-9)"><svg><use href="#i-desemp"/></svg></span>Desempenho</a></li>
+      <li class="nav-label">Conteúdo do jogo</li>
+      <li><a href="#questoes" data-sec="questoes"><span class="tile" style="--t:var(--tile-4)"><svg><use href="#i-quest"/></svg></span>Questões</a></li>
+      <li><a href="#curiosidades" data-sec="curiosidades"><span class="tile" style="--t:var(--tile-5)"><svg><use href="#i-curio"/></svg></span>Curiosidades</a></li>
+      <li><a href="#missoes" data-sec="missoes"><span class="tile" style="--t:var(--tile-3)"><svg><use href="#i-miss"/></svg></span>Missões</a></li>
+      <li><a href="#eventos" data-sec="eventos"><span class="tile" style="--t:var(--tile-6)"><svg><use href="#i-event"/></svg></span>Eventos</a></li>
+      <li class="nav-label">Gestão</li>
+      <li><a href="#unidades" data-sec="unidades"><span class="tile" style="--t:var(--tile-7)"><svg><use href="#i-unid"/></svg></span>Unidades</a></li>
+      <li><a href="#administradores" data-sec="administradores"><span class="tile" style="--t:var(--tile-8)"><svg><use href="#i-adm"/></svg></span>Administradores</a></li>
+    </ul>
+    <div class="me user-block">
+      <span class="av" aria-hidden="true">MD</span>
+      <b>Marina Duarte</b>
+      <small><span>Master</span><span>Todas as unidades</span></small>
+      <form action="v2-entrar.html"><button type="submit">Sair</button></form>
+    </div>
+    <div class="org"><img class="only-light" src="img/fundhas.webp" width="480" height="127" alt="FUNDHAS"><img class="only-dark" src="img/fundhas-invertido.webp" width="480" height="127" alt="FUNDHAS"></div>
+  </aside>
+
+  <div>
+    <header class="topbar">
+      <img src="img/logo-jogo.webp" width="480" height="162" alt="Universo do Helinho">
+      <button class="menu-btn" type="button" data-bs-target="#menu" aria-controls="menu" aria-expanded="false" aria-label="Abrir menu"><svg class="icon"><use href="#i-menu"/></svg></button>
+    </header>
+
+    <main id="conteudo" class="main" tabindex="-1">
+
+<!-- ================= ALUNOS ================= -->
+<section class="tela" data-tela="alunos" data-sec="alunos" data-titulo="Alunos" hidden><div class="stack">
+  <div class="page-head">
+    <div><h1 class="page-title">Alunos</h1><p class="sub">Cadastro dos alunos da unidade. Dados pessoais ficam só na edição, nunca na lista.</p></div>
+    <div class="page-actions"><a class="btn btn-primary" href="#aluno-novo"><svg><use href="#i-plus"/></svg>Novo aluno</a></div>
+  </div>
+  <form class="filters-bar" aria-label="Filtros">
+    <div class="field"><label for="a-faixa">Faixa etária</label><select id="a-faixa" class="select"><option>Todas</option><option>6–7 anos</option><option>8–10 anos</option><option>11–12 anos</option><option>13–14 anos</option></select></div>
+    <div class="field"><label for="a-turma">Turma</label><select id="a-turma" class="select"><option>Todas</option><option>Manhã A</option><option>Tarde B</option></select></div>
+    <div class="field"><label for="a-unid">Unidade</label><select id="a-unid" class="select"><option>Todas as unidades</option><option>Centro</option><option>Sul</option></select></div>
+    <button class="btn" type="submit">Aplicar</button>
+    <a class="link" href="#alunos">Limpar filtros</a>
+  </form>
+  <section class="panel panel-pad" aria-label="Lista de alunos">
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th scope="col">Nome</th><th scope="col">Matrícula</th><th scope="col">Unidade</th><th scope="col">Turma</th><th scope="col">Faixa etária</th><th scope="col">Aprovação do responsável</th><th scope="col" class="actions">Ações</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Ana Rocha</th><td>ALU-4F82K1Q9ZT</td><td>Centro</td><td>Manhã A</td><td>8–10 anos</td><td><span class="tag tag-ok">Aprovado</span></td><td class="actions"><a class="link-btn" href="#aluno-editar" aria-label="Editar Ana Rocha">Editar</a></td></tr>
+        <tr><th scope="row">Bia Costa</th><td>ALU-9KD20LMX4A</td><td>Centro</td><td>Tarde B</td><td>11–12 anos</td><td><span class="tag tag-ok">Aprovado</span></td><td class="actions"><a class="link-btn" href="#aluno-editar" aria-label="Editar Bia Costa">Editar</a></td></tr>
+        <tr><th scope="row">João Silva</th><td>ALU-2B7QW8EE1C</td><td>Sul</td><td>Manhã A</td><td>6–7 anos</td><td><span class="tag tag-bad">Pendente</span></td><td class="actions"><a class="link-btn" href="#aluno-editar" aria-label="Editar João Silva">Editar</a></td></tr>
+        <tr><th scope="row">Lucas Moura</th><td>ALU-7TT31PZQ0N</td><td>Sul</td><td>Tarde B</td><td>13–14 anos</td><td><span class="tag tag-ok">Aprovado</span></td><td class="actions"><a class="link-btn" href="#aluno-editar" aria-label="Editar Lucas Moura">Editar</a></td></tr>
+        <tr><th scope="row">Pedro Lima</th><td>ALU-5MN88CCJ2R</td><td>Centro</td><td>Manhã A</td><td>8–10 anos</td><td><span class="tag tag-bad">Pendente</span></td><td class="actions"><a class="link-btn" href="#aluno-editar" aria-label="Editar Pedro Lima">Editar</a></td></tr>
+      </tbody>
+    </table></div>
+    <div class="pager"><span id="alunos-resumo">312 alunos · página 1 de 63</span><nav aria-label="Paginação"><a class="btn btn-sm" href="#alunos" aria-disabled="true">Anterior</a><a class="btn btn-sm" href="#alunos">Próxima</a></nav></div>
+  </section>
+</div></section>
+
+<!-- ================= ALUNO: NOVO / EDITAR ================= -->
+<section class="tela" data-tela="aluno-novo aluno-editar" data-sec="alunos" data-titulo="Novo aluno" hidden><div class="stack">
+  <div><a class="back" href="#alunos"><svg class="icon"><use href="#i-back"/></svg>Alunos</a>
+  <div class="page-head"><div><h1 class="page-title">Novo aluno</h1><p class="sub">Todos os campos são obrigatórios. Unidade: <b>Centro</b>.</p></div></div></div>
+  <form class="panel panel-pad form" novalidate>
+    <div class="form-grid">
+      <div class="field full"><label for="Input_Name">Nome completo</label><input class="input" id="Input_Name" autocomplete="off"></div>
+      <div class="field"><label for="Input_BirthDate">Data de nascimento</label><input class="input" id="Input_BirthDate" type="date"></div>
+      <div class="field"><label for="Input_Class">Turma</label><input class="input" id="Input_Class"></div>
+      <div class="field"><label for="Input_Rg">RG</label><input class="input" id="Input_Rg" inputmode="numeric"></div>
+      <div class="field"><label for="Input_Cpf">CPF</label><input class="input" id="Input_Cpf" inputmode="numeric"></div>
+      <div class="field full"><label for="Input_Address">Endereço</label><input class="input" id="Input_Address"></div>
+      <div class="field full"><label for="Input_GuardianName">Nome do responsável</label><input class="input" id="Input_GuardianName"></div>
+      <label class="check full"><input type="checkbox" id="Input_GuardianApproved">Responsável aprovou o cadastro (desmarcado = pendente)</label>
+    </div>
+    <div class="note info"><svg><use href="#i-lock"/></svg><span>RG, CPF e endereço aparecem só aqui. A lista e o desempenho nunca mostram esses dados.</span></div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Salvar</button><a class="btn" href="#alunos">Cancelar</a></div>
+  </form>
+</div></section>
+
+<!-- ================= DESEMPENHO ================= -->
+<section class="tela" data-tela="desempenho" data-sec="desempenho" data-titulo="Desempenho" hidden><div class="stack">
+  <div class="page-head"><div><h1 class="page-title">Desempenho</h1><p class="sub">XP e nível de cada aluno. Clique no nome para ver a ficha.</p></div></div>
+  <form class="filters-bar" aria-label="Filtros">
+    <div class="field"><label for="d-faixa">Faixa etária</label><select id="d-faixa" class="select"><option>Todas</option><option>6–7 anos</option><option>8–10 anos</option><option>11–12 anos</option><option>13–14 anos</option></select></div>
+    <button class="btn btn-primary" type="submit">Aplicar</button>
+    <a class="link" href="#desempenho">Limpar filtro</a>
+  </form>
+  <section class="panel panel-pad" aria-label="Desempenho dos alunos">
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th scope="col">Nome</th><th scope="col">Turma</th><th scope="col">Faixa etária</th><th scope="col" class="num">XP</th><th scope="col">Nível</th></tr></thead>
+      <tbody>
+        <tr><th scope="row"><a class="name" href="#desempenho-aluno">Bia Costa</a></th><td>Tarde B</td><td>11–12 anos</td><td class="num">2.480</td><td><span class="tag tag-neutral">10 · Guardião</span></td></tr>
+        <tr><th scope="row"><a class="name" href="#desempenho-aluno">Ana Rocha</a></th><td>Manhã A</td><td>8–10 anos</td><td class="num">1.320</td><td><span class="tag tag-neutral">6 · Aventureiro</span></td></tr>
+        <tr><th scope="row"><a class="name" href="#desempenho-aluno">Pedro Lima</a></th><td>Manhã A</td><td>8–10 anos</td><td class="num">640</td><td><span class="tag tag-neutral">3 · Explorador</span></td></tr>
+        <tr><th scope="row"><a class="name" href="#desempenho-aluno">João Silva</a></th><td>Manhã A</td><td>6–7 anos</td><td class="num">410</td><td><span class="tag tag-neutral">2 · Curioso</span></td></tr>
+      </tbody>
+    </table></div>
+    <div class="pager"><span id="desempenho-resumo">312 alunos · página 1 de 63</span><nav aria-label="Paginação"><a class="btn btn-sm" href="#desempenho">Anterior</a><a class="btn btn-sm" href="#desempenho">Próxima</a></nav></div>
+  </section>
+</div></section>
+
+<!-- ================= DESEMPENHO: ALUNO ================= -->
+<section class="tela" data-tela="desempenho-aluno" data-sec="desempenho" data-titulo="Pedro Lima" hidden><div class="stack">
+  <div><a class="back" href="#desempenho"><svg class="icon"><use href="#i-back"/></svg>Voltar ao desempenho</a>
+  <div class="profile panel panel-pad">
+    <span class="av-xl" aria-hidden="true">PL</span>
+    <div><h1 class="page-title">Pedro Lima</h1><p class="meta">Unidade Centro · Manhã A · 8–10 anos</p></div>
+    <div class="level" id="aluno-nivel"><small>Nível 3</small><b>Explorador</b><span class="meter"><i style="width:64%"></i></span><small>640 XP · próximo nível em 360 XP</small></div>
+  </div></div>
+  <div class="split">
+    <section class="panel panel-pad" aria-labelledby="t-acertos">
+      <div class="panel-head"><h2 id="t-acertos">Acertos por tipo de quiz</h2></div>
+      <div class="table-wrap"><table class="table">
+        <thead><tr><th scope="col">Tipo</th><th scope="col" class="num">Respostas</th><th scope="col" class="num">Acertos</th><th scope="col">Aproveitamento</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag tag-type amb"><img src="img/cara-flora.webp" alt="">Ambiental</span></td><td class="num">42</td><td class="num">36</td><td><span class="meter amb" style="width:120px;display:inline-block;vertical-align:middle"><i style="width:86%"></i></span> 86%</td></tr>
+          <tr><td><span class="tag tag-type con"><img src="img/cara-byte.webp" alt="">Conhecimento</span></td><td class="num">38</td><td class="num">27</td><td><span class="meter con" style="width:120px;display:inline-block;vertical-align:middle"><i style="width:71%"></i></span> 71%</td></tr>
+          <tr><td><span class="tag tag-type esp"><img src="img/cara-max.webp" alt="">Esportivo</span></td><td class="num">30</td><td class="num">27</td><td><span class="meter esp" style="width:120px;display:inline-block;vertical-align:middle"><i style="width:90%"></i></span> 90%</td></tr>
+          <tr><td><span class="tag tag-type cul"><img src="img/cara-luna.webp" alt="">Cultural</span></td><td class="num">21</td><td class="num">12</td><td><span class="meter cul" style="width:120px;display:inline-block;vertical-align:middle"><i style="width:57%"></i></span> 57%</td></tr>
+          <tr><td><span class="tag tag-type div"><img src="img/cara-lia.webp" alt="">Diversidade</span></td><td class="num">18</td><td class="num">13</td><td><span class="meter div" style="width:120px;display:inline-block;vertical-align:middle"><i style="width:72%"></i></span> 72%</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+    <section class="panel panel-pad" aria-labelledby="t-conq">
+      <div class="panel-head"><h2 id="t-conq">Conquistas desbloqueadas</h2></div>
+      <div class="badges">
+        <div class="badge-card"><img src="img/selo-amigo-da-natureza.webp" alt="">Amigo da natureza<small>02/11/2026</small></div>
+        <div class="badge-card"><img src="img/selo-curioso-do-mes.webp" alt="">Curioso do mês<small>28/10/2026</small></div>
+        <div class="badge-card"><img src="img/selo-leitor-da-lia.webp" alt="">Leitor da Lia<small>15/10/2026</small></div>
+      </div>
+    </section>
+  </div>
+</div></section>
+
+<!-- ================= QUESTÕES ================= -->
+<section class="tela" data-tela="questoes" data-sec="questoes" data-titulo="Questões" hidden><div class="stack">
+  <div class="page-head">
+    <div><h1 class="page-title">Questões</h1><p class="sub">Toda questão nasce como rascunho e só chega ao jogo depois de aprovada.</p></div>
+    <div class="page-actions"><a class="btn btn-ai" href="#questoes-ia"><svg class="fill"><use href="#i-ai"/></svg>Gerar com IA</a><a class="btn btn-primary" href="#questao-editar"><svg><use href="#i-plus"/></svg>Nova questão</a></div>
+  </div>
+  <div class="note ai"><svg><use href="#i-ai"/></svg><span><b>8 sugestões da IA esperando revisão.</b> <a class="link-btn" href="#questoes-ia">Revisar agora</a></span></div>
+  <form class="filters-bar" aria-label="Filtros">
+    <div class="field"><label for="q-tipo">Tipo de quiz</label><select id="q-tipo" class="select"><option>Todos</option><option>Ambiental</option><option>Conhecimento</option><option>Esportivo</option><option>Cultural</option><option>Diversidade</option></select></div>
+    <div class="field"><label for="q-faixa">Faixa etária</label><select id="q-faixa" class="select"><option>Todas</option><option>6–7 anos</option><option>8–10 anos</option><option>11–12 anos</option><option>13–14 anos</option></select></div>
+    <div class="field"><label for="q-status">Status</label><select id="q-status" class="select"><option>Todos</option><option>Rascunho</option><option>Aprovada</option></select></div>
+    <div class="field"><label for="q-onde">Onde aparece</label><select id="q-onde" class="select"><option>Todos</option><option>Quizzes do tema</option><option>Eventos</option></select></div>
+    <div class="field"><label for="q-origem">Origem</label><select id="q-origem" class="select"><option>Todas</option><option>Equipe</option><option>IA</option></select></div>
+    <button class="btn" type="submit">Aplicar</button>
+    <a class="link" href="#questoes">Limpar filtros</a>
+  </form>
+  <section class="panel panel-pad" aria-label="Banco de questões">
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th scope="col">Enunciado</th><th scope="col">Tipo de quiz</th><th scope="col">Faixa etária</th><th scope="col">Status</th><th scope="col" class="actions">Ações</th></tr></thead>
+      <tbody>
+        <tr><td><div class="clip">Qual destas atitudes ajuda a economizar água em casa?</div><small>Equipe · 03/11/2026</small></td><td><span class="tag tag-type amb"><img src="img/cara-flora.webp" alt="">Ambiental</span></td><td>6–7 anos</td><td><span class="tag tag-ok">Aprovada</span></td><td class="actions"><a class="link-btn" href="#questao-editar">Editar</a></td></tr>
+        <tr><td><div class="clip">Quantos jogadores de cada time ficam em quadra no vôlei?</div><small>IA · revisada por Marina · 08/11/2026</small></td><td><span class="tag tag-type esp"><img src="img/cara-max.webp" alt="">Esportivo</span></td><td>8–10 anos</td><td><span class="tag tag-draft">Rascunho</span></td><td class="actions"><a class="link-btn" href="#questao-editar">Editar</a><button class="btn btn-sm btn-primary" type="button">Aprovar</button></td></tr>
+        <tr><td><div class="clip">Quanto da água do planeta é doce e pode ser bebida?</div><small>Equipe · 05/11/2026 · <b>Evento Dia da Água</b></small></td><td><span class="tag tag-type amb"><img src="img/cara-flora.webp" alt="">Ambiental</span></td><td>8–10 anos</td><td><span class="tag tag-ok">Aprovada</span></td><td class="actions"><a class="link-btn" href="#questao-editar">Editar</a></td></tr>
+        <tr><td><div class="clip">Qual instrumento é típico do frevo pernambucano?</div><small>Equipe · 01/11/2026</small></td><td><span class="tag tag-type cul"><img src="img/cara-luna.webp" alt="">Cultural</span></td><td>11–12 anos</td><td><span class="tag tag-ok">Aprovada</span></td><td class="actions"><a class="link-btn" href="#questao-editar">Editar</a></td></tr>
+        <tr><td><div class="clip">O que significa a sigla “www” em um endereço de site?</div><small>IA · 10/11/2026</small></td><td><span class="tag tag-type con"><img src="img/cara-byte.webp" alt="">Conhecimento</span></td><td>13–14 anos</td><td><span class="tag tag-draft">Rascunho</span></td><td class="actions"><a class="link-btn" href="#questao-editar">Editar</a><button class="btn btn-sm btn-primary" type="button">Aprovar</button></td></tr>
+      </tbody>
+    </table></div>
+    <div class="pager"><span>186 questões · página 1 de 19</span><nav aria-label="Paginação"><a class="btn btn-sm" href="#questoes">Anterior</a><a class="btn btn-sm" href="#questoes">Próxima</a></nav></div>
+  </section>
+</div></section>
+
+<!-- ================= QUESTÃO: CRIAR / EDITAR ================= -->
+<section class="tela" data-tela="questao-editar" data-sec="questoes" data-titulo="Nova questão" hidden><div class="stack">
+  <div><a class="back" href="#questoes"><svg class="icon"><use href="#i-back"/></svg>Questões</a>
+  <div class="page-head"><div><h1 class="page-title">Nova questão</h1><p class="sub">Três passos. A prévia ao lado mostra exatamente o que o aluno vai ver no jogo.</p></div></div></div>
+  <div class="maker" data-maker="questao">
+    <form class="maker-form" novalidate>
+      <fieldset class="step"><legend class="step-h"><span class="n">1</span>Qual é o tema?<small>Cada tema tem um personagem no jogo</small></legend>
+        <div class="theme-pick"><label class="tp amb"><input type="radio" name="Input.Type" value="Ambiental" data-k="amb"><img src="img/cara-flora.webp" alt=""><b>Ambiental</b><small>Flora</small></label><label class="tp con"><input type="radio" name="Input.Type" value="Conhecimento" data-k="con"><img src="img/cara-byte.webp" alt=""><b>Conhecimento</b><small>Byte</small></label><label class="tp cul"><input type="radio" name="Input.Type" value="Cultural" data-k="cul"><img src="img/cara-luna.webp" alt=""><b>Cultural</b><small>Luna</small></label><label class="tp esp"><input type="radio" name="Input.Type" value="Esportivo" data-k="esp" checked><img src="img/cara-max.webp" alt=""><b>Esportivo</b><small>Max</small></label><label class="tp div"><input type="radio" name="Input.Type" value="Diversidade" data-k="div"><img src="img/cara-lia.webp" alt=""><b>Diversidade</b><small>Lia</small></label></div>
+      </fieldset>
+      <fieldset class="step"><legend class="step-h"><span class="n">2</span>Para quem e onde?</legend>
+        <p class="sub-label" id="l-idade">Faixa etária</p>
+        <div class="pill-pick" role="radiogroup" aria-labelledby="l-idade" data-group="age"><label class="pp"><input type="radio" name="Input.AgeBand" value="6–7 anos"><span>6–7 anos</span></label><label class="pp"><input type="radio" name="Input.AgeBand" value="8–10 anos" checked><span>8–10 anos</span></label><label class="pp"><input type="radio" name="Input.AgeBand" value="11–12 anos"><span>11–12 anos</span></label><label class="pp"><input type="radio" name="Input.AgeBand" value="13–14 anos"><span>13–14 anos</span></label></div>
+        <p class="sub-label" id="l-onde">Onde aparece no jogo</p>
+        <div class="pill-pick" role="radiogroup" aria-labelledby="l-onde" data-group="onde"><label class="pp"><input type="radio" name="Input.Placement" value="tema" checked><span>Nos quizzes do tema</span></label><label class="pp"><input type="radio" name="Input.Placement" value="evento"><span>Só no evento “Dia da Água”</span></label></div>
+      </fieldset>
+      <fieldset class="step"><legend class="step-h"><span class="n">3</span>Escreva a pergunta</legend>
+        <div class="ai-help"><svg aria-hidden="true"><use href="#i-ai"/></svg><span><b>Sem ideia?</b> A IA sugere uma pergunta do tema escolhido. Você revisa antes de salvar.</span><input class="input" aria-label="Assunto para a IA (opcional)" placeholder="Assunto (opcional)"><button class="btn btn-ai btn-sm" type="button" data-sugerir><svg class="fill"><use href="#i-ai"/></svg>Sugerir</button></div>
+        <span class="tag tag-ai ai-flag" data-ai-flag hidden><svg><use href="#i-ai"/></svg>Sugerida pela IA · confira antes de salvar</span>
+        <div class="field"><label for="Input_Statement">Pergunta</label><textarea class="input textarea" id="Input_Statement" maxlength="500" data-bind="q" placeholder="Ex.: Quantos jogadores de cada time ficam em quadra no vôlei?">Quantos jogadores de cada time ficam em quadra no vôlei?</textarea><span class="count-hint" data-count-for="Input_Statement">57/500</span></div>
+        <fieldset class="alts"><legend>Respostas <span class="req">· marque a certa</span></legend>
+          <div class="alt"><span class="key">A</span><input class="input" aria-label="Resposta A" value="4" data-bind="a0"><label class="correct"><input type="radio" name="Input.Correct" value="0">Certa</label></div>
+          <div class="alt"><span class="key">B</span><input class="input" aria-label="Resposta B" value="5" data-bind="a1"><label class="correct"><input type="radio" name="Input.Correct" value="1">Certa</label></div>
+          <div class="alt"><span class="key">C</span><input class="input" aria-label="Resposta C" value="6" data-bind="a2"><label class="correct"><input type="radio" name="Input.Correct" value="2" checked>Certa</label></div>
+          <div class="alt"><span class="key">D</span><input class="input" aria-label="Resposta D" value="11" data-bind="a3"><label class="correct"><input type="radio" name="Input.Correct" value="3">Certa</label></div>
+        </fieldset>
+        <div class="field"><label for="Input_Explanation">Explicação <span class="req">(opcional)</span></label><textarea class="input textarea" id="Input_Explanation" data-bind="why">No vôlei de quadra, cada time joga com 6 atletas. Eles trocam de posição a cada ponto conquistado no saque.</textarea><small>Aparece para o aluno depois que ele responde.</small></div>
+      </fieldset>
+      <div class="maker-bar"><button class="btn btn-primary" type="submit">Salvar e aprovar</button><button class="btn" type="submit" name="rascunho">Salvar rascunho</button><a class="link" href="#questoes">Cancelar</a><span class="hint" data-ready-hint aria-live="polite">Tudo pronto para salvar</span></div>
+    </form>
+    <aside class="maker-preview" aria-labelledby="t-prev-q">
+      <p class="pv-label"><span id="t-prev-q">Como o aluno vê</span><span>muda enquanto você escreve</span></p>
+      <div class="phone esp" data-preview><div class="screen">
+        <div class="gq-head"><img data-face src="img/cara-max.webp" alt=""><span data-show="tname">Esportivo</span><span class="lvl" data-show="age">8–10 anos</span></div>
+        <p class="gq" data-show="q" data-empty="Sua pergunta aparece aqui">Quantos jogadores de cada time ficam em quadra no vôlei?</p>
+        <ol class="gq-alts"><li data-k="A" data-show="a0" data-alt="0" data-empty="Resposta A">4</li><li data-k="B" data-show="a1" data-alt="1" data-empty="Resposta B">5</li><li data-k="C" data-show="a2" data-alt="2" data-empty="Resposta C">6</li><li data-k="D" data-show="a3" data-alt="3" data-empty="Resposta D">11</li></ol>
+        <p class="gq-why" data-show="why" data-empty="">No vôlei de quadra, cada time joga com 6 atletas.</p>
+      </div></div>
+      <ul class="ready" aria-label="O que falta"><li data-check="tema">Tema escolhido</li><li data-check="age">Faixa etária</li><li data-check="q">Pergunta escrita</li><li data-check="alts">4 respostas preenchidas</li><li data-check="right">Resposta certa marcada</li></ul>
+    </aside>
+  </div>
+</div></section>
+
+<!-- ================= QUESTÕES: IA ================= -->
+<section class="tela" data-tela="questoes-ia" data-sec="questoes" data-titulo="Gerar questões com IA" hidden><div class="stack">
+  <div><a class="back" href="#questoes"><svg class="icon"><use href="#i-back"/></svg>Questões</a>
+  <div class="page-head"><div><h1 class="page-title">Gerar questões com IA</h1><p class="sub">A IA sugere, a equipe decide. Nada gerado chega ao jogo sem aprovação humana.</p></div></div></div>
+  <form class="ai-panel" aria-labelledby="t-gerar">
+    <h2 id="t-gerar"><svg aria-hidden="true"><use href="#i-ai"/></svg>Pedir sugestões</h2>
+    <ol class="ai-steps" aria-label="Etapas"><li>Pedir</li><li aria-current="step">Revisar</li><li>Aprovar</li></ol>
+    <div class="form-grid">
+      <div class="field"><label for="ia-tipo">Tipo de quiz</label><select id="ia-tipo" class="select select-lg"><option>Esportivo</option><option>Ambiental</option><option>Conhecimento</option><option>Cultural</option><option>Diversidade</option></select></div>
+      <div class="field"><label for="ia-faixa">Faixa etária</label><select id="ia-faixa" class="select select-lg"><option>8–10 anos</option><option>6–7 anos</option><option>11–12 anos</option><option>13–14 anos</option></select></div>
+      <div class="field"><label for="ia-qtd">Quantidade</label><select id="ia-qtd" class="select select-lg"><option>5 questões</option><option>10 questões</option><option>20 questões</option></select></div>
+      <div class="field"><label for="ia-tema">Assunto (opcional)</label><input class="input" id="ia-tema" value="Esportes coletivos"><small>Ex.: reciclagem, Olimpíadas, festas juninas.</small></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ai" type="submit"><svg class="fill"><use href="#i-ai"/></svg>Gerar sugestões</button></div>
+  </form>
+  <section aria-labelledby="t-rev">
+    <div class="panel-head"><h2 id="t-rev">Sugestões para revisar</h2><p>3 de 5 · aprovadas viram “Aprovada”, editadas viram “Rascunho”</p></div>
+    <div class="review">
+      <article class="rcard">
+        <div class="rcard-head"><span class="tag tag-ai"><svg><use href="#i-ai"/></svg>Sugerida pela IA</span><span class="tag tag-type esp"><img src="img/cara-max.webp" alt="">Esportivo</span><span class="tag tag-neutral">8–10 anos</span></div>
+        <p class="rcard-q">No basquete, quantos pontos vale uma cesta feita de fora da linha de três?</p>
+        <ol><li><b>A</b>1 ponto</li><li><b>B</b>2 pontos</li><li class="right"><b>C</b>3 pontos</li><li><b>D</b>4 pontos</li></ol>
+        <p class="why">Explicação: arremessos de fora da linha de três pontos valem 3; os de dentro valem 2.</p>
+        <div class="rcard-actions"><button class="btn btn-primary" type="button"><svg><use href="#i-ok"/></svg>Aprovar</button><a class="btn" href="#questao-editar"><svg><use href="#i-edit"/></svg>Editar</a><button class="btn btn-quiet-bad" type="button" data-descartar><svg><use href="#i-x"/></svg>Descartar</button></div>
+      </article>
+      <article class="rcard">
+        <div class="rcard-head"><span class="tag tag-ai"><svg><use href="#i-ai"/></svg>Sugerida pela IA</span><span class="tag tag-type esp"><img src="img/cara-max.webp" alt="">Esportivo</span><span class="tag tag-neutral">8–10 anos</span></div>
+        <p class="rcard-q">Qual esporte coletivo usa uma bola oval e é jogado com as mãos e os pés?</p>
+        <ol><li class="right"><b>A</b>Rúgbi</li><li><b>B</b>Handebol</li><li><b>C</b>Polo aquático</li><li><b>D</b>Futsal</li></ol>
+        <p class="why">Explicação: o rúgbi usa bola oval; ela pode ser carregada nas mãos e chutada.</p>
+        <div class="rcard-actions"><button class="btn btn-primary" type="button"><svg><use href="#i-ok"/></svg>Aprovar</button><a class="btn" href="#questao-editar"><svg><use href="#i-edit"/></svg>Editar</a><button class="btn btn-quiet-bad" type="button" data-descartar><svg><use href="#i-x"/></svg>Descartar</button></div>
+      </article>
+    </div>
+  </section>
+</div></section>
+
+<!-- ================= CURIOSIDADES ================= -->
+<section class="tela" data-tela="curiosidades" data-sec="curiosidades" data-titulo="Curiosidades" hidden><div class="stack">
+  <div class="page-head">
+    <div><h1 class="page-title">Curiosidades</h1><p class="sub">Toda vez que o aluno abre as curiosidades, o jogo sorteia uma de cada tema deste banco. Só as aprovadas entram no sorteio.</p></div>
+    <div class="page-actions"><a class="btn btn-ai" href="#curiosidades-ia"><svg class="fill"><use href="#i-ai"/></svg>Gerar com IA</a><a class="btn btn-primary" href="#curiosidade-editar"><svg><use href="#i-plus"/></svg>Nova curiosidade</a></div>
+  </div>
+  <section class="panel panel-pad roll" aria-labelledby="t-roll">
+    <div class="panel-head"><div><h2 id="t-roll">Como o aluno vê</h2><p>Um cartão por personagem, sorteado a cada abertura</p></div><button class="btn btn-sm" type="button" data-sortear><svg><use href="#i-shuffle"/></svg>Sortear de novo</button></div>
+    <ul class="carousel" data-carousel aria-live="polite"><li class="gcard amb" data-k="amb" style="--i:0"><img class="fig" src="img/flora-corpo.webp" alt=""><div class="gtxt"><p class="gh">Você sabia?<small>Ambiental · com a Flora</small></p><p class="gt">O beija-flor bate as asas mais de 50 vezes por segundo.</p></div></li><li class="gcard con" data-k="con" style="--i:1"><img class="fig" src="img/byte-corpo.webp" alt=""><div class="gtxt"><p class="gh">Você sabia?<small>Conhecimento · com o Byte</small></p><p class="gt">A luz do Sol leva cerca de 8 minutos para chegar à Terra.</p></div></li><li class="gcard cul" data-k="cul" style="--i:2"><img class="fig" src="img/luna-corpo.webp" alt=""><div class="gtxt"><p class="gh">Você sabia?<small>Cultural · com a Luna</small></p><p class="gt">A capoeira é patrimônio cultural da humanidade, reconhecida pela UNESCO.</p></div></li><li class="gcard esp" data-k="esp" style="--i:3"><img class="fig" src="img/max-corpo.webp" alt=""><div class="gtxt"><p class="gh">Você sabia?<small>Esportivo · com o Max</small></p><p class="gt">O Brasil é o único país que jogou todas as Copas do Mundo de futebol masculino.</p></div></li><li class="gcard div" data-k="div" style="--i:4"><img class="fig" src="img/lia-corpo.webp" alt=""><div class="gtxt"><p class="gh">Você sabia?<small>Diversidade · com a Lia</small></p><p class="gt">Existem mais de 7 mil línguas faladas no mundo.</p></div></li></ul>
+  </section>
+  <section aria-labelledby="t-banco" class="stack" style="gap:var(--sp-4)">
+    <div class="panel-head" style="margin:0"><h2 id="t-banco">Banco por tema</h2><p>Quanto mais curiosidades aprovadas, menos repetição para o aluno</p></div>
+    <div class="bank"><a class="bank-tile amb" href="#curiosidades"><img src="img/cara-flora.webp" alt=""><b>Ambiental</b><span class="big">24</span><small>aprovadas · 3 rascunhos</small><span class="meter"><i style="width:80%"></i></span></a><a class="bank-tile con" href="#curiosidades"><img src="img/cara-byte.webp" alt=""><b>Conhecimento</b><span class="big">19</span><small>aprovadas · 2 rascunhos</small><span class="meter"><i style="width:63%"></i></span></a><a class="bank-tile cul" href="#curiosidades"><img src="img/cara-luna.webp" alt=""><b>Cultural</b><span class="big">15</span><small>aprovadas · 4 rascunhos</small><span class="meter"><i style="width:50%"></i></span></a><a class="bank-tile esp low" href="#curiosidades"><img src="img/cara-max.webp" alt=""><b>Esportivo</b><span class="big">4</span><small>aprovadas · 1 rascunho</small><span class="tag tag-draft">Poucas</span><span class="meter"><i style="width:13%"></i></span></a><a class="bank-tile div" href="#curiosidades"><img src="img/cara-lia.webp" alt=""><b>Diversidade</b><span class="big">20</span><small>aprovadas · 0 rascunhos</small><span class="meter"><i style="width:67%"></i></span></a></div>
+    <div class="note"><svg><use href="#i-alert"/></svg><span><b>Esportivo tem só 4 curiosidades aprovadas.</b> O aluno vai começar a ver as mesmas logo. <a class="link-btn" href="#curiosidades-ia">Gerar 10 com IA</a></span></div>
+  </section>
+  <form class="filters-bar" aria-label="Filtros">
+    <div class="field"><label for="c-tipo">Tema</label><select id="c-tipo" class="select"><option>Todos</option><option>Ambiental</option><option>Conhecimento</option><option>Esportivo</option><option>Cultural</option><option>Diversidade</option></select></div>
+    <div class="field"><label for="c-status">Status</label><select id="c-status" class="select"><option>Todos</option><option>Rascunho</option><option>Aprovada</option></select></div>
+    <div class="field"><label for="c-origem">Origem</label><select id="c-origem" class="select"><option>Todas</option><option>Equipe</option><option>IA</option></select></div>
+    <button class="btn" type="submit">Aplicar</button>
+  </form>
+  <section class="panel panel-pad" aria-label="Banco de curiosidades">
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th scope="col">Curiosidade</th><th scope="col">Tema</th><th scope="col">Status</th><th scope="col" class="actions">Ações</th></tr></thead>
+      <tbody>
+        <tr><td><div class="clip">O beija-flor bate as asas mais de 50 vezes por segundo.</div><small>Equipe</small></td><td><span class="tag tag-type amb"><img src="img/cara-flora.webp" alt="">Ambiental</span></td><td><span class="tag tag-ok">Aprovada</span></td><td class="actions"><a class="link-btn" href="#curiosidade-editar">Editar</a></td></tr>
+        <tr><td><div class="clip">A luz do Sol leva cerca de 8 minutos para chegar à Terra.</div><small>IA · revisada por Marina</small></td><td><span class="tag tag-type con"><img src="img/cara-byte.webp" alt="">Conhecimento</span></td><td><span class="tag tag-ok">Aprovada</span></td><td class="actions"><a class="link-btn" href="#curiosidade-editar">Editar</a></td></tr>
+        <tr><td><div class="clip">Uma partida de basquete profissional é dividida em 4 tempos.</div><small>IA</small></td><td><span class="tag tag-type esp"><img src="img/cara-max.webp" alt="">Esportivo</span></td><td><span class="tag tag-draft">Rascunho</span></td><td class="actions"><a class="link-btn" href="#curiosidade-editar">Editar</a><button class="btn btn-sm btn-primary" type="button">Aprovar</button></td></tr>
+        <tr><td><div class="clip">O frevo, de Pernambuco, também é patrimônio cultural da humanidade.</div><small>Equipe</small></td><td><span class="tag tag-type cul"><img src="img/cara-luna.webp" alt="">Cultural</span></td><td><span class="tag tag-ok">Aprovada</span></td><td class="actions"><a class="link-btn" href="#curiosidade-editar">Editar</a></td></tr>
+        <tr><td><div class="clip">A Libras é reconhecida por lei como língua no Brasil desde 2002.</div><small>IA</small></td><td><span class="tag tag-type div"><img src="img/cara-lia.webp" alt="">Diversidade</span></td><td><span class="tag tag-draft">Rascunho</span></td><td class="actions"><a class="link-btn" href="#curiosidade-editar">Editar</a><button class="btn btn-sm btn-primary" type="button">Aprovar</button></td></tr>
+      </tbody>
+    </table></div>
+    <div class="pager"><span>82 curiosidades · página 1 de 9</span><nav aria-label="Paginação"><a class="btn btn-sm" href="#curiosidades">Anterior</a><a class="btn btn-sm" href="#curiosidades">Próxima</a></nav></div>
+  </section>
+</div></section>
+
+<!-- ================= CURIOSIDADES: IA ================= -->
+<section class="tela" data-tela="curiosidades-ia" data-sec="curiosidades" data-titulo="Gerar curiosidades com IA" hidden><div class="stack">
+  <div><a class="back" href="#curiosidades"><svg class="icon"><use href="#i-back"/></svg>Curiosidades</a>
+  <div class="page-head"><div><h1 class="page-title">Gerar curiosidades com IA</h1><p class="sub">Sugestões curtas, verificáveis e adequadas à idade. A equipe aprova cada uma antes de ela entrar no sorteio.</p></div></div></div>
+  <form class="ai-panel" aria-labelledby="t-gerar-c">
+    <h2 id="t-gerar-c"><svg aria-hidden="true"><use href="#i-ai"/></svg>Pedir sugestões</h2>
+    <ol class="ai-steps" aria-label="Etapas"><li>Pedir</li><li aria-current="step">Revisar</li><li>Aprovar</li></ol>
+    <p class="sub-label" id="l-temas-ia">Para quais temas?</p>
+    <div class="pill-pick" role="group" aria-labelledby="l-temas-ia"><label class="pp"><input type="checkbox" name="temas" value="Ambiental"><span>Ambiental</span></label><label class="pp"><input type="checkbox" name="temas" value="Conhecimento"><span>Conhecimento</span></label><label class="pp"><input type="checkbox" name="temas" value="Cultural"><span>Cultural</span></label><label class="pp"><input type="checkbox" name="temas" value="Esportivo" checked><span>Esportivo</span></label><label class="pp"><input type="checkbox" name="temas" value="Diversidade"><span>Diversidade</span></label></div>
+    <div class="form-grid">
+      <div class="field"><label for="c-qtd">Quantas por tema</label><select id="c-qtd" class="select select-lg"><option>5</option><option selected>10</option><option>20</option></select></div>
+      <div class="field"><label for="c-assunto">Assunto (opcional)</label><input class="input" id="c-assunto" placeholder="Ex.: Olimpíadas, oceanos, festas juninas"></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ai" type="submit"><svg class="fill"><use href="#i-ai"/></svg>Gerar sugestões</button></div>
+  </form>
+  <section aria-labelledby="t-rev-c">
+    <div class="panel-head"><h2 id="t-rev-c">Sugestões para revisar</h2><p>2 de 10 · Esportivo</p></div>
+    <div class="review">
+      <article class="rcard">
+        <div class="rcard-head"><span class="tag tag-ai"><svg><use href="#i-ai"/></svg>Sugerida pela IA</span><span class="tag tag-type esp"><img src="img/cara-max.webp" alt="">Esportivo</span></div>
+        <p class="rcard-q">Uma partida de basquete profissional é dividida em 4 tempos.</p>
+        <p class="why">Fonte sugerida: regras oficiais da modalidade. Confira antes de aprovar.</p>
+        <div class="rcard-actions"><button class="btn btn-primary" type="button"><svg><use href="#i-ok"/></svg>Aprovar</button><a class="btn" href="#curiosidade-editar"><svg><use href="#i-edit"/></svg>Editar</a><button class="btn btn-quiet-bad" type="button" data-descartar><svg><use href="#i-x"/></svg>Descartar</button></div>
+      </article>
+      <article class="rcard">
+        <div class="rcard-head"><span class="tag tag-ai"><svg><use href="#i-ai"/></svg>Sugerida pela IA</span><span class="tag tag-type esp"><img src="img/cara-max.webp" alt="">Esportivo</span></div>
+        <p class="rcard-q">No vôlei, cada time tem 6 jogadores em quadra ao mesmo tempo.</p>
+        <p class="why">Fonte sugerida: regras oficiais da modalidade. Confira antes de aprovar.</p>
+        <div class="rcard-actions"><button class="btn btn-primary" type="button"><svg><use href="#i-ok"/></svg>Aprovar</button><a class="btn" href="#curiosidade-editar"><svg><use href="#i-edit"/></svg>Editar</a><button class="btn btn-quiet-bad" type="button" data-descartar><svg><use href="#i-x"/></svg>Descartar</button></div>
+      </article>
+    </div>
+  </section>
+</div></section>
+
+<!-- ================= CURIOSIDADE: CRIAR / EDITAR ================= -->
+<section class="tela" data-tela="curiosidade-editar" data-sec="curiosidades" data-titulo="Nova curiosidade" hidden><div class="stack">
+  <div><a class="back" href="#curiosidades"><svg class="icon"><use href="#i-back"/></svg>Curiosidades</a>
+  <div class="page-head"><div><h1 class="page-title">Nova curiosidade</h1><p class="sub">Dois passos. Ela entra no sorteio do tema assim que for aprovada.</p></div></div></div>
+  <div class="maker" data-maker="curiosidade">
+    <form class="maker-form" novalidate>
+      <fieldset class="step"><legend class="step-h"><span class="n">1</span>Qual é o tema?<small>O personagem do tema apresenta a curiosidade</small></legend>
+        <div class="theme-pick"><label class="tp amb"><input type="radio" name="Input.QuizType" value="Ambiental" data-k="amb" checked><img src="img/cara-flora.webp" alt=""><b>Ambiental</b><small>Flora</small></label><label class="tp con"><input type="radio" name="Input.QuizType" value="Conhecimento" data-k="con"><img src="img/cara-byte.webp" alt=""><b>Conhecimento</b><small>Byte</small></label><label class="tp cul"><input type="radio" name="Input.QuizType" value="Cultural" data-k="cul"><img src="img/cara-luna.webp" alt=""><b>Cultural</b><small>Luna</small></label><label class="tp esp"><input type="radio" name="Input.QuizType" value="Esportivo" data-k="esp"><img src="img/cara-max.webp" alt=""><b>Esportivo</b><small>Max</small></label><label class="tp div"><input type="radio" name="Input.QuizType" value="Diversidade" data-k="div"><img src="img/cara-lia.webp" alt=""><b>Diversidade</b><small>Lia</small></label></div>
+      </fieldset>
+      <fieldset class="step"><legend class="step-h"><span class="n">2</span>Escreva a curiosidade</legend>
+        <div class="ai-help"><svg aria-hidden="true"><use href="#i-ai"/></svg><span><b>Sem ideia?</b> A IA sugere uma curiosidade do tema escolhido. Você revisa antes de salvar.</span><input class="input" aria-label="Assunto para a IA (opcional)" placeholder="Assunto (opcional)"><button class="btn btn-ai btn-sm" type="button" data-sugerir><svg class="fill"><use href="#i-ai"/></svg>Sugerir</button></div>
+        <span class="tag tag-ai ai-flag" data-ai-flag hidden><svg><use href="#i-ai"/></svg>Sugerida pela IA · confira antes de salvar</span>
+        <div class="field"><label for="Input_Text">Curiosidade</label><textarea class="input textarea" id="Input_Text" maxlength="200" data-bind="t" placeholder="Uma frase curta e surpreendente. Ex.: O beija-flor bate as asas mais de 50 vezes por segundo."></textarea><span class="count-hint" data-count-for="Input_Text">0/200</span><small>Até 200 caracteres: cabe no cartão sem rolar.</small></div>
+        <div class="field"><label for="Input_Source">Fonte <span class="req">(só a equipe vê)</span></label><input class="input" id="Input_Source" data-bind="src" placeholder="Link ou referência usada para conferir"></div>
+      </fieldset>
+      <div class="maker-bar"><button class="btn btn-primary" type="submit">Salvar e aprovar</button><button class="btn" type="submit" name="rascunho">Salvar rascunho</button><a class="link" href="#curiosidades">Cancelar</a><span class="hint" data-ready-hint aria-live="polite"></span></div>
+    </form>
+    <aside class="maker-preview" aria-labelledby="t-prev-c">
+      <p class="pv-label"><span id="t-prev-c">Como o aluno vê</span><span>muda enquanto você escreve</span></p>
+      <div class="phone amb" data-preview><div class="screen">
+        <p class="scr-title">Curiosidades</p>
+        <div class="gcard"><img class="fig" data-body src="img/flora-corpo.webp" alt=""><div class="gtxt"><p class="gh">Você sabia?<small data-show="char">com a Flora</small></p><p class="gt" data-show="t" data-empty="Sua curiosidade aparece aqui"></p></div></div>
+        <p class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i><i></i></p>
+      </div></div>
+      <ul class="ready" aria-label="O que falta"><li data-check="tema">Tema escolhido</li><li data-check="t">Curiosidade escrita</li><li data-check="src" data-opcional>Fonte para conferir (recomendado)</li></ul>
+    </aside>
+  </div>
+</div></section>
+
+<!-- ================= MISSÕES ================= -->
+<section class="tela" data-tela="missoes" data-sec="missoes" data-titulo="Missões" hidden><div class="stack">
+  <div class="page-head"><div><h1 class="page-title">Missões</h1><p class="sub">Missões diárias que dão XP ao aluno. Edite a meta e a recompensa.</p></div></div>
+  <div class="note ok"><svg><use href="#i-ok"/></svg><span>Missão salva.</span></div>
+  <section class="panel panel-pad" aria-label="Missões diárias">
+    <div class="table-wrap"><table class="table" id="missoes">
+      <thead><tr><th scope="col">Título</th><th scope="col" class="num">Meta</th><th scope="col" class="num">Recompensa</th><th scope="col">Tipo de quiz</th><th scope="col" class="actions">Ações</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Responder 3 perguntas</th><td class="num">3</td><td class="num">20 XP</td><td><span class="tag tag-neutral">Genérica</span></td><td class="actions"><a class="link-btn" href="#missao-editar">Editar</a></td></tr>
+        <tr><th scope="row">Desafio da Horta</th><td class="num">5</td><td class="num">50 XP</td><td><span class="tag tag-type amb"><img src="img/cara-flora.webp" alt="">Ambiental</span></td><td class="actions"><a class="link-btn" href="#missao-editar">Editar</a></td></tr>
+        <tr><th scope="row">Treino do Max</th><td class="num">4</td><td class="num">40 XP</td><td><span class="tag tag-type esp"><img src="img/cara-max.webp" alt="">Esportivo</span></td><td class="actions"><a class="link-btn" href="#missao-editar">Editar</a></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+</div></section>
+
+<section class="tela" data-tela="missao-editar" data-sec="missoes" data-titulo="Editar missão" hidden><div class="stack">
+  <div><a class="back" href="#missoes"><svg class="icon"><use href="#i-back"/></svg>Missões</a>
+  <div class="page-head"><div><h1 class="page-title">Editar missão</h1></div></div></div>
+  <form class="panel panel-pad form" novalidate style="max-width:720px">
+    <div class="form-grid">
+      <div class="field full"><label for="m-titulo">Título</label><input class="input" id="m-titulo" value="Desafio da Horta" maxlength="120"></div>
+      <div class="field"><label for="m-meta">Meta (respostas)</label><input class="input" id="m-meta" type="number" min="1" max="1000" value="5"></div>
+      <div class="field"><label for="m-xp">Recompensa (XP)</label><input class="input" id="m-xp" type="number" min="1" max="100000" value="50"></div>
+      <div class="field full"><label for="m-tipo">Tipo de quiz</label><select id="m-tipo" class="select select-lg"><option>Genérica (qualquer quiz)</option><option selected>Ambiental</option><option>Conhecimento</option><option>Esportivo</option><option>Cultural</option><option>Diversidade</option></select></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Salvar</button><a class="btn" href="#missoes">Cancelar</a></div>
+  </form>
+</div></section>
+
+<!-- ================= EVENTOS ================= -->
+<section class="tela" data-tela="eventos" data-sec="eventos" data-titulo="Eventos" hidden><div class="stack">
+  <div class="page-head"><div><h1 class="page-title">Eventos</h1><p class="sub">Eventos com prazo e perguntas próprias. Enquanto o evento está ativo, o local do evento no mapa do jogo mostra só as perguntas dele.</p></div><div class="page-actions"><a class="btn btn-primary" href="#evento-editar"><svg><use href="#i-plus"/></svg>Novo evento</a></div></div>
+  <section class="panel panel-pad" aria-label="Eventos">
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th scope="col">Evento</th><th scope="col">Tema</th><th scope="col" class="num">Perguntas</th><th scope="col">Término (Brasília)</th><th scope="col">Situação</th><th scope="col" class="actions">Ações</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Dia da Água<small>Cada gota conta: responda e ganhe o selo especial</small></th><td><span class="tag tag-type amb"><img src="img/cara-flora.webp" alt="">Ambiental</span></td><td class="num">12</td><td>22/03/2027 18:00</td><td><span class="tag tag-ok">Ativo</span></td><td class="actions"><a class="link-btn" href="#evento-editar">Editar</a></td></tr>
+        <tr><th scope="row">Festival da Primavera<small>Responda e ganhe o selo especial</small></th><td><span class="tag tag-type amb"><img src="img/cara-flora.webp" alt="">Ambiental</span></td><td class="num">8</td><td>21/11/2026 18:00</td><td><span class="tag tag-ok">Ativo</span></td><td class="actions"><a class="link-btn" href="#evento-editar">Editar</a></td></tr>
+        <tr><th scope="row">Copa da Vila<small>Semana dos esportes</small></th><td><span class="tag tag-type esp"><img src="img/cara-max.webp" alt="">Esportivo</span></td><td class="num">10</td><td>30/10/2026 17:00</td><td><span class="tag tag-neutral">Encerrado</span></td><td class="actions"><a class="link-btn" href="#evento-editar">Ver</a></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+</div></section>
+
+<!-- ================= EVENTO: CRIAR / EDITAR ================= -->
+<section class="tela" data-tela="evento-editar" data-sec="eventos" data-titulo="Editar evento" hidden><div class="stack">
+  <div><a class="back" href="#eventos"><svg class="icon"><use href="#i-back"/></svg>Eventos</a>
+  <div class="page-head"><div><h1 class="page-title">Dia da Água</h1><p class="sub">Ativo até 22/03/2027 às 18:00 (horário de Brasília). As perguntas abaixo só aparecem no local do evento.</p></div><div class="page-actions"><span class="tag tag-ok">Ativo</span></div></div></div>
+  <div class="maker" data-maker="evento">
+    <form class="maker-form" novalidate>
+      <fieldset class="step"><legend class="step-h"><span class="n">1</span>Sobre o evento</legend>
+        <div class="form-grid">
+          <div class="field"><label for="e-titulo">Título</label><input class="input" id="e-titulo" maxlength="120" value="Dia da Água" data-bind="evt"></div>
+          <div class="field"><label for="e-fim">Término</label><input class="input" id="e-fim" type="datetime-local" value="2027-03-22T18:00"><small>Horário de Brasília.</small></div>
+          <div class="field full"><label for="e-sub">Chamada <span class="req">(opcional)</span></label><input class="input" id="e-sub" maxlength="200" value="Cada gota conta: responda e ganhe o selo especial" data-bind="evs"></div>
+        </div>
+      </fieldset>
+      <fieldset class="step"><legend class="step-h"><span class="n">2</span>Qual é o tema?<small>Define o personagem e as cores do evento</small></legend>
+        <div class="theme-pick"><label class="tp amb"><input type="radio" name="e-tipo" value="Ambiental" data-k="amb" checked><img src="img/cara-flora.webp" alt=""><b>Ambiental</b><small>Flora</small></label><label class="tp con"><input type="radio" name="e-tipo" value="Conhecimento" data-k="con"><img src="img/cara-byte.webp" alt=""><b>Conhecimento</b><small>Byte</small></label><label class="tp cul"><input type="radio" name="e-tipo" value="Cultural" data-k="cul"><img src="img/cara-luna.webp" alt=""><b>Cultural</b><small>Luna</small></label><label class="tp esp"><input type="radio" name="e-tipo" value="Esportivo" data-k="esp"><img src="img/cara-max.webp" alt=""><b>Esportivo</b><small>Max</small></label><label class="tp div"><input type="radio" name="e-tipo" value="Diversidade" data-k="div"><img src="img/cara-lia.webp" alt=""><b>Diversidade</b><small>Lia</small></label></div>
+      </fieldset>
+      <section class="step ev-qs amb" aria-labelledby="t-evq">
+        <h2 class="step-h" id="t-evq"><span class="n">3</span>Perguntas do evento<small>12 · 11 aprovadas</small></h2>
+        <div class="ai-help"><svg aria-hidden="true"><use href="#i-ai"/></svg><span><b>Faltam ideias?</b> A IA sugere perguntas sobre o assunto do evento, para você revisar.</span><input class="input" aria-label="Assunto para a IA" value="Dia da Água"><a class="btn btn-ai btn-sm" href="#questoes-ia"><svg class="fill"><use href="#i-ai"/></svg>Sugerir 5</a></div>
+        <ol class="qlist">
+          <li><div><p class="txt">Quanto da água do planeta é doce e pode ser bebida?</p><div class="meta"><span class="tag tag-neutral">8–10 anos</span><span class="tag tag-ok">Aprovada</span></div></div><div class="act"><a class="link-btn" href="#questao-editar">Editar</a></div></li>
+          <li><div><p class="txt">Por que não devemos jogar óleo de cozinha na pia?</p><div class="meta"><span class="tag tag-neutral">11–12 anos</span><span class="tag tag-ok">Aprovada</span></div></div><div class="act"><a class="link-btn" href="#questao-editar">Editar</a></div></li>
+          <li><div><p class="txt">Qual destas atitudes ajuda a economizar água em casa?</p><div class="meta"><span class="tag tag-neutral">6–7 anos</span><span class="tag tag-ok">Aprovada</span></div></div><div class="act"><a class="link-btn" href="#questao-editar">Editar</a></div></li>
+          <li><div><p class="txt">O que é uma nascente?</p><div class="meta"><span class="tag tag-neutral">8–10 anos</span><span class="tag tag-ai"><svg><use href="#i-ai"/></svg>IA</span><span class="tag tag-draft">Rascunho</span></div></div><div class="act"><a class="link-btn" href="#questao-editar">Editar</a><button class="btn btn-sm btn-primary" type="button">Aprovar</button></div></li>
+        </ol>
+        <div class="form-actions" style="padding:0"><a class="btn" href="#questao-editar"><svg><use href="#i-plus"/></svg>Nova pergunta do evento</a><a class="link" href="#eventos">Ver as 12</a></div>
+      </section>
+      <div class="maker-bar"><button class="btn btn-primary" type="submit">Salvar evento</button><a class="link" href="#eventos">Cancelar</a></div>
+    </form>
+    <aside class="maker-preview" aria-labelledby="t-prev-e">
+      <p class="pv-label"><span id="t-prev-e">No mapa do jogo</span><span>local do evento</span></p>
+      <div class="phone amb" data-preview><div class="screen">
+        <div class="ev-banner"><span class="k">Evento · termina em 131 dias</span><b data-show="evt" data-empty="Título do evento">Dia da Água</b><p data-show="evs" data-empty="">Cada gota conta: responda e ganhe o selo especial</p><span class="go">Jogar evento</span><img data-body src="img/flora-corpo.webp" alt=""></div>
+        <div class="gq-head"><img data-face src="img/cara-flora.webp" alt=""><span>Pergunta 1 de 12</span><span class="lvl">8–10 anos</span></div>
+        <p class="gq">Quanto da água do planeta é doce e pode ser bebida?</p>
+        <ol class="gq-alts"><li data-k="A">Quase toda</li><li data-k="B">Metade</li><li data-k="C" class="right">Menos de 1%</li><li data-k="D">Cerca de 30%</li></ol>
+      </div></div>
+    </aside>
+  </div>
+</div></section>
+
+<!-- ================= UNIDADES: MAPA DA REDE ================= -->
+<section class="tela" data-tela="unidades" data-sec="unidades" data-titulo="Unidades" hidden><div class="stack">
+  <div class="page-head"><div><h1 class="page-title">Unidades</h1><p class="sub">Os 18 espaços da FUNDHAS em São José dos Campos. Toque num ponto do mapa para ver como o jogo está vivo naquela unidade.</p></div><div class="page-actions"><a class="btn btn-primary" href="#unidade-nova"><svg><use href="#i-plus"/></svg>Nova unidade</a></div></div>
+  <div class="net-stats" aria-label="Resumo da rede">
+    <p><b data-net="locais">18</b><span>espaços</span></p>
+    <p><b data-net="turmas">13</b><span>com turmas no jogo</span></p>
+    <p><b data-net="alunos">0</b><span>alunos ativos</span></p>
+    <p><b data-net="respostas">0</b><span>respostas na semana</span></p>
+  </div>
+  <div class="mapwrap">
+    <div class="map-box">
+      <div id="mapa" role="application" aria-label="Mapa das unidades da FUNDHAS em São José dos Campos"></div>
+      <div class="map-filter" role="group" aria-label="Mostrar no mapa">
+        <label class="pp"><input type="checkbox" value="atendimento" checked><span><i class="dot t-atendimento"></i>Unidades</span></label>
+        <label class="pp"><input type="checkbox" value="inovacao" checked><span><i class="dot t-inovacao"></i>Inovação</span></label>
+        <label class="pp"><input type="checkbox" value="artes" checked><span><i class="dot t-artes"></i>Artes</span></label>
+        <label class="pp"><input type="checkbox" value="profissional" checked><span><i class="dot t-profissional"></i>Profissional</span></label>
+        <label class="pp"><input type="checkbox" value="sede" checked><span><i class="dot t-sede"></i>Sede</span></label>
+      </div>
+      <button class="btn btn-sm map-reset" type="button" data-map-reset><svg><use href="#i-target"/></svg>Ver a cidade</button>
+    </div>
+    <aside class="unit-card" aria-live="polite" data-unit-card></aside>
+  </div>
+  <section aria-labelledby="t-lista-un" class="stack" style="gap:var(--sp-3)">
+    <div class="panel-head" style="margin:0"><h2 id="t-lista-un">Todos os espaços</h2><p>Endereços e telefones de fundhas.org.br · números do jogo são de exemplo</p></div>
+    <ul class="unit-list" data-unit-list></ul>
+  </section>
+</div></section>
+<section class="tela" data-tela="unidade-nova" data-sec="unidades" data-titulo="Nova unidade" hidden><div class="stack">
+  <div><a class="back" href="#unidades"><svg class="icon"><use href="#i-back"/></svg>Unidades</a><div class="page-head"><div><h1 class="page-title">Nova unidade</h1></div></div></div>
+  <form class="panel panel-pad form" novalidate style="max-width:560px">
+    <div class="field"><label for="u-nome">Nome da unidade</label><input class="input" id="u-nome" maxlength="120"></div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Criar unidade</button><a class="btn" href="#unidades">Cancelar</a></div>
+  </form>
+</div></section>
+
+<!-- ================= ADMINISTRADORES ================= -->
+<section class="tela" data-tela="administradores" data-sec="administradores" data-titulo="Administradores" hidden><div class="stack">
+  <div class="page-head"><div><h1 class="page-title">Administradores</h1><p class="sub">3 administradores cadastrados · um por unidade</p></div><div class="page-actions"><a class="btn btn-primary" href="#admin-novo"><svg><use href="#i-plus"/></svg>Novo administrador</a></div></div>
+  <section class="panel panel-pad" aria-label="Administradores">
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th scope="col">Usuário</th><th scope="col">E-mail</th><th scope="col">Unidade</th><th scope="col">Situação</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">carla.mendes</th><td>carla.mendes@exemplo.org</td><td>Unidade Centro</td><td><span class="tag tag-ok">Ativo</span></td></tr>
+        <tr><th scope="row">rafael.souza</th><td>rafael.souza@exemplo.org</td><td>Unidade Sul</td><td><span class="tag tag-ok">Ativo</span></td></tr>
+        <tr><th scope="row">teresa.alves</th><td>teresa.alves@exemplo.org</td><td>Unidade Norte</td><td><span class="tag tag-neutral">Inativo</span></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+</div></section>
+<section class="tela" data-tela="admin-novo" data-sec="administradores" data-titulo="Novo administrador" hidden><div class="stack">
+  <div><a class="back" href="#administradores"><svg class="icon"><use href="#i-back"/></svg>Administradores</a><div class="page-head"><div><h1 class="page-title">Novo administrador</h1></div></div></div>
+  <form class="panel panel-pad form" novalidate style="max-width:720px">
+    <div class="alert" id="resumo-erros" tabindex="-1" role="alert"><svg aria-hidden="true"><use href="#i-alert"/></svg><span>Corrija os campos abaixo: <a href="#Input_UnitId" style="color:inherit">Esta unidade já tem um administrador ativo.</a></span></div>
+    <div class="form-grid">
+      <div class="field"><label for="Input_UserName">Nome de usuário</label><input class="input" id="Input_UserName" maxlength="60" value="paulo.reis"></div>
+      <div class="field"><label for="Input_Email">E-mail</label><input class="input" id="Input_Email" type="email" value="paulo.reis@exemplo.org"></div>
+      <div class="field"><label for="Input_UnitId">Unidade</label><select id="Input_UnitId" class="select select-lg" aria-invalid="true" aria-describedby="Input_UnitId-erro" style="border-color:var(--bad)"><option>Selecione a unidade</option><option selected>Unidade Centro</option><option>Unidade Sul</option></select><span class="field-error" id="Input_UnitId-erro">Esta unidade já tem um administrador ativo.</span></div>
+      <div class="field"><label for="Input_Password">Senha inicial</label><input class="input" id="Input_Password" type="password"><small>Mínimo de 6 caracteres, com maiúscula, minúscula, número e um símbolo. Ela não será exibida de novo.</small></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Criar administrador</button><a class="btn" href="#administradores">Cancelar</a></div>
+  </form>
+</div></section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ================= CONTA (sem casca, como _Bare) ================= -->
+<section class="tela bare" data-tela="recuperar-senha" data-bare data-titulo="Recuperar senha" hidden>
+  <div class="bare-card">
+    <span class="face-solo"><img src="img/cara-helinho.webp" alt=""></span>
+    <h1>Recuperar senha</h1>
+    <p class="lede">Informe o e-mail cadastrado. Se ele existir, enviaremos as instruções.</p>
+    <div class="note info"><svg><use href="#i-info"/></svg><span>Se o e-mail estiver cadastrado, enviaremos as instruções para recuperar a senha.</span></div>
+    <form novalidate><div class="field"><label for="r-email">E-mail</label><input class="input" id="r-email" type="email" autocomplete="email"></div><button class="btn btn-primary btn-lg" type="submit">Enviar instruções</button></form>
+    <a class="link" href="v2-entrar.html">Voltar para o login</a>
+  </div>
+</section>
+<section class="tela bare" data-tela="acesso-negado" data-bare data-titulo="Acesso negado" hidden>
+  <div class="bare-card">
+    <span class="face-solo" style="background:var(--q-con-bg)"><img src="img/cara-byte.webp" alt=""></span>
+    <h1>Acesso negado</h1>
+    <p class="lede">Seu perfil não tem permissão para ver esta página.</p>
+    <a class="btn btn-primary btn-lg" href="v2.html">Voltar ao início</a>
+  </div>
+</section>
+
+<details class="pv"><summary>Preview</summary><nav aria-label="Telas da preview">
+  <a href="v2-entrar.html">Entrar</a><a href="v2.html">Painel</a>
+  <a href="#alunos">Alunos</a><a href="#aluno-novo">Novo aluno</a>
+  <a href="#desempenho">Desempenho</a><a href="#desempenho-aluno">Ficha do aluno</a>
+  <a href="#questoes">Questões</a><a href="#questao-editar">Nova questão</a>
+  <a href="#questoes-ia">Questões · IA</a><a href="#curiosidades">Curiosidades</a>
+  <a href="#curiosidades-ia">Curiosidades · IA</a><a href="#curiosidade-editar">Nova curiosidade</a>
+  <a href="#missoes">Missões</a><a href="#missao-editar">Editar missão</a>
+  <a href="#eventos">Eventos</a><a href="#evento-editar">Evento + perguntas</a>
+  <a href="#unidades">Unidades · mapa</a>
+  <a href="#unidade-nova">Nova unidade</a><a href="#administradores">Administradores</a>
+  <a href="#admin-novo">Novo admin (erro)</a><a href="#recuperar-senha">Recuperar senha</a>
+  <a href="#acesso-negado">Acesso negado</a><button type="button" data-tema>Tema</button>
+</nav></details>
+
+<script>
+// Roteador da preview: uma tela por hash; telas de conta escondem a casca.
+(() => {
+  const telas = [...document.querySelectorAll('.tela')];
+  const shell = document.getElementById('shell');
+  const mostrar = () => {
+    const id = location.hash.slice(1) || 'alunos';
+    const alvo = telas.find((t) => t.dataset.tela.split(' ').includes(id));
+    if (!alvo) return;   // âncora interna (ex.: #novo-evento)
+    telas.forEach((t) => { t.hidden = t !== alvo; });
+    shell.hidden = alvo.hasAttribute('data-bare');
+    document.title = `${alvo.dataset.titulo} · Universo do Helinho — v2`;
+    document.querySelectorAll('.nav a').forEach((a) => a.toggleAttribute('aria-current', a.dataset.sec === alvo.dataset.sec));
+    document.querySelectorAll('.nav a[aria-current]').forEach((a) => a.setAttribute('aria-current', 'page'));
+    document.body.classList.remove('menu-open');
+    scrollTo(0, 0);
+  };
+  const calmo = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  addEventListener('hashchange', () => (document.startViewTransition && !calmo ? document.startViewTransition(mostrar) : mostrar()));
+  mostrar();
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-descartar]');
+    if (b) { const c = b.closest('.rcard'); c.classList.add('gone'); setTimeout(() => c.remove(), 300); }
+  });
+})();
+
+// Criadores (questão, curiosidade, evento): a prévia do jogo acompanha o que a equipe escreve.
+(() => {
+  const calmo = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const T = { amb: ['Ambiental', 'a Flora', 'flora'], con: ['Conhecimento', 'o Byte', 'byte'], cul: ['Cultural', 'a Luna', 'luna'], esp: ['Esportivo', 'o Max', 'max'], div: ['Diversidade', 'a Lia', 'lia'] };
+  // Só para a preview: no projeto real a sugestão vem do serviço de IA e nasce como rascunho.
+  const SUG = {
+    questao: {
+      amb: { q: 'Qual destas atitudes ajuda a economizar água em casa?', a0: 'Fechar a torneira ao escovar os dentes', a1: 'Lavar a calçada com mangueira', a2: 'Tomar banhos bem longos', a3: 'Deixar a torneira pingando', right: 0, why: 'Fechar a torneira enquanto escova os dentes economiza vários litros de água por dia.' },
+      con: { q: 'Quanto tempo a luz do Sol leva para chegar à Terra?', a0: 'Cerca de 8 segundos', a1: 'Cerca de 8 minutos', a2: 'Cerca de 8 horas', a3: 'Cerca de 8 dias', right: 1, why: 'A luz viaja muito rápido, mas o Sol está longe: ela leva cerca de 8 minutos para chegar aqui.' },
+      cul: { q: 'Qual destas danças nasceu em Pernambuco?', a0: 'Frevo', a1: 'Tango', a2: 'Catira', a3: 'Valsa', right: 0, why: 'O frevo nasceu em Recife e é patrimônio cultural da humanidade.' },
+      esp: { q: 'No basquete, quanto vale uma cesta feita de fora da linha de três?', a0: '1 ponto', a1: '2 pontos', a2: '3 pontos', a3: '4 pontos', right: 2, why: 'Cestas de fora da linha valem 3 pontos; as de dentro valem 2.' },
+      div: { q: 'Qual é a língua de sinais usada no Brasil?', a0: 'ASL', a1: 'Libras', a2: 'Braille', a3: 'Esperanto', right: 1, why: 'Libras é a Língua Brasileira de Sinais. Braille é um sistema de leitura pelo tato, não uma língua.' },
+    },
+    curiosidade: {
+      amb: { t: 'As abelhas visitam milhares de flores para produzir um pouquinho de mel.' },
+      con: { t: 'O primeiro computador eletrônico, o ENIAC, pesava cerca de 30 toneladas.' },
+      cul: { t: 'O frevo, de Pernambuco, é patrimônio cultural da humanidade.' },
+      esp: { t: 'Uma partida de basquete profissional é dividida em 4 tempos.' },
+      div: { t: 'No Brasil vivem mais de 300 povos indígenas diferentes.' },
+    },
+  };
+  const POOL = {
+    amb: ['O beija-flor bate as asas mais de 50 vezes por segundo.', 'As abelhas visitam milhares de flores para produzir um pouquinho de mel.', 'Reciclar uma lata de alumínio economiza muita energia.'],
+    con: ['A luz do Sol leva cerca de 8 minutos para chegar à Terra.', 'O primeiro computador eletrônico pesava cerca de 30 toneladas.', 'O cérebro tem bilhões de neurônios conversando entre si.'],
+    cul: ['A capoeira é patrimônio cultural da humanidade, reconhecida pela UNESCO.', 'O frevo, de Pernambuco, também é patrimônio da humanidade.', 'O maracatu mistura tradições africanas, indígenas e portuguesas.'],
+    esp: ['O Brasil é o único país que jogou todas as Copas do Mundo de futebol masculino.', 'No vôlei, cada time tem 6 jogadores em quadra.', 'Uma partida de basquete profissional tem 4 tempos.'],
+    div: ['Existem mais de 7 mil línguas faladas no mundo.', 'A Libras é reconhecida por lei como língua no Brasil.', 'No Brasil vivem mais de 300 povos indígenas diferentes.'],
+  };
+
+  document.querySelectorAll('[data-maker]').forEach((m) => {
+    const tipo = m.dataset.maker;
+    const pv = m.querySelector('[data-preview]');
+    const show = (k, v) => m.querySelectorAll(`[data-show="${k}"]`).forEach((el) => {
+      const vazio = !v;
+      el.textContent = vazio ? (el.dataset.empty || '') : v;
+      el.classList.toggle('is-empty', vazio);
+      el.hidden = vazio && el.dataset.empty === '';
+    });
+    const tema = () => m.querySelector('.theme-pick input:checked')?.dataset.k;
+    const upd = () => {
+      const k = tema();
+      if (k && pv) {
+        Object.keys(T).forEach((t) => { pv.classList.toggle(t, t === k); m.querySelector('.ev-qs')?.classList.toggle(t, t === k); });
+        m.querySelectorAll('[data-face]').forEach((i) => { i.src = `img/cara-${T[k][2]}.webp`; });
+        m.querySelectorAll('[data-body]').forEach((i) => { i.src = `img/${T[k][2]}-corpo.webp`; });
+        show('tname', T[k][0]); show('char', `com ${T[k][1]}`);
+      }
+      m.querySelectorAll('[data-group]').forEach((g) => { const c = g.querySelector('input:checked'); show(g.dataset.group, c ? c.closest('label').textContent.trim() : ''); });
+      m.querySelectorAll('[data-bind]').forEach((el) => show(el.dataset.bind, el.value.trim()));
+      const certa = m.querySelector('input[name="Input.Correct"]:checked')?.value;
+      m.querySelectorAll('[data-alt]').forEach((li) => li.classList.toggle('right', li.dataset.alt === certa));
+      m.querySelectorAll('[data-count-for]').forEach((c) => { const el = document.getElementById(c.dataset.countFor); c.textContent = `${el.value.length}/${el.maxLength}`; });
+      const val = (b) => m.querySelector(`[data-bind="${b}"]`)?.value.trim() || '';
+      const ok = {
+        tema: !!k,
+        age: !!m.querySelector('[data-group="age"] input:checked'),
+        q: val('q').length >= 10,
+        alts: ['a0', 'a1', 'a2', 'a3'].every((b) => val(b)),
+        right: certa != null,
+        t: val('t').length >= 20,
+        src: !!val('src'),
+      };
+      let faltam = 0;
+      m.querySelectorAll('[data-check]').forEach((li) => {
+        const v = !!ok[li.dataset.check];
+        li.classList.toggle('ok', v);
+        if (!v && !li.hasAttribute('data-opcional')) faltam++;
+      });
+      const hint = m.querySelector('[data-ready-hint]');
+      if (hint) hint.textContent = faltam ? `Falta${faltam > 1 ? 'm' : ''} ${faltam} ${faltam > 1 ? 'itens' : 'item'}` : 'Tudo pronto para salvar';
+    };
+    m.addEventListener('input', upd);
+    m.addEventListener('change', upd);
+    upd();
+    m.querySelector('[data-sugerir]')?.addEventListener('click', (e) => {
+      const btn = e.currentTarget;
+      const s = SUG[tipo]?.[tema() || 'amb'];
+      if (!s || btn.getAttribute('aria-busy') === 'true') return;
+      btn.setAttribute('aria-busy', 'true');
+      setTimeout(() => {
+        Object.entries(s).forEach(([b, v]) => {
+          const el = m.querySelector(`[data-bind="${b}"]`);
+          if (!el) return;
+          el.value = v;
+          el.classList.remove('ai-filled'); void el.offsetWidth; el.classList.add('ai-filled');
+        });
+        if (s.right != null) { const r = m.querySelector(`input[name="Input.Correct"][value="${s.right}"]`); if (r) r.checked = true; }
+        m.querySelector('[data-ai-flag]')?.removeAttribute('hidden');
+        btn.removeAttribute('aria-busy');
+        upd();
+      }, calmo ? 0 : 650);
+    });
+  });
+
+  // Curiosidades: simula o sorteio que o jogo faz a cada abertura (uma por tema).
+  document.querySelectorAll('[data-sortear]').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-carousel] .gcard').forEach((c, i) => {
+      const txt = c.querySelector('.gt');
+      const opcoes = POOL[c.dataset.k].filter((t) => t !== txt.textContent);
+      const novo = opcoes[Math.floor(Math.random() * opcoes.length)];
+      if (calmo) { txt.textContent = novo; return; }
+      setTimeout(() => {
+        c.classList.remove('swap'); void c.offsetWidth; c.classList.add('swap');
+        setTimeout(() => { txt.textContent = novo; }, 220);
+      }, i * 70);
+    });
+  }));
+})();
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+// Mapa da rede FUNDHAS (Leaflet + OpenStreetMap). Endereços: fundhas.org.br/unidades.
+// Números do jogo por unidade são de exemplo (no projeto real vêm do painel).
+(() => {
+  const UN = [{"id":"parque-industrial","nome":"Unidade Parque Industrial","hom":"","tipo":"atendimento","end":"Rua Fictícia, 100","bairro":"Parque Industrial","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h40–11h30 e 13h–16h45","ll":[-23.230778,-45.906408],"aprox":false},{"id":"inovacao-sul","nome":"Centro de Inovação Sul","hom":"","tipo":"inovacao","end":"Rua Fictícia, 100","bairro":"Parque Industrial","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h40–11h30 e 13h–16h30","ll":[-23.230778,-45.906408],"aprox":false},{"id":"artistico","nome":"Centro de Desenvolvimento Artístico","hom":"","tipo":"artes","end":"Rua Fictícia, 100","bairro":"Parque Industrial","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h40–11h30 e 13h–16h45","ll":[-23.230778,-45.906408],"aprox":false},{"id":"sede","nome":"Sede administrativa","hom":"","tipo":"sede","end":"Rua Fictícia, 100","bairro":"Parque Industrial","cep":"00000-000","tel":"(00) 0000-0000","hora":"","ll":[-23.230778,-45.906408],"aprox":false},{"id":"limoeiro","nome":"Unidade Limoeiro","hom":"","tipo":"atendimento","end":"Rua Fictícia, 200","bairro":"Limoeiro","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h30–12h e 13h–17h","ll":[-23.237015,-45.931045],"aprox":true},{"id":"jd-sao-jose-2","nome":"Unidade Jardim São José II","hom":"","tipo":"atendimento","end":"Rua Fictícia, 300","bairro":"Jardim São José II","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h30–12h e 13h–17h","ll":[-23.17162,-45.779206],"aprox":false},{"id":"polo-cephas","nome":"Polo CEPHAS · Parque de Inovação Tecnológica","hom":"","tipo":"inovacao","end":"Rua Fictícia, 400","bairro":"Eugênio de Melo","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h30–12h e 13h–17h","ll":[-23.139273,-45.785805],"aprox":true},{"id":"putim","nome":"Unidade Putim","hom":"","tipo":"atendimento","end":"Rua Fictícia, 500","bairro":"Putim","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h40–11h30 e 13h–16h45","ll":[-23.182009,-45.812196],"aprox":false},{"id":"dom-pedro","nome":"Unidade Dom Pedro I","hom":"","tipo":"atendimento","end":"Rua Fictícia, 600","bairro":"Dom Pedro I","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h40–11h30 e 13h–16h45","ll":[-23.276145,-45.887665],"aprox":false},{"id":"dom-bosco","nome":"Unidade Dom Bosco","hom":"","tipo":"atendimento","end":"Rua Fictícia, 700","bairro":"Campo dos Alemães","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h40–11h30 e 13h–16h45","ll":[-23.27437,-45.899878],"aprox":false},{"id":"centro","nome":"Unidade Centro","hom":"","tipo":"atendimento","end":"Rua Fictícia, 800","bairro":"Centro","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h40–11h30 e 13h–16h45","ll":[-23.186973,-45.882011],"aprox":false},{"id":"inovacao-norte","nome":"Centro de Inovação Norte","hom":"","tipo":"inovacao","end":"Rua Fictícia, 900","bairro":"Vila Cristina","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h40–11h30 e 13h–16h30","ll":[-23.159291,-45.890974],"aprox":false},{"id":"alto-da-ponte","nome":"Unidade Alto da Ponte","hom":"","tipo":"atendimento","end":"Rua Fictícia, 1000","bairro":"Alto da Ponte","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h40–11h30 e 13h–16h45","ll":[-23.153315,-45.901332],"aprox":false},{"id":"campos-sao-jose","nome":"Unidade Campos de São José","hom":"","tipo":"atendimento","end":"Rua Fictícia, 1100","bairro":"Campos de São José","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h40–11h30 e 13h–16h45","ll":[-23.212407,-45.81272],"aprox":true},{"id":"leste","nome":"Unidade Leste","hom":"","tipo":"atendimento","end":"Rua Fictícia, 1200","bairro":"Jardim Rodolfo","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h40–11h30 e 13h–16h45","ll":[-23.175482,-45.813317],"aprox":false},{"id":"eugenio-melo","nome":"Unidade Eugênio de Melo","hom":"","tipo":"atendimento","end":"Rua Fictícia, 1300","bairro":"Eugênio de Melo","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h40–11h30 e 13h–16h45","ll":[-23.138887,-45.785658],"aprox":false},{"id":"inovacao-eugenio","nome":"Centro de Inovação Eugênio de Melo","hom":"","tipo":"inovacao","end":"Rua Fictícia, 1400","bairro":"Eugênio de Melo","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h40–11h30 e 13h–16h30","ll":[-23.137127,-45.783178],"aprox":false},{"id":"cephas","nome":"CEPHAS · Colégio de Educação Profissional","hom":"","tipo":"profissional","end":"Rua Fictícia, 1500","bairro":"Floradas de São José","cep":"00000-000","tel":"(00) 0000-0000","hora":"7h15–12h, 13h30–18h15 e 18h–22h45","ll":[-23.222007,-45.886683],"aprox":false}];
+  const calmo = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const TIPO = { atendimento: 'Unidade de atendimento', inovacao: 'Centro de inovação', artes: 'Desenvolvimento artístico', profissional: 'Formação profissional', sede: 'Sede administrativa' };
+  const TEMAS = [['amb', 'Ambiental', 'flora'], ['con', 'Conhecimento', 'byte'], ['cul', 'Cultural', 'luna'], ['esp', 'Esportivo', 'max'], ['div', 'Diversidade', 'lia']];
+  const ICON = { atendimento: 'i-alunos', inovacao: 'i-bulb', artes: 'i-palette', profissional: 'i-cap', sede: 'i-unid' };
+  const fmt = new Intl.NumberFormat('pt-BR');
+  const hash = (s) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+  // dados de exemplo, estáveis por unidade
+  UN.forEach((u) => {
+    if (u.tipo === 'sede') return;
+    const h = hash(u.id);
+    u.alunos = u.tipo === 'profissional' ? 0 : 90 + (h % 230);
+    u.respostas = u.alunos * (7 + (h % 9));
+    u.estrelas = Math.round(u.respostas * .62);
+    u.temas = TEMAS.map((t, i) => 42 + ((h >> (i * 3)) % 48));
+    u.evento = 40 + (h % 55);
+  });
+  const set = (k, v) => document.querySelectorAll(`[data-net="${k}"]`).forEach((el) => { el.textContent = v; });
+  set('locais', UN.length);
+  set('turmas', UN.filter((u) => u.alunos).length);
+  set('alunos', fmt.format(UN.reduce((a, u) => a + (u.alunos || 0), 0)));
+  set('respostas', fmt.format(UN.reduce((a, u) => a + (u.respostas || 0), 0)));
+
+  // agrupa espaços no mesmo endereço (ex.: Rua Santarém, 560) num único pino
+  const grupos = new Map();
+  UN.forEach((u) => { const k = u.ll.join(); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(u); });
+
+  const card = document.querySelector('[data-unit-card]');
+  const lista = document.querySelector('[data-unit-list]');
+  lista.innerHTML = UN.map((u, i) => `<li style="--i:${i}"><button type="button" class="unit-item" data-id="${u.id}" aria-pressed="false"><i class="dot t-${u.tipo}"></i><span><b>${u.nome}</b><small>${u.bairro}${u.alunos ? ` · ${fmt.format(u.alunos)} alunos` : ''}</small></span></button></li>`).join('');
+
+  const svg = (id) => `<svg aria-hidden="true"><use href="#${id}"/></svg>`;
+  const render = (u) => {
+    const irmaos = grupos.get(u.ll.join()).filter((x) => x !== u);
+    const maps = `https://www.openstreetmap.org/?mlat=${u.ll[0]}&mlon=${u.ll[1]}#map=17/${u.ll[0]}/${u.ll[1]}`;
+    const melhor = u.temas ? u.temas.indexOf(Math.max(...u.temas)) : -1;
+    card.innerHTML = `
+      <div class="uc-head">
+        <span class="tag uc-type t-${u.tipo}">${svg(ICON[u.tipo])}${TIPO[u.tipo]}</span>
+        <h2>${u.nome}</h2>
+        ${u.hom ? `<p class="uc-hom">${u.hom}</p>` : ''}
+      </div>
+      <dl class="uc-info">
+        <div><dt>${svg('i-pin')}<span class="sr">Endereço</span></dt><dd>${u.end} · ${u.bairro}<small>CEP ${u.cep}${u.aprox ? ' · posição aproximada no mapa' : ''}</small></dd></div>
+        <div><dt>${svg('i-phone')}<span class="sr">Telefone</span></dt><dd>${u.tel}</dd></div>
+        ${u.hora ? `<div><dt>${svg('i-clock')}<span class="sr">Horário</span></dt><dd>${u.hora}</dd></div>` : ''}
+      </dl>
+      ${u.alunos ? `
+      <div class="uc-stats">
+        <p><b>${fmt.format(u.alunos)}</b><span>alunos</span></p>
+        <p><b>${fmt.format(u.respostas)}</b><span>respostas</span></p>
+        <p><b>${fmt.format(u.estrelas)}</b><span>estrelas</span></p>
+      </div>
+      <div class="uc-themes"><p class="uc-k">Acertos por tema na unidade</p>
+        ${TEMAS.map((t, i) => `<div class="uc-t ${t[0]}${i === melhor ? ' best' : ''}"><img src="img/cara-${t[2]}.webp" alt=""><span>${t[1]}</span><span class="meter"><i style="width:${u.temas[i]}%"></i></span><b>${u.temas[i]}%</b></div>`).join('')}
+      </div>
+      <div class="uc-event amb"><img src="img/flora-corpo.webp" alt=""><div><p class="uc-k">Evento ativo</p><b>Dia da Água</b><span class="meter"><i style="width:${u.evento}%"></i></span><small>${u.evento}% dos alunos já jogaram</small></div></div>
+      <div class="uc-actions"><a class="btn btn-primary btn-sm" href="#alunos">Ver alunos</a><a class="btn btn-sm" href="#desempenho">Desempenho</a></div>`
+      : `<p class="uc-none">${u.tipo === 'sede' ? 'Espaço administrativo: não tem turmas no jogo.' : 'Cursos profissionalizantes: as turmas ainda não usam o jogo.'}</p>`}
+      ${irmaos.length ? `<div class="uc-same"><p class="uc-k">No mesmo endereço</p>${irmaos.map((x) => `<button type="button" class="link-btn" data-id="${x.id}">${x.nome}</button>`).join('')}</div>` : ''}
+      <a class="link uc-out" href="${maps}" target="_blank" rel="noopener">Abrir no OpenStreetMap</a>`;
+    card.classList.remove('swap'); void card.offsetWidth; card.classList.add('swap');
+  };
+
+  let mapa, camada, ativo, iniciado = false;
+  const pinos = new Map();
+  // Tiles do OpenStreetMap (sem chave). Em produção, usar um provedor com cota própria.
+  const tiles = () => 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+  const selecionar = (id, voar = true) => {
+    const u = UN.find((x) => x.id === id);
+    if (!u) return;
+    ativo = u;
+    render(u);
+    pinos.forEach((m, k) => m.getElement()?.classList.toggle('on', k === u.ll.join()));
+    lista.querySelectorAll('.unit-item').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
+    if (voar && mapa) mapa.flyTo(u.ll, 15, { animate: !calmo, duration: .9 });
+  };
+
+  const iniciar = () => {
+    if (iniciado || typeof L === 'undefined') return;
+    iniciado = true;
+    mapa = L.map('mapa', { zoomControl: false, scrollWheelZoom: false, attributionControl: true });
+    L.control.zoom({ position: 'bottomright', zoomInTitle: 'Aproximar', zoomOutTitle: 'Afastar' }).addTo(mapa);
+    camada = L.tileLayer(tiles(), { attribution: ATTR, maxZoom: 19 }).addTo(mapa);
+    let i = 0;
+    grupos.forEach((us, k) => {
+      const u = us.find((x) => x.tipo !== 'sede') || us[0];
+      const html = `<span class="pin t-${u.tipo}" style="--i:${i++}">${svg(ICON[u.tipo])}${us.length > 1 ? `<b>${us.length}</b>` : ''}</span>`;
+      const m = L.marker(u.ll, {
+        icon: L.divIcon({ className: 'pin-wrap', html, iconSize: [40, 40], iconAnchor: [20, 40] }),
+        title: us.map((x) => x.nome).join(' · '), keyboard: true, riseOnHover: true,
+      }).addTo(mapa);
+      m.on('click', () => selecionar(u.id));
+      m.on('keypress', (e) => { if (e.originalEvent.key === 'Enter') selecionar(u.id); });
+      pinos.set(k, m);
+    });
+    const tudo = L.latLngBounds(UN.map((u) => u.ll));
+    mapa.fitBounds(tudo, { padding: [56, 56] });
+    document.querySelector('[data-map-reset]').addEventListener('click', () => mapa.flyToBounds(tudo, { padding: [56, 56], animate: !calmo }));
+    mapa.on('click', () => mapa.scrollWheelZoom.enable());
+    selecionar('centro', false);
+  };
+
+  document.querySelector('.map-filter').addEventListener('change', () => {
+    const on = new Set([...document.querySelectorAll('.map-filter input:checked')].map((c) => c.value));
+    grupos.forEach((us, k) => {
+      const visivel = us.some((u) => on.has(u.tipo));
+      const m = pinos.get(k);
+      if (m) { if (visivel) m.addTo(mapa); else m.remove(); }
+    });
+    lista.querySelectorAll('.unit-item').forEach((b) => { b.closest('li').hidden = !on.has(UN.find((u) => u.id === b.dataset.id).tipo); });
+  });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('.unit-item, .uc-same [data-id]');
+    if (b) { selecionar(b.dataset.id); if (b.classList.contains('unit-item') && innerWidth < 1100) document.querySelector('.map-box').scrollIntoView({ behavior: calmo ? 'auto' : 'smooth', block: 'start' }); }
+  });
+  const ver = () => {
+    if (location.hash !== '#unidades') return;
+    requestAnimationFrame(() => { iniciar(); mapa?.invalidateSize(); });
+  };
+  addEventListener('hashchange', ver);
+  ver();
+  render(UN.find((u) => u.id === 'centro'));
+})();
+</script>
+<script src="v2.js" defer></script>
+</body>
+</html>
