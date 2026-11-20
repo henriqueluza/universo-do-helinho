@@ -10,51 +10,53 @@
     var endsError = ModelState["Input.EndsAt"]?.Errors.FirstOrDefault()?.ErrorMessage;
     var hasErrors = titleError is not null || subtitleError is not null || typeError is not null || endsError is not null;
 }
-<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-    <h1 class="page-title mb-0">Eventos</h1>
-    <a class="btn btn-primary" href="#novo-evento">Novo evento</a>
+<div class="page-head">
+    <p class="sub">Eventos com prazo. Enquanto o evento está ativo, ele aparece no jogo até o horário de término.</p>
+    <div class="page-actions">
+        <a class="btn btn-primary" href="#novo-evento"><svg aria-hidden="true"><use href="#i-plus" /></svg>Novo evento</a>
+    </div>
 </div>
 
 @if (Model.Saved is not null)
 {
-    <div class="alert alert-success" role="status">@Model.Saved</div>
+    <div class="note ok" role="status"><svg aria-hidden="true"><use href="#i-ok" /></svg><span>@Model.Saved</span></div>
 }
 
-<div class="card-panel mb-4">
+<section class="panel panel-pad" aria-label="Eventos">
     @if (Model.Events.Count == 0)
     {
-        <p class="mb-1 fw-semibold">Nenhum evento cadastrado.</p>
-        <p class="muted mb-0">Use o formulário abaixo para criar o primeiro evento.</p>
+        <p><b>Nenhum evento cadastrado.</b></p>
+        <p class="sub">Use o formulário abaixo para criar o primeiro evento.</p>
     }
     else
     {
-        <div class="table-responsive">
-            <table class="table align-middle mb-0">
+        <div class="table-wrap">
+            <table class="table">
                 <caption class="visually-hidden">Eventos, com tipo de quiz, término (horário de Brasília) e situação</caption>
                 <thead>
-                    <tr><th scope="col">Título</th><th scope="col">Tipo de quiz</th><th scope="col">Término (Brasília)</th><th scope="col">Situação</th></tr>
+                    <tr><th scope="col">Evento</th><th scope="col">Tipo de quiz</th><th scope="col">Término (Brasília)</th><th scope="col">Situação</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var e in Model.Events)
                     {
                         <tr>
-                            <th scope="row" class="fw-medium">
+                            <th scope="row">
                                 @e.Title
                                 @if (e.Subtitle.Length > 0)
                                 {
-                                    <div class="muted fw-normal small">@e.Subtitle</div>
+                                    <small>@e.Subtitle</small>
                                 }
                             </th>
-                            <td><span class="badge quiz-@e.QuizType.ToString().ToLowerInvariant()" style="background: var(--quiz-bg); color: var(--quiz-ink)">@IndexModel.QuizLabel(e.QuizType)</span></td>
-                            <td style="font-variant-numeric: tabular-nums">@BrasiliaTime.ToLocal(e.EndsAt).ToString("dd/MM/yyyy HH:mm")</td>
+                            <td><partial name="_TemaQuiz" model="e.QuizType" /></td>
+                            <td>@BrasiliaTime.ToLocal(e.EndsAt).ToString("dd/MM/yyyy HH:mm")</td>
                             <td>
                                 @if (e.Active)
                                 {
-                                    <span class="badge" style="background: var(--pill-positive-bg); color: var(--pill-positive-ink)">Ativo</span>
+                                    <span class="tag tag-ok">Ativo</span>
                                 }
                                 else
                                 {
-                                    <span class="badge" style="background: var(--pill-neutral-bg); color: var(--pill-neutral-ink)">Encerrado</span>
+                                    <span class="tag tag-neutral">Encerrado</span>
                                 }
                             </td>
                         </tr>
@@ -63,51 +65,62 @@
             </table>
         </div>
     }
-</div>
-
-<section class="card-panel" id="novo-evento" aria-labelledby="novo-evento-titulo" style="max-width: 640px">
-    <h2 class="h5 fw-semibold mb-3" id="novo-evento-titulo">Novo evento</h2>
-    <form method="post" novalidate>
-        @if (hasErrors)
-        {
-            <div class="alert alert-danger" role="alert" tabindex="-1" id="resumo-erros" autofocus>
-                @if (titleError is not null) { <div><a href="#Input_Title">@titleError</a></div> }
-                @if (subtitleError is not null) { <div><a href="#Input_Subtitle">@subtitleError</a></div> }
-                @if (typeError is not null) { <div><a href="#Input_QuizType">@typeError</a></div> }
-                @if (endsError is not null) { <div><a href="#Input_EndsAt">@endsError</a></div> }
-            </div>
-        }
-        <div class="mb-3">
-            <label class="form-label" asp-for="Input.Title">Título <span class="muted">(obrigatório)</span></label>
-            <input class="form-control @(titleError is null ? "" : "is-invalid")" asp-for="Input.Title" maxlength="120" autocomplete="off"
-                   aria-invalid="@(titleError is null ? null : "true")" aria-describedby="@(titleError is null ? null : "Input_Title-erro")" />
-            @if (titleError is not null) { <div id="Input_Title-erro" class="form-text text-negative">@titleError</div> }
-        </div>
-        <div class="mb-3">
-            <label class="form-label" asp-for="Input.Subtitle">Subtítulo</label>
-            <input class="form-control @(subtitleError is null ? "" : "is-invalid")" asp-for="Input.Subtitle" maxlength="200" autocomplete="off"
-                   aria-invalid="@(subtitleError is null ? null : "true")" aria-describedby="@(subtitleError is null ? null : "Input_Subtitle-erro")" />
-            @if (subtitleError is not null) { <div id="Input_Subtitle-erro" class="form-text text-negative">@subtitleError</div> }
-        </div>
-        <div class="mb-3">
-            <label class="form-label" asp-for="Input.QuizType">Tipo de quiz <span class="muted">(obrigatório)</span></label>
-            <select class="form-select @(typeError is null ? "" : "is-invalid")" asp-for="Input.QuizType"
-                    aria-invalid="@(typeError is null ? null : "true")" aria-describedby="@(typeError is null ? null : "Input_QuizType-erro")">
-                <option value="">Selecione</option>
-                @foreach (var t in Enum.GetValues<QuizType>())
-                {
-                    <option value="@t" selected="@(Model.Input.QuizType == t)">@IndexModel.QuizLabel(t)</option>
-                }
-            </select>
-            @if (typeError is not null) { <div id="Input_QuizType-erro" class="form-text text-negative">@typeError</div> }
-        </div>
-        <div class="mb-3">
-            <label class="form-label" asp-for="Input.EndsAt">Término <span class="muted">(obrigatório)</span></label>
-            <input class="form-control @(endsError is null ? "" : "is-invalid")" asp-for="Input.EndsAt" type="datetime-local" step="60"
-                   aria-invalid="@(endsError is null ? null : "true")" aria-describedby="Input_EndsAt-ajuda@(endsError is null ? "" : " Input_EndsAt-erro")" />
-            <div id="Input_EndsAt-ajuda" class="form-text muted">Horário de Brasília.</div>
-            @if (endsError is not null) { <div id="Input_EndsAt-erro" class="form-text text-negative">@endsError</div> }
-        </div>
-        <button class="btn btn-primary" type="submit">Salvar</button>
-    </form>
 </section>
+
+<form class="panel panel-pad form" id="novo-evento" method="post" novalidate aria-labelledby="novo-evento-titulo">
+    <div class="panel-head"><h2 id="novo-evento-titulo">Novo evento</h2></div>
+    @if (hasErrors)
+    {
+        <div class="alert" role="alert" tabindex="-1" id="resumo-erros" autofocus>
+            <svg aria-hidden="true"><use href="#i-alert" /></svg>
+            <ul>
+                @if (titleError is not null) { <li><a href="#Input_Title">@titleError</a></li> }
+                @if (subtitleError is not null) { <li><a href="#Input_Subtitle">@subtitleError</a></li> }
+                @if (typeError is not null) { <li><a href="#Input_QuizType">@typeError</a></li> }
+                @if (endsError is not null) { <li><a href="#Input_EndsAt">@endsError</a></li> }
+            </ul>
+        </div>
+    }
+    <div class="form-grid">
+        <div class="field">
+            <label asp-for="Input.Title">Título <span class="req">(obrigatório)</span></label>
+            <input class="input" asp-for="Input.Title" maxlength="120" autocomplete="off"
+                   aria-invalid="@(titleError is null ? null : "true")" aria-describedby="@(titleError is null ? null : "Input_Title-erro")" />
+            @if (titleError is not null) { <p id="Input_Title-erro" class="field-error">@titleError</p> }
+        </div>
+        <div class="field">
+            <label asp-for="Input.EndsAt">Término <span class="req">(obrigatório)</span></label>
+            <input class="input" asp-for="Input.EndsAt" type="datetime-local" step="60"
+                   aria-invalid="@(endsError is null ? null : "true")" aria-describedby="Input_EndsAt-ajuda@(endsError is null ? "" : " Input_EndsAt-erro")" />
+            <small id="Input_EndsAt-ajuda">Horário de Brasília.</small>
+            @if (endsError is not null) { <p id="Input_EndsAt-erro" class="field-error">@endsError</p> }
+        </div>
+        <div class="field full">
+            <label asp-for="Input.Subtitle">Subtítulo <span class="req">(opcional)</span></label>
+            <input class="input" asp-for="Input.Subtitle" maxlength="200" autocomplete="off"
+                   aria-invalid="@(subtitleError is null ? null : "true")" aria-describedby="@(subtitleError is null ? null : "Input_Subtitle-erro")" />
+            @if (subtitleError is not null) { <p id="Input_Subtitle-erro" class="field-error">@subtitleError</p> }
+        </div>
+        <fieldset class="field full" aria-describedby="@(typeError is null ? null : "Input_QuizType-erro")">
+            <legend class="fw-bold">Tipo de quiz <span class="req">(obrigatório)</span></legend>
+            <div class="theme-pick">
+                @{ var tipos = Enum.GetValues<QuizType>(); }
+                @foreach (var t in tipos)
+                {
+                    var tema = Helinho.Web.Painel.TemaQuiz.Of(t);
+                    <label class="tp @tema.Css">
+                        <input type="radio" name="Input.QuizType" value="@t" id="@(t == tipos[0] ? "Input_QuizType" : "Input_QuizType_" + t)"
+                               checked="@(Model.Input.QuizType == t)" aria-invalid="@(typeError is null ? null : "true")" />
+                        <img src="~/img/@tema.Imagem" width="@tema.Largura" height="@tema.Altura" alt="" />
+                        <b>@tema.Nome</b>
+                        <small>@tema.Personagem</small>
+                    </label>
+                }
+            </div>
+            @if (typeError is not null) { <p id="Input_QuizType-erro" class="field-error">@typeError</p> }
+        </fieldset>
+    </div>
+    <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Salvar</button>
+    </div>
+</form>
