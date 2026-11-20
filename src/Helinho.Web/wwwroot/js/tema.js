@@ -1,7 +1,8 @@
 'use strict';
-// Aplica o tema salvo antes da primeira pintura (script bloqueante no <head>, sem inline).
-// Mesma chave e mesmos valores do módulo de tema do painel.js. Sem preferência salva, vale o claro (como a preview).
+// Tema guardado aplicado antes da primeira pintura: carregado sem defer no <head>, para quem escolheu
+// o escuro não ver o claro piscar a cada página. A chave 'tema' e os valores são os do painel.js,
+// que cuida do botão [data-tema] e da troca. Sem armazenamento (ou valor estranho), fica o claro.
 try {
   const t = localStorage.getItem('tema');
   if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
-} catch (_) { /* sem armazenamento: fica o tema claro */ }
+} catch (_) { /* sem localStorage: fica o claro */ }
