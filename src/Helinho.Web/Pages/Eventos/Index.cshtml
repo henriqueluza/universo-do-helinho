@@ -104,11 +104,12 @@
         <fieldset class="field full" aria-describedby="@(typeError is null ? null : "Input_QuizType-erro")">
             <legend class="fw-bold">Tipo de quiz <span class="req">(obrigatório)</span></legend>
             <div class="theme-pick">
-                @foreach (var t in Enum.GetValues<QuizType>())
+                @{ var tipos = Enum.GetValues<QuizType>(); }
+                @foreach (var t in tipos)
                 {
                     var tema = Helinho.Web.Painel.TemaQuiz.Of(t);
                     <label class="tp @tema.Css">
-                        <input type="radio" name="Input.QuizType" value="@t" id="@(t == Enum.GetValues<QuizType>()[0] ? "Input_QuizType" : "Input_QuizType_" + t)"
+                        <input type="radio" name="Input.QuizType" value="@t" id="@(t == tipos[0] ? "Input_QuizType" : "Input_QuizType_" + t)"
                                checked="@(Model.Input.QuizType == t)" aria-invalid="@(typeError is null ? null : "true")" />
                         <img src="~/img/@tema.Imagem" width="@tema.Largura" height="@tema.Altura" alt="" />
                         <b>@tema.Nome</b>

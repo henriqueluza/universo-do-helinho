@@ -23,6 +23,13 @@ public class EventosRecreioTests(PostgresFixture postgres)
         Assert.DoesNotContain("<noscript", html);
     }
 
+    private static async Task<string> PostEventoAsync(HttpClient client, Dictionary<string, string> fields)
+    {
+        var page = await client.GetStringAsync("/Eventos", Ct);
+        fields["__RequestVerificationToken"] = Regex.Match(page, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
+        var response = await client.PostAsync("/Eventos", new FormUrlEncodedContent(fields), Ct);
+        return WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync(Ct));
+    }
 
     [Fact]
     public async Task Eventos_mostram_tema_com_personagem_e_radios_do_modelo_sem_JavaScript()
@@ -40,6 +47,7 @@ public class EventosRecreioTests(PostgresFixture postgres)
         using var client = factory.CreateClientAs(RoleNames.Admin, Guid.NewGuid());
         var html = await client.GetStringAsync("/Eventos", Ct);
 
+        Assert.Contains("<div class=\"page-head\">", html);
         Assert.Contains("<div class=\"table-wrap\">", html);
         Assert.Contains("tag tag-type amb", html);
         Assert.Contains("alt=\"Flora\"", html);
@@ -59,21 +67,43 @@ public class EventosRecreioTests(PostgresFixture postgres)
         await using var factory = new HelinhoWebFactory(postgres);
         await factory.EnsureDatabaseAsync();
         using var client = factory.CreateClientAs(RoleNames.Master);
-        var page = await client.GetStringAsync("/Eventos", Ct);
-        var token = Regex.Match(page, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
 
-        var response = await client.PostAsync("/Eventos", new FormUrlEncodedContent(new Dictionary<string, string>
+        var html = await PostEventoAsync(client, new Dictionary<string, string>
         {
-            ["__RequestVerificationToken"] = token,
             ["Input.Title"] = "",
             ["Input.EndsAt"] = "2090-06-15T10:00",
-        }), Ct);
-        var html = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync(Ct));
+        });
 
         Assert.Contains("id=\"resumo-erros\"", html);
         Assert.Contains("href=\"#Input_QuizType\"", html);
         Assert.Contains("id=\"Input_QuizType\"", html);
         Assert.Contains("id=\"Input_QuizType-erro\" class=\"field-error\"", html);
         Assert.Contains("aria-invalid=\"true\"", html);
+        Assert.Contains("aria-describedby=\"Input_Title-erro\"", html);
+        Assert.Contains("id=\"Input_Title-erro\" class=\"field-error\"", html);
+        Assert.Contains("aria-describedby=\"Input_EndsAt-ajuda\"", html);
+        Assert.DoesNotContain("Input_EndsAt-erro", html);
+        Assert.Contains("<fieldset class=\"field full\" aria-describedby=\"Input_QuizType-erro\">", html);
+    }
+
+    [Fact]
+    public async Task Evento_sem_termino_liga_ajuda_e_erro_no_aria_describedby()
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        await factory.EnsureDatabaseAsync();
+        using var client = factory.CreateClientAs(RoleNames.Master);
+
+        var html = await PostEventoAsync(client, new Dictionary<string, string>
+        {
+            ["Input.Title"] = "Festival Recreio",
+            ["Input.QuizType"] = nameof(QuizType.Ambiental),
+            ["Input.EndsAt"] = "",
+        });
+
+        Assert.Contains("href=\"#Input_EndsAt\"", html);
+        Assert.Contains("aria-describedby=\"Input_EndsAt-ajuda Input_EndsAt-erro\"", html);
+        Assert.Contains("id=\"Input_EndsAt-erro\" class=\"field-error\"", html);
+        Assert.DoesNotContain("Input_Title-erro", html);
+        Assert.Contains("<fieldset class=\"field full\">", html);
     }
 }
