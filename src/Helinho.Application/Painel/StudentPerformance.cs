@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Helinho.Application.Painel;
 
-public sealed record PerformanceRow(Guid Id, string FullName, string ClassName, AgeBand? Band, int Xp, int Level, string LevelName);
+/// <summary>Linha da lista de Desempenho. <c>Answered</c> e <c>Correct</c> somam todas as respostas do aluno, de todos os tipos (#214).</summary>
+public sealed record PerformanceRow(
+    Guid Id, string FullName, string ClassName, AgeBand? Band, int Xp, int Level, string LevelName, int Answered, int Correct);
 
 public sealed record PerformanceListResult(IReadOnlyList<PerformanceRow> Rows, int Total, int Page, int PageSize)
 {
@@ -55,7 +57,7 @@ public static class StudentPerformanceQueries
         {
             var level = LevelPolicy.LevelFor(s.Xp);
             return new PerformanceRow(s.Id, s.FullName, s.ClassName, AgeBands.TryFromBirthDate(s.BirthDate, today),
-                s.Xp, level, LevelPolicy.LevelName(level));
+                s.Xp, level, LevelPolicy.LevelName(level), Answered: 0, Correct: 0); // #214: preenchido pela consulta
         }).ToList();
         return new PerformanceListResult(rows, total, current, PageSize);
     }
