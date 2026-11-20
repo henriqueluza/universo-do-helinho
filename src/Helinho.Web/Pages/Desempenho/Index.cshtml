@@ -62,16 +62,19 @@ else
         </table></div>
         <div class="pager">
             <span id="desempenho-resumo">@Model.Result.Total @(Model.Result.Total == 1 ? "aluno" : "alunos") · página @Model.Result.Page de @Model.Result.TotalPages</span>
-            <nav aria-label="Paginação do desempenho">
-                @if (Model.Result.Page > 1)
-                {
-                    <a class="btn btn-sm" rel="prev" href="@Model.PageLink(Model.Result.Page - 1)">Anterior</a>
-                }
-                @if (Model.Result.Page < Model.Result.TotalPages)
-                {
-                    <a class="btn btn-sm" rel="next" href="@Model.PageLink(Model.Result.Page + 1)">Próxima</a>
-                }
-            </nav>
+            @if (Model.Result.TotalPages > 1)
+            {
+                <nav aria-label="Paginação do desempenho">
+                    @if (Model.Result.Page > 1)
+                    {
+                        <a class="btn btn-sm" rel="prev" href="@Model.PageLink(Model.Result.Page - 1)">Anterior</a>
+                    }
+                    @if (Model.Result.Page < Model.Result.TotalPages)
+                    {
+                        <a class="btn btn-sm" rel="next" href="@Model.PageLink(Model.Result.Page + 1)">Próxima</a>
+                    }
+                </nav>
+            }
         </div>
     </section>
 }

@@ -33,10 +33,10 @@
                 <tbody>
                     @foreach (var t in s.Scores)
                     {
-                        var (css, img) = AlunoModel.ThemeAssets(t.Type);
-                        var pct = t.Answered == 0 ? 0 : 100 * t.Correct / t.Answered;
+                        var tema = Helinho.Web.Painel.TemaQuiz.Of(t.Type);
+                        var pct = AlunoModel.CorrectPercent(t.Answered, t.Correct);
                         <tr>
-                            <td><span class="tag tag-type @css"><img src="~/img/@(img).webp" alt="" width="20" height="20" />@AlunoModel.TypeLabel(t.Type) · @AlunoModel.CharacterName(t.Type)</span></td>
+                            <td><span class="tag tag-type @tema.Css"><img src="~/img/@tema.Imagem" alt="" width="@tema.Largura" height="@tema.Altura" />@tema.Nome · @tema.Personagem</span></td>
                             <td class="num">@t.Answered</td>
                             <td class="num">@t.Correct</td>
                             <td>
@@ -46,7 +46,7 @@
                                 }
                                 else
                                 {
-                                    <span class="meter @css" aria-hidden="true" style="width: 120px; display: inline-block; vertical-align: middle"><i style="width: @(pct)%"></i></span>
+                                    <span class="meter @tema.Css" aria-hidden="true" style="width: 120px; display: inline-block; vertical-align: middle"><i style="width: @(pct)%"></i></span>
                                     <span>@(pct)%</span>
                                 }
                             </td>
@@ -78,7 +78,7 @@
                             <svg class="icon" width="48" height="48" role="img" aria-label="Selo @b.Title"><use href="#i-star"/></svg>
                         }
                         @b.Title
-                        <small>Desbloqueado em @b.UnlockedAt.ToOffset(TimeSpan.FromHours(-3)).ToString("dd/MM/yyyy")</small>
+                        <small>Desbloqueado em @AlunoModel.UnlockedOn(b.UnlockedAt)</small>
                     </div>
                 }
             </div>
