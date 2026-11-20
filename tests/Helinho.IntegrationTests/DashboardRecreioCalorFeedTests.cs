@@ -23,8 +23,14 @@ public partial class DashboardRecreioCalorFeedTests(PostgresFixture postgres)
     [GeneratedRegex(@"/\*.*?\*/", RegexOptions.Singleline)]
     private static partial Regex CssComment();
 
-    [GeneratedRegex(@"@media\s*\(hover:\s*none\)\s*\{([^{}]*\{[^{}]*\})+\s*\}")]
-    private static partial Regex HoverNone();
+    [GeneratedRegex(@"\.heat tbody td:hover > span,\s*\.heat tbody td:focus-visible > span\s*\{\s*opacity:\s*1;?\s*\}")]
+    private static partial Regex VisivelNoFoco();
+
+    [GeneratedRegex(@"@media\s*\(hover:\s*none\)\s*\{\s*\.heat tbody td > span\s*\{\s*opacity:\s*1;?\s*\}\s*\}")]
+    private static partial Regex VisivelNoToque();
+
+    [GeneratedRegex(@"(?<![:\w-])\.heat tbody td > span\s*\{([^}]*)\}")]
+    private static partial Regex RotuloDoNumero();
 
     private static int Total(string html) =>
         HeatCell().Matches(html).Sum(m => int.Parse(m.Groups[2].Value, System.Globalization.NumberStyles.AllowThousands, System.Globalization.CultureInfo.GetCultureInfo("pt-BR")));
@@ -111,14 +117,15 @@ public partial class DashboardRecreioCalorFeedTests(PostgresFixture postgres)
         using var client = factory.CreateAnonymousClient();
         var css = CssComment().Replace(await client.GetStringAsync("/css/theme.css", Ct), string.Empty);
 
-        Assert.Contains(".heat tbody td:hover span, .heat tbody td:focus-visible span { opacity: 1; }", css, StringComparison.Ordinal);
-        var toque = HoverNone().Matches(css).Select(m => m.Value).SingleOrDefault(b => b.Contains(".heat td > span", StringComparison.Ordinal));
-        Assert.NotNull(toque);
-        Assert.Contains("opacity: 1", toque, StringComparison.Ordinal);
-        Assert.Contains("background: var(--stage)", toque, StringComparison.Ordinal);
-        Assert.Contains("color: var(--ink)", toque, StringComparison.Ordinal);
-        Assert.Contains(":root[data-theme=\"dark\"] .heat td > span", toque, StringComparison.Ordinal);
-        Assert.True(css.IndexOf(toque, StringComparison.Ordinal) > css.IndexOf(":root[data-theme=\"dark\"] .heat td span { color:", StringComparison.Ordinal), "a regra de toque precisa vir depois da cor do escuro para vencer a cascata");
+        // Visível no hover, no foco do teclado e sempre em toque.
+        Assert.Matches(VisivelNoFoco(), css);
+        Assert.Matches(VisivelNoToque(), css);
+        // Legível em qualquer intensidade: rótulo com o par de texto do tema, sem cor própria do escuro por cima.
+        var rotulo = RotuloDoNumero().Match(css);
+        Assert.True(rotulo.Success, "falta a regra base do número da célula");
+        Assert.Matches(@"background:\s*var\(--stage\)", rotulo.Groups[1].Value);
+        Assert.Matches(@"(^|;)\s*color:\s*var\(--ink\)", rotulo.Groups[1].Value);
+        Assert.DoesNotContain("[data-theme=\"dark\"] .heat", css, StringComparison.Ordinal);
     }
 
     [Fact]
