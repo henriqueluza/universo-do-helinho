@@ -1,4 +1,5 @@
-Copyright 2014 The DM Sans Project Authors (https://github.com/googlefonts/dm-fonts)
+Fontes autohospedadas do painel: Nunito e Baloo 2 (tema Recreio). A DM Sans, do tema
+antigo, saiu na Issue #195 junto com os arquivos dela.
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
@@ -97,9 +98,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 Nunito e Baloo 2 (tema Recreio)
 =====================================================================
 
-Estas duas famílias também são licenciadas sob a SIL Open Font License,
+Estas duas famílias são licenciadas sob a SIL Open Font License,
 Versão 1.1, cujo texto integral está acima (o texto é idêntico; só muda a
-linha de copyright de cada família).
+linha de copyright de cada família, abaixo).
 
 Nunito
   Copyright 2014 The Nunito Project Authors (https://github.com/googlefonts/nunito)

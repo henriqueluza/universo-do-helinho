@@ -1,4 +1,5 @@
 @page
+@using Helinho.Web.Painel
 @model Helinho.Web.Pages.Dashboard.IndexModel
 @using Helinho.Domain
 @using Helinho.Application.Painel
@@ -133,7 +134,7 @@ else
                 <div class="attention">
                     @foreach (var al in Model.Attention.Alerts)
                     {
-                        <a class="attn" href="@Model.AlertHref(al)"><span class="ic @IndexModel.AlertTone(al) @(al.QuizType is { } aq ? IndexModel.TypeShort(aq) : null)"><svg aria-hidden="true"><use href="#@IndexModel.AlertIcon(al)" /></svg></span><span><b>@IndexModel.AlertTitle(al)</b><small>@al.Detail</small></span><svg class="icon go" aria-hidden="true"><use href="#i-go" /></svg></a>
+                        <a class="attn" href="@Model.AlertHref(al)"><span class="ic @IndexModel.AlertTone(al) @(al.QuizType is { } aq ? TemaQuiz.Of(aq).Css : null)"><svg aria-hidden="true"><use href="#@IndexModel.AlertIcon(al)" /></svg></span><span><b>@IndexModel.AlertTitle(al)</b><small>@al.Detail</small></span><svg class="icon go" aria-hidden="true"><use href="#i-go" /></svg></a>
                     }
                 </div>
             }
@@ -145,10 +146,10 @@ else
         <div class="cast">
             @foreach (var tipo in t.AccuracyByType)
             {
-                var ch = IndexModel.Character(tipo.QuizType);
-                <a class="castcard @IndexModel.TypeShort(tipo.QuizType)" href="@Url.Page("/Desempenho/Index")">
-                    <img src="~/img/@(ch.Slug)-corpo.webp" width="@ch.BodyWidth" height="300" alt="" />
-                    <span class="name">@IndexModel.TypeLabel(tipo.QuizType)<span>@ch.With</span></span>
+                var ch = TemaQuiz.Of(tipo.QuizType);
+                <a class="castcard @ch.Css" href="@Url.Page("/Desempenho/Index")">
+                    <img src="~/img/@(ch.Slug)-corpo.webp" width="@ch.LarguraCorpo" height="300" alt="" />
+                    <span class="name">@ch.Nome<span>@ch.Com</span></span>
                     @if (tipo.AccuracyPercent is { } pct)
                     {
                         <span class="pct"><span data-count="@pct">@pct</span><small>%</small></span>

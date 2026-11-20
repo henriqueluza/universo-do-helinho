@@ -44,10 +44,11 @@ public partial class TemaAcabamentoCascataTests
         var css = Css();
         var regras = Regras(css);
 
-        // Bootstrap e legado (que pintam th/td por --bs-table-bg) ficam em camadas abaixo das do Recreio.
-        var ordemLegado = css.IndexOf("@layer bootstrap, legado;", StringComparison.Ordinal);
+        // O Bootstrap (que pinta th/td por --bs-table-bg) é a única camada abaixo das do Recreio.
+        var ordemBootstrap = css.IndexOf("@layer bootstrap;", StringComparison.Ordinal);
         var ordemRecreio = css.IndexOf("@layer tokens, base, components, screens, motion;", StringComparison.Ordinal);
-        Assert.True(ordemLegado >= 0 && ordemRecreio > ordemLegado, "bootstrap e legado precisam ser declarados antes das camadas do Recreio");
+        Assert.True(ordemBootstrap >= 0 && ordemRecreio > ordemBootstrap, "bootstrap precisa ser declarado antes das camadas do Recreio");
+        Assert.DoesNotContain("@layer legado", css);
         Assert.Contains("bootstrap.min.css\") layer(bootstrap);", css);
 
         var cabecalho = Unica(regras, ".table thead th", "components");
@@ -58,10 +59,10 @@ public partial class TemaAcabamentoCascataTests
         Assert.Equal("0", celulas.Declaracoes["border-bottom"]);
         Assert.Equal("2px solid var(--rule)", celulas.Declaracoes["border-top"]);
 
-        // O cinza do legado (#f3f4f6 no thead) fica na camada legado, abaixo da regra acima.
-        var fundosDoLegado = regras.Where(r => r.Declaracoes.TryGetValue("--bs-table-bg", out var v) && !v.StartsWith("var(", StringComparison.Ordinal)).ToList();
-        Assert.NotEmpty(fundosDoLegado);
-        Assert.All(fundosDoLegado, r => Assert.Equal("legado", r.Camada));
+        // Toda regra que define --bs-table-bg usa transparente ou um token do tema, nunca uma cor fixa.
+        var fundosDaTabela = regras.Where(r => r.Declaracoes.TryGetValue("--bs-table-bg", out _)).ToList();
+        Assert.NotEmpty(fundosDaTabela);
+        Assert.All(fundosDaTabela, r => Assert.True(r.Declaracoes["--bs-table-bg"] is "transparent" || r.Declaracoes["--bs-table-bg"].StartsWith("var(", StringComparison.Ordinal)));
 
         // Nenhuma regra que vence a camada components volta a pintar fundo, borda inferior ou sombra
         // no cabeçalho ou nas células, nem com .table nem com seletor só de elemento (th, thead th).
@@ -74,14 +75,11 @@ public partial class TemaAcabamentoCascataTests
             .ToList();
         Assert.True(reintroduzem.Count == 0, "regra volta a pintar o cabeçalho ou as células da tabela: " + string.Join("; ", reintroduzem));
 
-        // No escuro, a ponte só troca variáveis do Bootstrap, e nenhuma delas pinta a célula pela sombra.
+        // A tabela usa os mesmos tokens nos dois temas: nenhuma regra do escuro mira .table, e nenhuma variável pinta a célula pela sombra.
         var pontesEscuras = regras.Where(r => r.Seletor.Contains("data-theme=\"dark\"", StringComparison.Ordinal) && ClasseTable().IsMatch(r.Seletor)).ToList();
-        Assert.NotEmpty(pontesEscuras);
-        Assert.All(pontesEscuras, r => Assert.All(r.Declaracoes.Keys, p =>
-        {
-            Assert.StartsWith("--", p);
-            Assert.DoesNotContain(p, PintamPorSombra);
-        }));
+        Assert.Empty(pontesEscuras);
+        var tabela = Unica(regras, ".table", "components");
+        Assert.All(tabela.Declaracoes.Keys, p => Assert.DoesNotContain(p, PintamPorSombra));
 
         // A borda de 2 px do Recreio (--rule) e o fundo do hover da linha (--canvas) têm valor próprio no escuro.
         string Token(string seletor, string nome) => regras
@@ -161,7 +159,7 @@ public partial class TemaAcabamentoCascataTests
     {
         var root = FindRepositoryRoot();
         var editar = File.ReadAllText(Path.Combine(root, "src", "Helinho.Web", "Pages", "Questoes", "Editar.cshtml"));
-        Assert.Matches(@"<div class=""phone @\(quiz is \{ \} qt \? QuizPresentation\.CssClass\(qt\) : """"\)""", editar); // sem tema, só "phone"
+        Assert.Matches(@"<div class=""phone @\(quiz is \{ \} qt \? TemaQuiz\.Of\(qt\)\.Css : """"\)""", editar); // sem tema, só "phone"
 
         var regras = Regras(Css());
 
