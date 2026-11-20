@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Helinho.Domain;
 using Helinho.Infrastructure.Persistence;
 using Helinho.Web.Panel;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Helinho.IntegrationTests;
@@ -66,6 +67,66 @@ public partial class PainelSemStyleInlineTests(PostgresFixture postgres)
         Assert.Contains(".two > * { min-width: 0; }", css);
         Assert.DoesNotContain(".select:focus-visible { outline: none", css);
         Assert.DoesNotContain(".input:focus { outline: none", css);
+    }
+
+    [Fact]
+    public void Tema_corrige_resumo_de_erros_tabela_legenda_selo_e_celular()
+    {
+        var css = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "Helinho.Web", "wwwroot", "css", "theme.css"));
+
+        Assert.DoesNotMatch(@"\.alert \{[^}]*max-width: 400px", css); // resumo de erros ocupa a largura do formulário
+        Assert.Matches(@"\.table thead th \{ background: none; border-bottom: 0;", css);
+        Assert.Matches(@"\.table td, \.table tbody th \{[^}]*border-bottom: 0;", css);
+        Assert.Matches(@"\.field \{ display: grid; align-content: start;", css);
+        Assert.Contains(".alts legend, .field-legend {", css);
+        Assert.Matches(@"\.phone \{ --q: var\(--action\); --qb: var\(--select-bg\); --qi: var\(--select-ink\); \}", css);
+        Assert.Matches(@"\.badge-card img \{[^}]*object-fit: contain;", css);
+        Assert.Matches(@"\.panel-pad \{ padding: var\(--sp-4\); \}", css);
+    }
+
+    [Fact]
+    public void Marcacao_nao_usa_utilitarios_do_bootstrap_como_contorno()
+    {
+        var pages = Path.Combine(FindRepositoryRoot(), "src", "Helinho.Web", "Pages");
+        var achados = Directory.EnumerateFiles(pages, "*.cshtml", SearchOption.AllDirectories)
+            .Where(f => !f.EndsWith("_EmConstrucao.cshtml", StringComparison.Ordinal))
+            .Where(f => Regex.IsMatch(File.ReadAllText(f), @"class=""[^""]*\b(fw-bold|fw-semibold|overflow-hidden|mb-\d|ps-\d|d-flex|justify-content-\w+|align-items-\w+|gap-\d)\b"))
+            .Select(f => Path.GetRelativePath(pages, f))
+            .ToList();
+
+        Assert.True(achados.Count == 0, "Use as classes do tema, não utilitários do Bootstrap: " + string.Join(", ", achados));
+    }
+
+    [Fact]
+    public async Task Listas_sem_dados_usam_o_mesmo_estado_vazio_do_tema()
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        await factory.EnsureDatabaseAsync();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.LiveEvents.ExecuteDeleteAsync(Ct);
+            await db.QuestProgress.ExecuteDeleteAsync(Ct);
+            await db.DailyQuests.ExecuteDeleteAsync(Ct);
+        }
+
+        using var master = factory.CreateClientAs(RoleNames.Master);
+
+        var vazias = 0;
+        foreach (var path in new[] { "/Alunos?turma=inexistente", "/Missoes", "/Eventos" })
+        {
+            var html = await GetOkAsync(master, path);
+            if (!html.Contains("Nenhum", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            vazias++;
+            Assert.Contains("<div class=\"empty\">", html);
+            Assert.Matches("""<div class="empty">\s*<img src="/img/cara-helinho\.webp"[^>]* width="117" height="120" />\s*<b>Nenhum""", html);
+        }
+
+        Assert.True(vazias == 3, "as três listas precisam estar vazias para o teste valer");
     }
 
     [Fact]

@@ -12,7 +12,11 @@
 <section class="panel panel-pad" aria-label="Unidades">
     @if (Model.Units.Count == 0)
     {
-        <p class="mb-0">Nenhuma unidade cadastrada. Crie a primeira com “Nova unidade”.</p>
+        <div class="empty">
+            <img src="~/img/cara-helinho.webp" alt="" width="117" height="120" />
+            <b>Nenhuma unidade cadastrada.</b>
+            <p>Crie a primeira com “Nova unidade”.</p>
+        </div>
     }
     else
     {

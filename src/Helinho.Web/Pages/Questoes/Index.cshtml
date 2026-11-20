@@ -103,7 +103,7 @@ else
                                 }
                             </td>
                             <td class="actions">
-                                <div class="d-flex justify-content-end align-items-center gap-2">
+                                <div class="row-actions">
                                     <a class="link-btn" asp-page="Editar" asp-route-id="@q.Id">Editar<span class="visually-hidden"> questão: @q.Statement</span></a>
                                     @if (q.Status == QuestionStatus.Draft)
                                     {

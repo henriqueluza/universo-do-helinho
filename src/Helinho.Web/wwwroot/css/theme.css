@@ -203,7 +203,7 @@
   /* erro (recreio.css 301-302): depois de :focus para a borda --bad vencer no campo focado */
   .input[aria-invalid="true"] { border-color: var(--bad); }
   .input[aria-invalid="true"]:focus { box-shadow: 0 0 0 4px var(--bad-bg); }
-  .field { display: grid; gap: 6px; }
+  .field { display: grid; align-content: start; gap: 6px; }
   .field label { font-weight: 800; }
   .field small { color: var(--ink-3); font-weight: 600; }
 
@@ -222,6 +222,7 @@
   .tag-type { background: var(--qb); color: var(--qi); }
   .tag-type img { width: 20px; height: 20px; border-radius: 6px; margin-left: -6px; object-fit: cover; object-position: top; background: oklch(1 0 0 / .6); }
 
+  .phone { --q: var(--action); --qb: var(--select-bg); --qi: var(--select-ink); }
   .amb { --q: var(--q-amb); --qb: var(--q-amb-bg); --qi: var(--q-amb-ink); }
   .con { --q: var(--q-con); --qb: var(--q-con-bg); --qi: var(--q-con-ink); }
   .cul { --q: var(--q-cul); --qb: var(--q-cul-bg); --qi: var(--q-cul-ink); }
@@ -246,10 +247,15 @@
   .btn svg.fill { fill: currentColor; stroke: none; }
 
   /* tabela */
-  .table-wrap { position: relative; overflow-x: auto; }
+  /* sombras de rolagem: aparecem só no lado em que ainda há tabela escondida (a 375 px as colunas de ação ficam fora da tela) */
+  .table-wrap { position: relative; overflow-x: auto;
+    background: linear-gradient(to right, var(--stage) 30%, transparent) left / 28px 100% no-repeat local,
+      linear-gradient(to left, var(--stage) 30%, transparent) right / 28px 100% no-repeat local,
+      linear-gradient(to right, oklch(from var(--ink) l c h / .16), transparent) left / var(--sp-3) 100% no-repeat scroll,
+      linear-gradient(to left, oklch(from var(--ink) l c h / .16), transparent) right / var(--sp-3) 100% no-repeat scroll; }
   .table { width: 100%; border-collapse: separate; border-spacing: 0; }
-  .table thead th { text-align: left; padding: 0 12px 10px; color: var(--ink-3); font-size: var(--fs-xs); font-weight: 800; letter-spacing: .02em; white-space: nowrap; }
-  .table td, .table tbody th { padding: 12px; border-top: 2px solid var(--rule); font-weight: 600; vertical-align: middle; text-align: left; }
+  .table thead th { background: none; border-bottom: 0; text-align: left; padding: 0 12px 10px; color: var(--ink-3); font-size: var(--fs-xs); font-weight: 800; letter-spacing: .02em; white-space: nowrap; }
+  .table td, .table tbody th { padding: 12px; border-top: 2px solid var(--rule); border-bottom: 0; font-weight: 600; vertical-align: middle; text-align: left; }
   .table tbody th { font-weight: 800; }
   .table tbody tr { transition: background var(--dur); }
   .table tbody tr:hover { background: var(--canvas); }
@@ -261,6 +267,7 @@
   .table a.name:hover { color: var(--select-ink); }
   .link-btn { font: 800 var(--fs-sm) var(--font); color: var(--select-ink); background: none; border: 0; padding: 6px 8px; border-radius: var(--r-sm); text-decoration: none; cursor: pointer; }
   .link-btn:hover { background: var(--select-bg); }
+  .row-actions { display: flex; justify-content: flex-end; align-items: center; gap: var(--sp-2); }
   .pager { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--sp-3); padding-top: var(--sp-4); color: var(--ink-2); font-weight: 700; font-size: var(--fs-sm); }
   .pager nav { display: flex; gap: var(--sp-2); }
 
@@ -279,7 +286,7 @@
 
   /* alternativas da questão */
   .alts { display: grid; gap: var(--sp-3); border: 0; padding: 0; margin: 0; min-width: 0; }
-  .alts legend { font-weight: 800; margin-bottom: var(--sp-2); padding: 0; }
+  .alts legend, .field-legend { font-weight: 800; margin-bottom: var(--sp-2); padding: 0; }
   .alt { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: var(--sp-3); align-items: center; padding: 8px 8px 8px 10px; border: 2px solid var(--rule); border-radius: var(--r-md); transition: border-color var(--dur), background var(--dur); }
   .alt:has(input[type="radio"]:checked) { border-color: oklch(from var(--ok) l c h / .6); background: var(--ok-bg); }
   .alt .key { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--neutral-bg); color: var(--neutral-ink); font-weight: 900; }
@@ -339,6 +346,9 @@
   .tema-btn[aria-pressed="true"] { background: var(--select-bg); border-color: var(--select-line); color: var(--select-ink); }
   @media (scripting: none) { .tema-btn { display: none; } }
   .main > .page-title { margin-bottom: 0; }
+  /* a preview põe o subtítulo a 6px do título; o layout renderiza os dois como irmãos do grid de .main.
+     Depende de ".main { gap: var(--sp-6) }" (acima): se esse gap mudar, mude este valor junto. */
+  .main > .page-title:has(+ .page-head) { margin-bottom: calc(-1 * var(--sp-6)); }
   .skip-link { position: absolute; z-index: 2000; left: var(--sp-2); top: -64px; padding: 10px 16px; border-radius: var(--r-md); background: var(--ink); color: var(--stage); font-weight: 800; text-decoration: none; }
   .skip-link:focus { top: var(--sp-2); }
   .offcanvas-backdrop { --bs-backdrop-bg: oklch(0.2 0.04 260); --bs-backdrop-opacity: .4; }
@@ -405,7 +415,9 @@
   .filters-bar .btn { height: var(--h-control); }
   .filters-bar .link { font-weight: 800; font-size: var(--fs-sm); color: var(--select-ink); align-self: center; }
   /* avisos e erro de campo */
-  .alert { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-3); align-items: start; padding: 14px; border-radius: var(--r-md); background: var(--bad-bg); color: var(--bad-ink); border: 2px solid oklch(from var(--bad) l c h / .35); font-weight: 700; width: 100%; max-width: 400px; }
+  .alert { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-3); align-items: start; padding: 14px; border-radius: var(--r-md); background: var(--bad-bg); color: var(--bad-ink); border: 2px solid oklch(from var(--bad) l c h / .35); font-weight: 700; width: 100%; }
+  .alert ul { margin: 0; padding-left: var(--sp-5); }
+  .alert-title { margin-bottom: var(--sp-1); }
   .alert svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; margin-top: 1px; }
   .alert:focus { outline: none; box-shadow: 0 0 0 4px var(--bad-bg); }
   :is(.input, .select)[aria-invalid="true"] { border-color: var(--bad); }
@@ -492,7 +504,7 @@
   .tp:hover { border-color: oklch(from var(--q) l c h / .5); }
   .tp:has(:checked) { background: var(--qb); border-color: var(--q); box-shadow: 0 0 0 3px oklch(from var(--q) l c h / .18); }
   .tp:has(:checked) img { filter: none; opacity: 1; scale: 1.08; }
-  .tp:has(:checked) b { color: var(--qi); }
+  .tp:has(:checked) b, .tp:has(:checked) small { color: var(--qi); }
   .tp:has(:checked)::after { content: ""; position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 50%; background: var(--q) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3 3 7-7' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat; }
   .tp:has(:focus-visible) { outline: 3px solid var(--select-line); outline-offset: 2px; }
 
@@ -548,7 +560,7 @@
   :root[data-theme="dark"] .level .meter { background: oklch(0 0 0 / .25); }
   .badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-3); }
   .badge-card { display: grid; justify-items: center; text-align: center; gap: 6px; padding: var(--sp-4) var(--sp-3); border-radius: var(--r-lg); background: var(--canvas); border: 2px solid var(--rule); font-weight: 800; }
-  .badge-card img { width: 64px; height: 64px; }
+  .badge-card img { width: 64px; height: 64px; object-fit: contain; }
   .badge-card small { color: var(--ink-3); font-weight: 700; font-size: var(--fs-xs); }
   /* telas de conta (sem casca) */
   /* telas de conta (sem casca) */
@@ -579,10 +591,12 @@
     .level { grid-column: 1 / -1; min-width: 0; }
     .filters-bar { display: grid; grid-template-columns: 1fr 1fr; }
     .filters-bar .select { min-width: 0; width: 100%; }
-    .panel-pad { padding: var(--sp-5); }
+    .panel-pad { padding: var(--sp-4); }
     .step { padding: var(--sp-4); }
     .theme-pick { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .maker-bar .hint { margin-left: 0; width: 100%; }
+    .maker-bar { padding: var(--sp-2) var(--sp-3); gap: var(--sp-1) var(--sp-3); }
+    .maker-bar .btn { height: var(--h-control); }
+    .maker-bar .hint { margin-left: 0; width: 100%; font-size: var(--fs-xs); }
     .step-h small { margin-left: 0; width: 100%; }
   }
 }
@@ -834,7 +848,7 @@
   .hard td small { color: var(--ink-3); font-weight: 700; }
   .hard tbody tr { transition: background var(--dur); }
   .hard tbody tr:hover { background: oklch(from var(--select-bg) l c h / .45); }
-  .hit { display: grid; grid-template-columns: 3.2ch 64px; align-items: center; gap: var(--sp-2); }
+  .hit { display: grid; grid-template-columns: 4ch 64px; align-items: center; gap: var(--sp-2); }
   .hit b { font-size: var(--fs-md); font-weight: 800; color: var(--bad-ink); }
   .hit-bar { height: 8px; border-radius: var(--r-pill); background: oklch(from var(--bad) l c h / .16); overflow: hidden; }
   .hit-bar i { display: block; height: 100%; width: calc(var(--v) * 100%); border-radius: inherit; background: var(--bad); transform-origin: 0 50%; }

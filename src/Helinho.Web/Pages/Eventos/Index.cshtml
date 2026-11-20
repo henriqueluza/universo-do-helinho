@@ -25,8 +25,11 @@
 <section class="panel panel-pad" aria-label="Eventos">
     @if (Model.Events.Count == 0)
     {
-        <p><b>Nenhum evento cadastrado.</b></p>
-        <p class="sub">Use o formulário abaixo para criar o primeiro evento.</p>
+        <div class="empty">
+            <img src="~/img/cara-helinho.webp" alt="" width="117" height="120" />
+            <b>Nenhum evento cadastrado.</b>
+            <p>Use o formulário abaixo para criar o primeiro evento.</p>
+        </div>
     }
     else
     {
@@ -102,7 +105,7 @@
             @if (subtitleError is not null) { <p id="Input_Subtitle-erro" class="field-error">@subtitleError</p> }
         </div>
         <fieldset class="field full" aria-describedby="@(typeError is null ? null : "Input_QuizType-erro")">
-            <legend class="fw-bold">Tipo de quiz <span class="req">(obrigatório)</span></legend>
+            <legend class="field-legend">Tipo de quiz <span class="req">(obrigatório)</span></legend>
             <div class="theme-pick">
                 @{ var tipos = Enum.GetValues<QuizType>(); }
                 @foreach (var t in tipos)
