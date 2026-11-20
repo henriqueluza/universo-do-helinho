@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace Helinho.IntegrationTests;
 
 /// <summary>
-/// Acabamento do Recreio 2/3 (#190), itens 2 e 12, conferidos pela cascata e não pelo texto exato do CSS:
+/// Acabamento do Recreio 2/3 (#190), itens 1, 2, 10 e 12, conferidos pela cascata e não pelo texto exato do CSS:
 /// cada regra é lida com a camada e o <c>@media</c> em que está, as declarações viram pares propriedade/valor
 /// e os tamanhos saem dos tokens. A suíte não tem motor de navegador (pacote novo exige Issue e ADR); a medição
 /// em Chromium fica no PR.
@@ -134,6 +134,64 @@ public partial class TemaAcabamentoCascataTests
         Assert.Equal("0", dicaCelular.Declaracoes["margin-left"]);
         Assert.Equal("100%", dicaCelular.Declaracoes["width"]);
         Assert.True(Rem(dicaCelular.Declaracoes["font-size"], tokens) < Rem(dica.Declaracoes["font-size"], tokens), "a dica no celular usa fonte menor");
+    }
+
+    [Fact]
+    public void Resumo_de_erros_ocupa_a_largura_do_formulario()
+    {
+        var regras = Regras(Css());
+
+        var aviso = Unica(regras, ".alert", "screens");
+        Assert.Equal("100%", aviso.Declaracoes["width"]);
+
+        // Nenhuma regra que vence o Bootstrap volta a limitar o aviso (só o cartão de login libera, com none).
+        var camadasDoRecreio = new HashSet<string?> { "tokens", "base", "components", "screens", "motion", null };
+        var limites = regras
+            .Where(r => camadasDoRecreio.Contains(r.Camada))
+            .Where(r => r.Seletor.Split(',').Any(p => Regex.IsMatch(p.Trim(), @"(\.alert|#resumo-erros)(:[\w-]+)?$")))
+            .Where(r => r.Declaracoes.TryGetValue("max-width", out var v) && v != "none")
+            .Select(r => $"{r.Seletor} {{ max-width: {r.Declaracoes["max-width"]} }}")
+            .ToList();
+        Assert.True(limites.Count == 0, "o resumo de erros voltou a ter largura máxima: " + string.Join("; ", limites));
+    }
+
+    [Fact]
+    public void Previa_do_celular_tem_fundo_sem_tema_escolhido()
+    {
+        var root = FindRepositoryRoot();
+        var editar = File.ReadAllText(Path.Combine(root, "src", "Helinho.Web", "Pages", "Questoes", "Editar.cshtml"));
+        Assert.Matches(@"<div class=""phone @\(quiz is \{ \} qt \? QuizPresentation\.CssClass\(qt\) : """"\)""", editar); // sem tema, só "phone"
+
+        var regras = Regras(Css());
+
+        // A tela pinta o degradê com --qb sem valor reserva: sem --qb definido, o fundo inteiro vira none.
+        var tela = Unica(regras, ".phone .screen", "screens");
+        Assert.Contains("var(--qb)", tela.Declaracoes["background"], StringComparison.Ordinal);
+        Assert.DoesNotContain("var(--qb,", tela.Declaracoes["background"], StringComparison.Ordinal);
+
+        // O padrão do .phone define --q/--qb/--qi com tokens que existem nos dois temas.
+        var padrao = regras.Single(r => r.Seletor == ".phone" && r.Camada == "components" && r.Medias.Count == 0);
+        string[] variaveis = ["--q", "--qb", "--qi"];
+        Assert.All(variaveis, v => Assert.True(padrao.Declaracoes.ContainsKey(v), $".phone precisa definir {v}"));
+        foreach (var token in variaveis.Select(v => Var().Match(padrao.Declaracoes[v])))
+        {
+            Assert.True(token.Success, "o padrão do .phone deve apontar para um token");
+            var nome = "--" + token.Groups[1].Value;
+            foreach (var seletor in new[] { ":root", ":root[data-theme=\"dark\"]" })
+            {
+                Assert.True(
+                    regras.Any(r => r.Camada == "tokens" && r.Seletor == seletor && r.Declaracoes.ContainsKey(nome)),
+                    $"{nome} precisa existir em {seletor}");
+            }
+        }
+
+        // O tema escolhido (class="phone amb" etc.) continua vencendo: mesma camada e especificidade, declarado depois.
+        foreach (var tema in new[] { ".amb", ".con", ".cul", ".esp", ".div" })
+        {
+            var regra = Unica(regras, tema, "components");
+            Assert.True(regra.Posicao > padrao.Posicao, $"{tema} precisa vir depois do padrão do .phone");
+            Assert.True(regra.Declaracoes.ContainsKey("--qb"), $"{tema} precisa definir --qb");
+        }
     }
 
     /// <summary>Alguma parte do seletor mira th/thead/td da tabela: com <c>.table</c> ou só com elementos (<c>th</c>, <c>thead th</c>).</summary>
