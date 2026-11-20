@@ -43,7 +43,7 @@ public partial class TemaAcabamentoCascataTests
         var css = Css();
         var regras = Regras(css);
 
-        // O Bootstrap (que pinta th/td por --bs-table-bg) fica em camada abaixo das do Recreio; o legado saiu (#195).
+        // O Bootstrap (que pinta th/td por --bs-table-bg) é a única camada abaixo das do Recreio.
         var ordemBootstrap = css.IndexOf("@layer bootstrap;", StringComparison.Ordinal);
         var ordemRecreio = css.IndexOf("@layer tokens, base, components, screens, motion;", StringComparison.Ordinal);
         Assert.True(ordemBootstrap >= 0 && ordemRecreio > ordemBootstrap, "bootstrap precisa ser declarado antes das camadas do Recreio");
@@ -58,7 +58,7 @@ public partial class TemaAcabamentoCascataTests
         Assert.Equal("0", celulas.Declaracoes["border-bottom"]);
         Assert.Equal("2px solid var(--rule)", celulas.Declaracoes["border-top"]);
 
-        // Nenhuma regra volta a dar cor fixa à tabela pelo Bootstrap: o fundo é transparente ou um token (o cinza #f3f4f6 era do legado).
+        // Toda regra que define --bs-table-bg usa transparente ou um token do tema, nunca uma cor fixa.
         var fundosDaTabela = regras.Where(r => r.Declaracoes.TryGetValue("--bs-table-bg", out _)).ToList();
         Assert.NotEmpty(fundosDaTabela);
         Assert.All(fundosDaTabela, r => Assert.True(r.Declaracoes["--bs-table-bg"] is "transparent" || r.Declaracoes["--bs-table-bg"].StartsWith("var(", StringComparison.Ordinal)));
@@ -74,7 +74,7 @@ public partial class TemaAcabamentoCascataTests
             .ToList();
         Assert.True(reintroduzem.Count == 0, "regra volta a pintar o cabeçalho ou as células da tabela: " + string.Join("; ", reintroduzem));
 
-        // Sem ponte do escuro: a tabela usa os mesmos tokens nos dois temas, e nenhuma variável pinta a célula pela sombra.
+        // A tabela usa os mesmos tokens nos dois temas: nenhuma regra do escuro mira .table, e nenhuma variável pinta a célula pela sombra.
         var pontesEscuras = regras.Where(r => r.Seletor.Contains("data-theme=\"dark\"", StringComparison.Ordinal) && ClasseTable().IsMatch(r.Seletor)).ToList();
         Assert.Empty(pontesEscuras);
         var tabela = Unica(regras, ".table", "components");

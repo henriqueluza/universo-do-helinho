@@ -149,10 +149,11 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
 
         var css = await client.GetStringAsync("/css/theme.css", Ct);
 
-        // Tema antigo (Issue #195): camada, fonte e as regras de ponte que o sustentavam.
+        // Só as camadas do Recreio: nem a camada legado, nem a fonte DM Sans, nem as classes que nenhuma página usa.
+        // Trechos específicos de regra ou declaração, para um comentário futuro não quebrar o teste.
         foreach (var removido in new[]
         {
-            "@layer legado", "legado,", "DM Sans", "dm-sans", "PONTE",
+            "@layer legado", "@layer bootstrap, legado", "DM Sans", "fonts/dm-sans",
             ".card-panel", ".section-title", ".auth:not(:has(.auth-scene))", ".auth:has(.auth-scene)",
             ".kpi:not(:has(.spark))", ".text-negative", ".seg-item", ".type-badge",
             "--surface:", "--raised:", "--bs-body-color:", "--bs-card-bg:",
@@ -160,7 +161,7 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
         {
             Assert.DoesNotContain(removido, css);
         }
-        // O único resto do legado em uso: .muted (Desempenho/Aluno.cshtml), mantido de propósito.
+        // .muted ainda é usada por Desempenho/Aluno.cshtml; sai com ela na Issue #202.
         Assert.Contains(".muted {", css);
 
         using var fonte = await client.GetAsync("/fonts/dm-sans-latin-400-normal.woff2", Ct);
