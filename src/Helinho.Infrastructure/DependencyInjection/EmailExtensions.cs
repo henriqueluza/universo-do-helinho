@@ -11,7 +11,8 @@ public static class EmailExtensions
 {
     /// <summary>
     /// Opções de e-mail validadas na subida e escolha do provedor (ADR-0003 §7). O cliente HTTP tipado do
-    /// <see cref="BrevoEmailSender"/> é registrado pela área Email do Web, que tem o <c>Microsoft.Extensions.Http</c>.
+    /// <see cref="BrevoEmailSender"/> é registrado por <c>AddEmail</c>, na área Email do Web, que tem o
+    /// <c>Microsoft.Extensions.Http</c>. Um host que use Brevo sem chamar <c>AddEmail</c> falha ao resolver o adaptador.
     /// </summary>
     public static IServiceCollection AddEmailSender(this IServiceCollection services)
     {

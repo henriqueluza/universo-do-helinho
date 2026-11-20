@@ -18,6 +18,9 @@ public class EmailProviderTests(PostgresFixture postgres)
 {
     private const string ApiKey = "chave-sintetica-de-teste";
 
+    /// <summary>70 caracteres: o maior nome de remetente aceito.</summary>
+    private const string LongestSenderName = "0123456789012345678901234567890123456789012345678901234567890123456789";
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     /// <summary>Recebe tudo, de <c>Trace</c> para cima, inclusive o log de cabeçalhos do <c>HttpClient</c>.</summary>
@@ -79,7 +82,7 @@ public class EmailProviderTests(PostgresFixture postgres)
     {
         await using var byDefault = new HelinhoWebFactory(postgres).WithWebHostBuilder(b => b.UseEnvironment(Environments.Production));
         await using var blank = CreateFactory(Environments.Production, "", null, ("Brevo:ApiKey", ""));
-        await using var brevo = CreateFactory(Environments.Production, EmailOptions.Brevo);
+        await using var brevo = CreateFactory(Environments.Production, EmailOptions.Brevo, null, ("Brevo:SenderName", LongestSenderName));
 
         Assert.Equal(typeof(FakeEmailSender), SenderType(byDefault));
         Assert.Equal(typeof(FakeEmailSender), SenderType(blank));
@@ -91,10 +94,15 @@ public class EmailProviderTests(PostgresFixture postgres)
     [InlineData("Brevo", "Brevo:ApiKey", "chave com espaco")]
     [InlineData("Brevo", "Brevo:SenderEmail", "")]
     [InlineData("Brevo", "Brevo:SenderEmail", "Nome <nao-responda@example.org>")]
+    [InlineData("Brevo", "Brevo:SenderEmail", "nao-e-email")]
     [InlineData("Brevo", "Brevo:SenderName", "")]
+    [InlineData("Brevo", "Brevo:SenderName", LongestSenderName + "x")]
     [InlineData("Brevo", "App:PublicBaseUrl", "")]
     [InlineData("Brevo", "App:PublicBaseUrl", "http://painel.example.org")]
     [InlineData("Brevo", "App:PublicBaseUrl", "https://painel.example.org/caminho")]
+    [InlineData("Brevo", "App:PublicBaseUrl", "https://painel.example.org/?x=1")]
+    [InlineData("Brevo", "App:PublicBaseUrl", "https://painel.example.org/#topo")]
+    [InlineData("Brevo", "App:PublicBaseUrl", "https://usuario@painel.example.org")]
     [InlineData("Sendgrid", "Email:Provider", "Sendgrid")]
     public async Task Configuracao_invalida_derruba_a_subida_nomeando_a_variavel_sem_o_valor(string provider, string key, string value)
     {
@@ -119,6 +127,21 @@ public class EmailProviderTests(PostgresFixture postgres)
         Assert.Equal(typeof(FakeEmailSender), SenderType(brevo));
         Assert.Single(logs.Lines, line => line.Contains("Email:Provider=Brevo ignorado", StringComparison.Ordinal));
         Assert.Throws<OptionsValidationException>(() => unknown.Services);
+    }
+
+    [Fact]
+    public async Task O_cliente_da_Brevo_nao_segue_redirecionamento()
+    {
+        // Sem o AcceptingHandler: a cadeia é a que a aplicação registra. Nada é enviado, só o handler é criado.
+        await using var factory = new HelinhoWebFactory(postgres).WithWebHostBuilder(b => b.UseEnvironment(Environments.Production));
+
+        var handler = factory.Services.GetRequiredService<IHttpMessageHandlerFactory>().CreateHandler(nameof(BrevoEmailSender));
+        while (handler is DelegatingHandler { InnerHandler: { } inner })
+        {
+            handler = inner;
+        }
+
+        Assert.False(Assert.IsType<SocketsHttpHandler>(handler).AllowAutoRedirect);
     }
 
     [Fact]
