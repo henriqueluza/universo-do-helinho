@@ -9,7 +9,8 @@ namespace Helinho.IntegrationTests;
 
 /// <summary>Painel (Dashboard) no tema Recreio, fatia 3 (#165): mapa de calor, "Acabou de acontecer" e remoção da atividade recente antiga.</summary>
 [Collection(PostgresCollection.Name)]
-public partial class DashboardRecreioCalorFeedTests(PostgresFixture postgres)
+public partial class DashboardRecreioCalorFeedTests(PostgresFixture postgres, DashboardRecreioCalorFeedTests.SharedWorld shared)
+    : IClassFixture<DashboardRecreioCalorFeedTests.SharedWorld>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -35,7 +36,44 @@ public partial class DashboardRecreioCalorFeedTests(PostgresFixture postgres)
     private static int Total(string html) =>
         HeatCell().Matches(html).Sum(m => int.Parse(m.Groups[2].Value, System.Globalization.NumberStyles.AllowThousands, System.Globalization.CultureInfo.GetCultureInfo("pt-BR")));
 
-    private sealed record Seeded(Guid UnitA, Guid UnitB, Guid UnitOld);
+    internal sealed record Seeded(HelinhoWebFactory Factory, Guid UnitA, Guid UnitB, Guid UnitOld);
+
+    /// <summary>
+    /// Um host para a classe inteira, com o mundo semeado uma vez; os testes só leem, então a ordem não importa.
+    /// Cada host deixa observadores de arquivo (inotify no Linux), e o runner do CI limita a 128 instâncias (#215).
+    /// </summary>
+    public sealed class SharedWorld : IAsyncDisposable
+    {
+        private Seeded? _world;
+
+        internal async Task<Seeded> GetAsync(PostgresFixture postgres)
+        {
+            if (_world is null)
+            {
+                var factory = new HelinhoWebFactory(postgres);
+                try
+                {
+                    await factory.EnsureDatabaseAsync();
+                    _world = await SeedAsync(factory);
+                }
+                catch
+                {
+                    await factory.DisposeAsync();
+                    throw;
+                }
+            }
+
+            return _world;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_world is not null)
+            {
+                await _world.Factory.DisposeAsync();
+            }
+        }
+    }
 
     // A: "Ana Sobrenomeunico", 3 respostas há minutos. B: "<u>Caio</u> Sobrenomedois", 2 respostas há minutos.
     // Velha: "<i>Eva</i> Antiga", 2 respostas há 3 dias (mapa tem dado; feed de 24 h não).
@@ -65,15 +103,13 @@ public partial class DashboardRecreioCalorFeedTests(PostgresFixture postgres)
             await db.SaveChangesAsync(Ct);
         }
 
-        return new Seeded(a.Id, b.Id, old.Id);
+        return new Seeded(factory, a.Id, b.Id, old.Id);
     }
 
     private async Task<(string Raw, string Text)> GetAsync(string role, Func<Seeded, Guid?> unit)
     {
-        await using var factory = new HelinhoWebFactory(postgres);
-        await factory.EnsureDatabaseAsync();
-        var seeded = await SeedAsync(factory);
-        using var client = factory.CreateClientAs(role, unit(seeded));
+        var seeded = await shared.GetAsync(postgres);
+        using var client = seeded.Factory.CreateClientAs(role, unit(seeded));
         var response = await client.GetAsync("/Dashboard", Ct);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var raw = await response.Content.ReadAsStringAsync(Ct);
@@ -112,9 +148,8 @@ public partial class DashboardRecreioCalorFeedTests(PostgresFixture postgres)
     [Fact]
     public async Task Numero_da_celula_aparece_no_foco_do_teclado_e_fica_visivel_e_legivel_em_tela_de_toque()
     {
-        await using var factory = new HelinhoWebFactory(postgres);
-        await factory.EnsureDatabaseAsync();
-        using var client = factory.CreateAnonymousClient();
+        var seeded = await shared.GetAsync(postgres);
+        using var client = seeded.Factory.CreateAnonymousClient();
         var css = CssComment().Replace(await client.GetStringAsync("/css/theme.css", Ct), string.Empty);
 
         // Visível no hover, no foco do teclado e sempre em toque.
