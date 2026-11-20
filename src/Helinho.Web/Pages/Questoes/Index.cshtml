@@ -1,4 +1,5 @@
 @page
+@using Helinho.Web.Painel
 @model Helinho.Web.Pages.Questoes.IndexModel
 @using Helinho.Domain
 @using Helinho.Domain.Entities
@@ -24,7 +25,7 @@
             <option value="">Todos</option>
             @foreach (var t in Enum.GetValues<QuizType>())
             {
-                <option value="@t" selected="@(t == Model.Tipo)">@IndexModel.QuizLabel(t)</option>
+                <option value="@t" selected="@(t == Model.Tipo)">@TemaQuiz.Of(t).Nome</option>
             }
         </select>
     </div>
@@ -87,10 +88,10 @@ else
                 <tbody>
                     @foreach (var q in Model.Result.Items)
                     {
-                        var face = QuizPresentation.Face(q.QuizType);
+                        var tema = TemaQuiz.Of(q.QuizType);
                         <tr>
                             <th scope="row"><div class="clip" title="@q.Statement">@q.Statement</div></th>
-                            <td><span class="tag tag-type @QuizPresentation.CssClass(q.QuizType)"><img src="~/img/@face.File" width="@face.Width" height="@face.Height" alt="" />@IndexModel.QuizLabel(q.QuizType)<span class="visually-hidden"> (personagem @QuizPresentation.Character(q.QuizType))</span></span></td>
+                            <td><span class="tag tag-type @tema.Css"><img src="~/img/@tema.Imagem" width="@tema.Largura" height="@tema.Altura" alt="" />@tema.Nome<span class="visually-hidden"> (personagem @tema.Personagem)</span></span></td>
                             <td>@IndexModel.BandLabel(q.AgeBand)</td>
                             <td>
                                 @if (q.Status == QuestionStatus.Approved)

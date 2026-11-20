@@ -160,7 +160,7 @@ public partial class TemaAcabamentoCascataTests
     {
         var root = FindRepositoryRoot();
         var editar = File.ReadAllText(Path.Combine(root, "src", "Helinho.Web", "Pages", "Questoes", "Editar.cshtml"));
-        Assert.Matches(@"<div class=""phone @\(quiz is \{ \} qt \? QuizPresentation\.CssClass\(qt\) : """"\)""", editar); // sem tema, só "phone"
+        Assert.Matches(@"<div class=""phone @\(quiz is \{ \} qt \? TemaQuiz\.Of\(qt\)\.Css : """"\)""", editar); // sem tema, só "phone"
 
         var regras = Regras(Css());
 
