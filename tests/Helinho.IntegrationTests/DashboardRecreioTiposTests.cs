@@ -1,8 +1,10 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using Helinho.Application.Painel;
 using Helinho.Domain;
 using Helinho.Domain.Entities;
 using Helinho.Infrastructure.Persistence;
+using Helinho.Web.Pages.Dashboard;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Helinho.IntegrationTests;
@@ -53,11 +55,16 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
 
     private async Task<string> GetAsync(string role, bool asUnitA) => WebUtility.HtmlDecode(await GetRawAsync(role, asUnitA));
 
-    private async Task<string> GetRawAsync(string role, bool asUnitA)
+    private async Task<string> GetRawAsync(string role, bool asUnitA, Func<HelinhoWebFactory, Guid, Task>? extra = null)
     {
         await using var factory = new HelinhoWebFactory(postgres);
         await factory.EnsureDatabaseAsync();
         var unitA = await SeedAsync(factory);
+        if (extra is not null)
+        {
+            await extra(factory, unitA);
+        }
+
         using var client = factory.CreateClientAs(role, asUnitA ? unitA : null);
         var response = await client.GetAsync("/Dashboard", Ct);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -85,13 +92,13 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
     [Fact]
     public async Task Master_ve_as_duas_unidades_no_ranking_e_o_enunciado_e_codificado()
     {
-        var html = await GetAsync(RoleNames.Master, false);
+        var raw = await GetRawAsync(RoleNames.Master, false);
+        var html = WebUtility.HtmlDecode(raw);
 
         Assert.Contains("Unidades que mais jogam", html, StringComparison.Ordinal);
         Assert.Contains("Unidade Tipos A", html, StringComparison.Ordinal);
         Assert.Contains("Unidade Tipos B", html, StringComparison.Ordinal);
         Assert.Contains(EnunciadoB, html, StringComparison.Ordinal);
-        var raw = await GetRawAsync(RoleNames.Master, false);
         Assert.DoesNotContain("<script>alert", raw, StringComparison.Ordinal);
         Assert.Contains("&lt;script&gt;", raw, StringComparison.Ordinal);
     }
@@ -99,14 +106,14 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
     [Fact]
     public async Task Administrador_nao_recebe_o_bloco_de_unidades_nem_dados_da_outra_unidade()
     {
-        var html = await GetAsync(RoleNames.Admin, true);
+        var raw = await GetRawAsync(RoleNames.Admin, true);
+        var html = WebUtility.HtmlDecode(raw);
 
         Assert.DoesNotContain("Unidades que mais jogam", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Unidade Tipos B", html, StringComparison.Ordinal);
         Assert.DoesNotContain(EnunciadoB, html, StringComparison.Ordinal);
         Assert.Contains("Questões que mais confundem", html, StringComparison.Ordinal);
         Assert.Contains("Qual é o maior bioma?", html, StringComparison.Ordinal);
-        var raw = await GetRawAsync(RoleNames.Admin, true);
         Assert.DoesNotContain("<script>alert", raw, StringComparison.Ordinal);
         Assert.Contains("&lt;script&gt;", raw, StringComparison.Ordinal);
     }
@@ -117,9 +124,51 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
         var html = await GetAsync(RoleNames.Admin, true);
 
         Assert.Contains("Precisa de atenção", html, StringComparison.Ordinal);
-        Assert.Matches("""<a class="attn" href="/Desempenho"><span class="ic cul".*Cultural abaixo de 65%""", html);
+        Assert.Matches(
+            new Regex($"""<a class="attn" href="/Desempenho"><span class="ic cul".*Cultural abaixo de {GetDashboardAttention.LowAccuracyPercent}%""", RegexOptions.Singleline),
+            html);
         Assert.Matches("""href="/Questoes/Editar/[0-9a-f-]{36}">Revisar""", html);
         Assert.DoesNotContain("href=\"\"", html, StringComparison.Ordinal);
+    }
+
+    // Critério 4 da #179: a preview tem "Dia da Água começa sexta", "6 de 10 perguntas prontas" e "Revise antes do
+    // evento de sexta", sem dado que os sustente (LiveEvent só tem EndsAt e não se liga a Question). Com evento perto
+    // do fim, rascunhos e turma parada no banco, os quatro alertas reais aparecem e nenhum desses textos sai.
+    // Administrador da unidade A: o histórico semeado (outras unidades) não disputa o corte de MaxAlerts com o evento.
+    [Fact]
+    public async Task Painel_nao_mostra_evento_comecando_nem_perguntas_prontas_e_os_alertas_levam_a_rotas_reais()
+    {
+        var raw = await GetRawAsync(RoleNames.Admin, true, async (factory, unitA) =>
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var user = new AppUser { UserName = "tipos-parado", UnitId = unitA };
+            db.Users.Add(user);
+            db.Students.Add(new Student(user.Id, unitA, "TIP-Parado", "Beto", "00.000.000-0", "000.000.000-00", "Rua Sintética, 2",
+                new DateOnly(2018, 5, 1), "Responsável Fictício", "3B", DateOnly.FromDateTime(DateTime.UtcNow)));
+            db.LiveEvents.Add(new LiveEvent("Festival Sintético", "", QuizType.Ambiental, DateTimeOffset.UtcNow.AddHours(30)));
+            await db.SaveChangesAsync(Ct);
+        });
+        var html = WebUtility.HtmlDecode(raw);
+
+        Assert.Contains("Festival Sintético termina", html, StringComparison.Ordinal);
+        Assert.Matches("""\d+ questões? em rascunho""", html);
+        Assert.DoesNotMatch(new Regex("""\bcomeça\b""", RegexOptions.IgnoreCase), html);
+        Assert.DoesNotMatch(new Regex("""\d+\s+de\s+\d+\s+perguntas""", RegexOptions.IgnoreCase), html);
+        Assert.DoesNotContain("perguntas prontas", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Revise antes do evento", html, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Contains("""<a class="attn" href="/Eventos">""", html, StringComparison.Ordinal);
+        Assert.Contains("""<a class="attn" href="/Questoes?status=Draft">""", html, StringComparison.Ordinal);
+        Assert.Matches("""<a class="attn" href="/Alunos\?unidade=[0-9a-f-]{36}&turma=3B">""", html);
+    }
+
+    [Fact]
+    public void Titulo_de_acerto_baixo_sem_tipo_nao_quebra_a_pagina()
+    {
+        var title = IndexModel.AlertTitle(new AttentionAlert(AttentionKind.LowAccuracy, 40, ""));
+
+        Assert.Equal($"Acerto abaixo de {GetDashboardAttention.LowAccuracyPercent}%", title);
     }
 
     [Fact]
