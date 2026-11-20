@@ -69,8 +69,7 @@ public partial class PanelCascaTests(PostgresFixture postgres)
 
         var head = html[..html.IndexOf("</head>", StringComparison.Ordinal)];
         var tema = Assert.Single(ScriptTag().Matches(head), m => m.Value.Contains("src=\"/js/tema.js", StringComparison.Ordinal)).Value;
-        Assert.DoesNotContain("defer", tema);
-        Assert.DoesNotContain("async", tema);
+        Assert.DoesNotMatch("""\s(defer|async)[\s>=]""", tema);
         Assert.True(head.IndexOf("/js/tema.js", StringComparison.Ordinal) < head.IndexOf("/css/theme.css", StringComparison.Ordinal));
 
         var painel = Assert.Single(ScriptTag().Matches(html), m => m.Value.Contains("src=\"/js/painel.js", StringComparison.Ordinal)).Value;
@@ -78,7 +77,7 @@ public partial class PanelCascaTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task Scripts_da_casca_respondem_200_e_usam_a_mesma_chave_de_tema()
+    public async Task Scripts_da_casca_sao_servidos_e_citam_a_mesma_chave_de_tema()
     {
         await using var factory = new HelinhoWebFactory(postgres);
         await factory.EnsureDatabaseAsync();
@@ -87,7 +86,8 @@ public partial class PanelCascaTests(PostgresFixture postgres)
         var tema = await client.GetStringAsync("/js/tema.js", Ct);
         var painel = await client.GetStringAsync("/js/painel.js", Ct);
 
-        // tema.js só aplica o que o botão do painel.js guarda: mesma chave e mesmo atributo.
+        // Contrato textual (não comportamento): tema.js só aplica o que o botão do painel.js guarda,
+        // então os dois citam a mesma chave e o mesmo atributo. GetStringAsync falha se não vier 200.
         Assert.Contains("localStorage.getItem('tema')", tema);
         Assert.Contains("localStorage.setItem('tema'", painel);
         Assert.Contains("dataset.theme", tema);
