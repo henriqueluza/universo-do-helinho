@@ -92,6 +92,27 @@ public class PanelUnidadesAdminsRecreioTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Formularios_nao_usam_style_inline_fora_dos_tokens()
+    {
+        await using var factory = await NewFactoryAsync();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            db.Units.Add(new Unit("Unidade Sem Estilo"));
+            await db.SaveChangesAsync(Ct);
+        }
+
+        using var client = factory.CreateFormClientAs(RoleNames.Master);
+        foreach (var path in new[] { "/Unidades/Nova", "/Administradores/Novo" })
+        {
+            var html = await GetAsync(client, path);
+            var form = Regex.Match(html, "<form[^>]*class=\"panel panel-pad form\"[^>]*>");
+            Assert.True(form.Success, $"{path} sem form.panel.panel-pad.form");
+            Assert.DoesNotContain("style=", form.Value);
+        }
+    }
+
+    [Fact]
     public async Task Formulario_novo_administrador_mantem_senha_sem_eco_e_regra_da_unidade()
     {
         await using var factory = await NewFactoryAsync();
