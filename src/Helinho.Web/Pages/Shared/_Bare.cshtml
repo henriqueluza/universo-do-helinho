@@ -5,13 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
     <title>@(ViewData["Title"] is string t ? t + " · " : "")Universo do Helinho</title>
+    <script src="~/js/tema.js" asp-append-version="true"></script>
+    <link rel="icon" href="~/img/helinho-rosto.webp" type="image/webp" />
     <link rel="stylesheet" href="~/css/theme.css" asp-append-version="true" />
 </head>
 <body>
     <partial name="_Icones" />
     <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
-    <main id="conteudo" class="auth" tabindex="-1">
+    <div class="@(ViewData["Classe"] as string ?? "bare")">
         @RenderBody()
-    </main>
+    </div>
+    <script src="~/js/painel.js" asp-append-version="true" defer></script>
 </body>
 </html>
