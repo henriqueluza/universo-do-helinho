@@ -139,12 +139,18 @@ public partial class PanelCascaTests(PostgresFixture postgres)
         using var client = factory.CreateAnonymousClient();
         var css = await client.GetStringAsync("/css/theme.css", Ct);
 
-        // Entre a ponte e o legado (camada components vence base, legado e bootstrap).
+        // Entre a ponte e o legado; espaços normalizados para um reformat não quebrar o teste.
         var inicio = css.IndexOf("PONTE do escuro no legado", StringComparison.Ordinal);
         var fim = css.IndexOf("LEGADO: tema antigo", StringComparison.Ordinal);
         Assert.True(inicio > 0 && fim > inicio);
-        Assert.Contains(regra, css[inicio..fim]);
-        Assert.Contains("--legado-seta-select: url(\"data:image/svg+xml,", css[inicio..fim]);
+        var bloco = Regex.Replace(css[inicio..fim], @"\s+", " ");
+        // A regra fica em components (vence base, legado e bootstrap por camada) e a seta, em tokens.
+        var components = bloco.IndexOf("@layer components {", StringComparison.Ordinal);
+        var tokens = bloco.IndexOf("@layer tokens {", StringComparison.Ordinal);
+        Assert.True(tokens >= 0 && components > tokens);
+        Assert.True(bloco.IndexOf(Regex.Replace(regra, @"\s+", " "), StringComparison.Ordinal) > components);
+        var seta = bloco.IndexOf("--legado-seta-select: url(\"data:image/svg+xml,", StringComparison.Ordinal);
+        Assert.True(seta > tokens && seta < components);
     }
 
     [Fact]
@@ -152,7 +158,8 @@ public partial class PanelCascaTests(PostgresFixture postgres)
     {
         var html = await GetAsync(RoleNames.Master, "/Dashboard");
 
-        // O offcanvas do Bootstrap não atualiza aria-expanded; um "false" fixo mentiria com a gaveta aberta.
+        // Um "false" fixo no HTML não acompanha o estado: no navegador, seguia "false" com a gaveta aberta.
+        // O regex exige class="menu-toggle" como primeiro atributo (o layout de hoje); se mudar, falha alto.
         var botao = MenuToggle().Match(html);
         Assert.True(botao.Success);
         Assert.DoesNotContain("aria-expanded", botao.Value);
