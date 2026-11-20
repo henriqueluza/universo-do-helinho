@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Helinho.Domain;
 using Helinho.Infrastructure.Persistence;
 using Helinho.Web.Panel;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Helinho.IntegrationTests;
@@ -88,11 +89,44 @@ public partial class PainelSemStyleInlineTests(PostgresFixture postgres)
     {
         var pages = Path.Combine(FindRepositoryRoot(), "src", "Helinho.Web", "Pages");
         var achados = Directory.EnumerateFiles(pages, "*.cshtml", SearchOption.AllDirectories)
-            .Where(f => Regex.IsMatch(File.ReadAllText(f), @"class=""[^""]*\b(fw-bold|overflow-hidden)\b"))
+            .Where(f => !f.EndsWith("_EmConstrucao.cshtml", StringComparison.Ordinal))
+            .Where(f => Regex.IsMatch(File.ReadAllText(f), @"class=""[^""]*\b(fw-bold|fw-semibold|overflow-hidden|mb-\d|ps-\d|d-flex|justify-content-\w+|align-items-\w+|gap-\d)\b"))
             .Select(f => Path.GetRelativePath(pages, f))
             .ToList();
 
         Assert.True(achados.Count == 0, "Use as classes do tema, não utilitários do Bootstrap: " + string.Join(", ", achados));
+    }
+
+    [Fact]
+    public async Task Listas_sem_dados_usam_o_mesmo_estado_vazio_do_tema()
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        await factory.EnsureDatabaseAsync();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.LiveEvents.ExecuteDeleteAsync(Ct);
+            await db.QuestProgress.ExecuteDeleteAsync(Ct);
+            await db.DailyQuests.ExecuteDeleteAsync(Ct);
+        }
+
+        using var master = factory.CreateClientAs(RoleNames.Master);
+
+        var vazias = 0;
+        foreach (var path in new[] { "/Alunos?turma=inexistente", "/Missoes", "/Eventos" })
+        {
+            var html = await GetOkAsync(master, path);
+            if (!html.Contains("Nenhum", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            vazias++;
+            Assert.Contains("<div class=\"empty\">", html);
+            Assert.Matches("""<div class="empty">\s*<img src="/img/cara-helinho\.webp"[^>]* width="117" height="120" />\s*<b>Nenhum""", html);
+        }
+
+        Assert.True(vazias == 3, "as três listas precisam estar vazias para o teste valer");
     }
 
     [Fact]

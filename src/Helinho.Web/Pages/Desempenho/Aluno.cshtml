@@ -24,7 +24,7 @@
         <div class="panel-head"><h2 id="acertos-titulo">Acertos por tipo de quiz</h2></div>
         @if (s.Answered == 0)
         {
-            <p class="muted mb-0" id="aluno-sem-respostas">Este aluno ainda não respondeu nenhuma pergunta.</p>
+            <p class="muted" id="aluno-sem-respostas">Este aluno ainda não respondeu nenhuma pergunta.</p>
         }
         else
         {
@@ -62,7 +62,7 @@
         <div class="panel-head"><h2 id="conquistas-titulo">Conquistas desbloqueadas</h2></div>
         @if (s.Badges.Count == 0)
         {
-            <p class="muted mb-0" id="aluno-sem-conquistas">Nenhuma conquista desbloqueada ainda.</p>
+            <p class="muted" id="aluno-sem-conquistas">Nenhuma conquista desbloqueada ainda.</p>
         }
         else
         {

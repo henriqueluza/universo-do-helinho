@@ -13,8 +13,11 @@
 @if (Model.Quests.Count == 0)
 {
     <section class="panel panel-pad" id="missoes-vazio" aria-label="Missões diárias">
-        <p><b>Nenhuma missão cadastrada.</b></p>
-        <p class="sub">As missões diárias aparecem aqui quando existirem.</p>
+        <div class="empty">
+            <img src="~/img/cara-helinho.webp" alt="" width="117" height="120" />
+            <b>Nenhuma missão cadastrada.</b>
+            <p>As missões diárias aparecem aqui quando existirem.</p>
+        </div>
     </section>
 }
 else
