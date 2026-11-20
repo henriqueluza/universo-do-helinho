@@ -388,21 +388,309 @@
   }
 }
 
+/* ---- TELAS INTERNAS E DE CONTA do tema Recreio (Issue #144) ----
+   Valores copiados da preview sem mudança. recreio.css: 298-303, 309-363, 364-369, 373, 387-392;
+   telas.css: 79-87, 128-137, 139-160, 170-195, 235-240, 314-326, 328-336 e responsivo/movimento filtrados.
+   Fora (outras Issues): IA, Curiosidades, perguntas do evento, mapa da rede, Painel. */
+@layer screens {
+  /* telas: pilha, filtros, duas colunas */
+  .stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-6); align-content: start; min-width: 0; }
+  .tela { min-width: 0; }
+  .split { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: var(--sp-6); align-items: start; }
+  .filters-bar { display: flex; flex-wrap: wrap; align-items: end; gap: var(--sp-3); padding: var(--sp-4); border-radius: var(--r-lg); background: var(--stage); border: 2px solid var(--rule); }
+  .filters-bar .field { gap: 4px; }
+  .filters-bar .field label { font-size: var(--fs-xs); color: var(--ink-3); }
+  .filters-bar .select { min-width: 150px; }
+  .filters-bar .btn { height: var(--h-control); }
+  .filters-bar .link { font-weight: 800; font-size: var(--fs-sm); color: var(--select-ink); align-self: center; }
+  /* avisos e erro de campo */
+  .alert { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-3); align-items: start; padding: 14px; border-radius: var(--r-md); background: var(--bad-bg); color: var(--bad-ink); border: 2px solid oklch(from var(--bad) l c h / .35); font-weight: 700; width: 100%; max-width: 400px; }
+  .alert svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; margin-top: 1px; }
+  .alert:focus { outline: none; box-shadow: 0 0 0 4px var(--bad-bg); }
+  .input[aria-invalid="true"] { border-color: var(--bad); }
+  .input[aria-invalid="true"]:focus { box-shadow: 0 0 0 4px var(--bad-bg); }
+  .field-error { color: var(--bad-ink); font-weight: 700; font-size: var(--fs-sm); }
+  /* entrar */
+  .auth { min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(460px, 1fr); background: var(--canvas); }
+  /* lado da marca: azul FUNDHAS sólido, sem cenário */
+  .auth-scene { position: relative; overflow: hidden; display: grid; grid-template-rows: auto 1fr auto; gap: var(--sp-8); padding: var(--sp-10) clamp(32px, 5vw, 72px) var(--sp-8); color: oklch(0.97 0.01 250); isolation: isolate; container-type: inline-size;
+    background: radial-gradient(110% 70% at 0% 0%, oklch(0.5 0.13 248), transparent 62%), linear-gradient(160deg in oklch, oklch(0.43 0.13 250), oklch(0.29 0.1 258)); }
+  :root[data-theme="dark"] .auth-scene { background: radial-gradient(110% 70% at 0% 0%, oklch(0.36 0.1 255), transparent 62%), linear-gradient(160deg in oklch, oklch(0.28 0.08 262), oklch(0.19 0.05 272)); }
+  .auth-scene::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(oklch(1 0 0 / .1) 1px, transparent 1.6px) 0 0 / 22px 22px; mask-image: radial-gradient(90% 70% at 100% 100%, #000, transparent 70%); }
+  /* céu de estrelas: cada resposta vira uma estrela */
+  .auth-sky { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+  .auth-sky i { position: absolute; left: var(--x); top: var(--y); width: calc(var(--s) * 1.8); aspect-ratio: 1; background: var(--fundhas-yellow); opacity: .55;
+    clip-path: polygon(50% 0, 61% 38%, 100% 50%, 61% 62%, 50% 100%, 39% 62%, 0 50%, 39% 38%); }
+  .shoot, .sobe { display: none; }
+  /* aurora suave atrás de tudo */
+  .auth-scene::after { content: ""; position: absolute; z-index: -2; width: 70%; aspect-ratio: 1; left: 45%; top: -20%; border-radius: 50%; background: radial-gradient(circle, oklch(0.75 0.14 220 / .35), transparent 65%); filter: blur(20px); pointer-events: none; }
+  .auth-say .w { display: inline-block; overflow: clip; overflow-clip-margin: .12em; vertical-align: top; padding-bottom: .06em; }
+  .auth-say .w > * { display: inline-flex; align-items: center; gap: .15em; }
+  .faces { translate: calc(var(--mx, 0) * -10px) calc(var(--my, 0) * -6px); }
+  .auth-sky { translate: calc(var(--mx, 0) * 12px) calc(var(--my, 0) * 8px); }
+  .burst { position: fixed; z-index: 100; left: var(--bx); top: var(--by); width: 14px; height: 14px; pointer-events: none; background: var(--fundhas-yellow); clip-path: polygon(50% 0, 61% 38%, 100% 50%, 61% 62%, 50% 100%, 39% 62%, 0 50%, 39% 38%); }
+  .auth-logos { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); }
+  .auth-logos .jogo { width: 200px; filter: drop-shadow(0 4px 10px oklch(0.15 0.08 260 / .35)); }
+  .auth-logos .org { width: 150px; }
+  .auth-pitch { align-self: center; display: grid; gap: var(--sp-6); }
+  .auth-say { max-width: 16ch; font-family: var(--font-display); font-weight: 800; font-size: clamp(2rem, 0.7rem + 4.3cqi, 3.5rem); line-height: 1.02; letter-spacing: -0.015em; color: oklch(0.99 0.005 250); }
+  .auth-say em { font-style: normal; display: inline-flex; align-items: center; gap: .15em; color: var(--fundhas-yellow); }
+  .auth-note { max-width: 42ch; color: oklch(0.86 0.04 250); font-weight: 600; font-size: var(--fs-lg); }
+  /* elenco em foco: Helinho na frente e nítido; a turma atrás, desfocada como profundidade de campo */
+  .faces { --u: clamp(9px, min(2cqi, 1.7vh), 18px); position: relative; list-style: none; margin: var(--sp-2) 0 0; padding: 0; width: calc(var(--u) * 40); max-width: 100%; height: calc(var(--u) * 19); }
+  .faces::before { content: ""; position: absolute; left: 50%; top: 52%; width: calc(var(--u) * 22); aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; background: radial-gradient(circle, oklch(0.87 0.175 90 / .45), oklch(0.87 0.175 90 / 0) 66%); }
+  .face { position: absolute; width: calc(var(--u) * var(--w)); left: calc(var(--u) * var(--x)); top: calc(var(--u) * var(--y)); filter: blur(var(--b)) drop-shadow(0 calc(var(--u) * .8) calc(var(--u) * 1.2) oklch(0.12 0.08 260 / .35)); opacity: var(--o, 1); z-index: var(--z); }
+  .face img { display: block; width: 100%; height: auto; }
+  .face.f-byte  { --w: 8.4; --x: 5.2;  --y: 1.4; --b: 2.6px; --o: .78; --z: 1; }
+  .face.f-luna  { --w: 8.4; --x: 26.6; --y: 1;   --b: 2.6px; --o: .78; --z: 1; }
+  .face.f-flora { --w: 9.6; --x: 0;    --y: 8.6; --b: 1.4px; --o: .92; --z: 2; }
+  .face.f-max   { --w: 9.2; --x: 30.8; --y: 8.8; --b: 1.4px; --o: .92; --z: 2; }
+  .face.f-lia   { --w: 7.2; --x: 33.2; --y: 0;   --b: 3.4px; --o: .62; --z: 0; }
+  .face.lead    { --w: 15.5; --x: 12.3; --y: 2.4; --b: 0px; --z: 5; filter: drop-shadow(0 calc(var(--u) * 1.2) calc(var(--u) * 2) oklch(0.12 0.08 260 / .45)); }
+  /* passar o mouse traz o personagem para o foco */
+  @media (hover: hover) { .face:not(.lead):hover { --b: 0px; --o: 1; scale: 1.06; z-index: 6; } }
+  .auth-foot { color: oklch(0.82 0.04 250); font-size: var(--fs-sm); font-weight: 700; display: flex; align-items: center; gap: var(--sp-2); }
+  .auth-foot svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  /* lado do formulário: céu claro + cartão elevado, nada de vazio branco */
+  .auth-form { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-rows: 1fr auto; justify-items: center; align-items: center; gap: var(--sp-6); padding: var(--sp-10) clamp(24px, 5vw, 72px) var(--sp-8);
+    background: radial-gradient(60% 45% at 100% 0%, var(--select-bg), transparent 70%), radial-gradient(50% 40% at 0% 100%, oklch(from var(--fundhas-yellow) l c h / .14), transparent 70%), var(--canvas); }
+  .auth-form::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(oklch(from var(--ink) l c h / .09) 1px, transparent 1.6px) 0 0 / 22px 22px; mask-image: radial-gradient(70% 60% at 100% 0%, #000, transparent 75%); }
+  .auth-card { width: 100%; max-width: 460px; display: grid; gap: var(--sp-5); padding: clamp(24px, 3vw, 40px); background: var(--stage); border: 2px solid var(--rule); border-radius: var(--r-xl);
+    box-shadow: 0 2px 0 var(--rule), 0 28px 56px -24px oklch(0.3 0.09 260 / .28); }
+  .auth-card form { width: 100%; display: grid; gap: var(--sp-4); }
+  .auth-card .alert { max-width: none; }
+  .auth-badge { justify-self: start; display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px 5px 8px; border-radius: var(--r-pill); background: var(--select-bg); color: var(--select-ink); font-weight: 800; font-size: var(--fs-xs); letter-spacing: .02em; }
+  .auth-badge .star { width: 14px; height: 14px; }
+  .auth-form .lede { color: var(--ink-2); font-weight: 600; margin-top: -10px; max-width: 36ch; }
+  .auth-form .btn { width: 100%; gap: var(--sp-2); }
+  .auth-form .link { justify-self: start; font-weight: 800; color: var(--select-ink); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  .auth-help { color: var(--ink-3); font-size: var(--fs-sm); font-weight: 600; text-align: center; }
+  .field:focus-within label { color: var(--select-ink); }
+  /* botão ocupado: girador + rótulo; sem clique duplo */
+  .btn[aria-busy="true"] { pointer-events: none; }
+  .btn .spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid currentColor; border-right-color: transparent; flex: none; }
+  .btn .ok-mark { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  /* criador: passos, escolha por personagem e pílulas, barra, prévia num celular */
+  /* criador: passos à esquerda, prévia do jogo à direita (questão, curiosidade, evento) */
+  .maker { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(300px, 1fr); gap: var(--sp-6); align-items: start; }
+  .maker-form { display: grid; gap: var(--sp-5); min-width: 0; }
+  .step { margin: 0; min-width: 0; border: 2px solid var(--rule); border-radius: var(--r-lg); background: var(--stage); padding: var(--sp-5) var(--sp-6) var(--sp-6); display: grid; gap: var(--sp-4); }
+  .step-h { width: 100%; padding: 0; margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 800; line-height: 1.2; color: var(--ink); }
+  /* float tira a legenda do recorte da borda do fieldset; no grid ela vira item normal */
+  legend.step-h { float: left; }
+  .step-h .n { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--select-bg); color: var(--select-ink); font-size: var(--fs-sm); flex: none; }
+  .step-h small { margin-left: auto; font: 700 var(--fs-xs) var(--font); color: var(--ink-3); }
+  .sub-label { font-weight: 800; font-size: var(--fs-sm); color: var(--ink-2); margin-bottom: calc(var(--sp-2) * -1); }
+  /* tema = personagem: escolher é tocar no personagem */
+  .theme-pick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--sp-3); }
+  .tp { position: relative; display: grid; justify-items: center; gap: 2px; padding: 10px 6px 12px; border-radius: var(--r-lg); border: 2px solid var(--rule); background: var(--canvas); cursor: pointer; text-align: center; }
+  .tp input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .tp img { width: 64px; height: 64px; object-fit: contain; filter: saturate(.6); opacity: .8; }
+  .tp b { font-size: var(--fs-sm); font-weight: 800; }
+  .tp small { font-size: var(--fs-xs); color: var(--ink-3); font-weight: 700; }
+  .tp:hover { border-color: oklch(from var(--q) l c h / .5); }
+  .tp:has(:checked) { background: var(--qb); border-color: var(--q); box-shadow: 0 0 0 3px oklch(from var(--q) l c h / .18); }
+  .tp:has(:checked) img { filter: none; opacity: 1; scale: 1.08; }
+  .tp:has(:checked) b { color: var(--qi); }
+  .tp:has(:checked)::after { content: ""; position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 50%; background: var(--q) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3 3 7-7' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat; }
+  .tp:has(:focus-visible) { outline: 3px solid var(--select-line); outline-offset: 2px; }
+
+  /* pílulas de escolha (rádio/checkbox com cara de chip) */
+  .pill-pick { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+  .pp { position: relative; }
+  .pp input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .pp span { display: inline-flex; align-items: center; height: var(--h-control); padding: 0 16px; border-radius: var(--r-pill); border: 2px solid var(--rule-strong); background: var(--stage); font-weight: 800; color: var(--ink-2); }
+  .pp:hover span { border-color: var(--select-line); }
+  .pp:has(:checked) span { background: var(--select-bg); border-color: var(--select-line); color: var(--select-ink); }
+  .pp:has(:focus-visible) span { outline: 3px solid var(--select-line); outline-offset: 2px; }
+  .maker-bar { position: sticky; bottom: var(--sp-3); z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-lg); background: oklch(from var(--stage) l c h / .92); backdrop-filter: blur(8px); border: 2px solid var(--rule); box-shadow: 0 -10px 30px -18px oklch(0.3 0.08 260 / .35); }
+  .maker-bar .link { font-weight: 800; color: var(--select-ink); }
+  .maker-bar .hint { margin-left: auto; color: var(--ink-3); font-weight: 800; font-size: var(--fs-sm); }
+
+  /* prévia num celular: o que o aluno vê */
+  .maker-preview { position: sticky; top: var(--sp-6); display: grid; gap: var(--sp-4); justify-items: center; }
+  .pv-label { justify-self: stretch; display: flex; justify-content: space-between; gap: var(--sp-3); font-weight: 800; color: var(--ink); }
+  .pv-label span + span { color: var(--ink-3); font-size: var(--fs-xs); align-self: center; }
+  .phone { width: min(320px, 100%); border-radius: 40px; padding: 10px; background: oklch(0.24 0.03 262); box-shadow: 0 30px 60px -28px oklch(0.2 0.08 260 / .6), inset 0 0 0 2px oklch(1 0 0 / .08); }
+  .phone .screen { position: relative; min-height: 520px; border-radius: 31px; overflow: hidden; display: grid; align-content: start; gap: var(--sp-3); padding: 40px 14px 18px; background: linear-gradient(180deg in oklch, var(--qb), var(--stage) 80%); }
+  .phone .screen::before { content: ""; position: absolute; top: 10px; left: 50%; translate: -50% 0; width: 84px; height: 20px; border-radius: 99px; background: oklch(0.24 0.03 262); }
+  .phone .is-empty { color: var(--ink-3); font-style: italic; font-weight: 600; }
+  .scr-title { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; color: var(--qi); text-align: center; }
+  .gq-head { display: flex; align-items: center; gap: var(--sp-2); font-weight: 800; font-size: var(--fs-xs); color: var(--qi); }
+  .gq-head img { width: 36px; height: 36px; object-fit: contain; }
+  .gq-head .lvl { margin-left: auto; padding: 3px 9px; border-radius: 99px; background: var(--stage); color: var(--ink-2); }
+  .gq { padding: 14px; border-radius: 18px; background: var(--stage); border: 2px solid oklch(from var(--q) l c h / .3); font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; line-height: 1.25; min-height: 84px; overflow-wrap: anywhere; }
+  .gq-alts { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+  .gq-alts li { display: flex; gap: var(--sp-2); align-items: center; min-height: 42px; padding: var(--sp-2) 10px; border-radius: 14px; background: var(--stage); border: 2px solid var(--rule); border-bottom-width: 4px; font-weight: 800; font-size: var(--fs-sm); overflow-wrap: anywhere; }
+  .gq-alts li::before { content: attr(data-k); width: 24px; height: 24px; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--neutral-bg); color: var(--neutral-ink); font-size: var(--fs-xs); flex: none; font-style: normal; }
+  .gq-alts li.right { border-color: oklch(from var(--ok) l c h / .6); background: var(--ok-bg); color: var(--ok-ink); }
+  .gq-alts li.right::before { background: var(--ok); color: oklch(1 0 0); }
+  .gq-why { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); }
+  .dots { display: flex; justify-content: center; gap: 6px; }
+  .dots i { width: 7px; height: 7px; border-radius: 50%; background: oklch(from var(--q) l c h / .3); }
+  .dots i.on { width: 20px; border-radius: 99px; background: var(--q); }
+  /* lista de checagem ao lado da prévia */
+  .ready { justify-self: stretch; list-style: none; margin: 0; padding: var(--sp-4); border-radius: var(--r-lg); background: var(--stage); border: 2px solid var(--rule); display: grid; gap: 8px; font-weight: 700; font-size: var(--fs-sm); color: var(--ink-3); }
+  .ready li { display: flex; gap: 10px; align-items: center; }
+  .ready li::before { content: ""; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--rule-strong); flex: none; }
+  .ready li.ok { color: var(--ink); }
+  .ready li.ok::before { border-color: var(--ok); background: var(--ok) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3 3 7-7' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 11px no-repeat; }
+  /* ficha do aluno */
+  /* ficha do aluno */
+  .profile { display: grid; grid-template-columns: auto 1fr auto; gap: var(--sp-5); align-items: center; }
+  .av-xl { width: 72px; height: 72px; border-radius: 22px; display: grid; place-items: center; font-family: var(--font-display); font-size: 1.6rem; font-weight: 800; background: var(--q-con-bg); color: var(--q-con-ink); }
+  .profile .meta { color: var(--ink-2); font-weight: 700; margin-top: 4px; }
+  .level { display: grid; gap: 6px; min-width: 280px; padding: var(--sp-4); border-radius: var(--r-lg); background: var(--sunny); border: 2px solid oklch(0.87 0.175 90 / .55); }
+  .level b { font-family: var(--font-display); font-size: var(--fs-xl); font-weight: 800; line-height: 1; }
+  .level small { color: var(--ink-2); font-weight: 700; }
+  .level .meter { --q: oklch(0.7 0.16 75); background: oklch(1 0 0 / .7); }
+  :root[data-theme="dark"] .level .meter { background: oklch(0 0 0 / .25); }
+  .badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-3); }
+  .badge-card { display: grid; justify-items: center; text-align: center; gap: 6px; padding: var(--sp-4) var(--sp-3); border-radius: var(--r-lg); background: var(--canvas); border: 2px solid var(--rule); font-weight: 800; }
+  .badge-card img { width: 64px; height: 64px; }
+  .badge-card small { color: var(--ink-3); font-weight: 700; font-size: var(--fs-xs); }
+  /* telas de conta (sem casca) */
+  /* telas de conta (sem casca) */
+  .bare { min-height: 100dvh; display: grid; place-items: center; padding: var(--sp-6); background: radial-gradient(80% 60% at 50% 0%, var(--sky), var(--canvas) 70%); }
+  .bare-card { width: min(440px, 100%); display: grid; gap: var(--sp-5); padding: var(--sp-8); border-radius: var(--r-xl); background: var(--stage); border: 2px solid var(--rule); box-shadow: var(--shadow-float); }
+  .bare-card .face-solo { width: 88px; height: 88px; border-radius: 50%; overflow: hidden; position: relative; background: var(--fundhas-yellow); box-shadow: 0 0 0 3px var(--stage), 0 0 0 5px var(--rule); }
+  .bare-card .face-solo img { position: absolute; left: 4%; top: 6%; width: 92%; }
+  .bare-card .lede { color: var(--ink-2); font-weight: 600; margin-top: -8px; }
+  .bare-card form { display: grid; gap: var(--sp-4); }
+  .bare-card .btn-primary { width: 100%; }
+  .bare-card .link { font-weight: 800; color: var(--select-ink); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  /* responsivo */
+  @media (max-width: 900px) { .auth { grid-template-columns: 1fr; } }
+  @media (max-width: 1100px) {
+    .split, .maker { grid-template-columns: minmax(0, 1fr); }
+    .maker-preview { position: static; }
+  }
+  @media (max-width: 767.98px) {
+    .auth-scene { padding: var(--sp-5); gap: var(--sp-6); }
+    .auth-logos .jogo { width: 150px; } .auth-logos .org { width: 112px; }
+    .auth-note, .auth-foot { display: none; }
+    .faces { --u: 8.4px; margin-inline: auto; }
+    .auth-form { padding: var(--sp-6) var(--sp-4) var(--sp-6); align-items: start; }
+    .auth-card { padding: var(--sp-5); }
+    .form-grid { grid-template-columns: 1fr; }
+    .profile { grid-template-columns: auto 1fr; }
+    .level { grid-column: 1 / -1; min-width: 0; }
+    .filters-bar { display: grid; grid-template-columns: 1fr 1fr; }
+    .filters-bar .select { min-width: 0; width: 100%; }
+    .panel-pad { padding: var(--sp-5); }
+    .step { padding: var(--sp-4); }
+    .theme-pick { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .maker-bar .hint { margin-left: 0; width: 100%; }
+    .step-h small { margin-left: 0; width: 100%; }
+  }
+}
+
+@layer motion {
+  @keyframes pop { from { scale: 0; rotate: -90deg; } }
+  @keyframes spin { to { rotate: 360deg; } }
+  @media (prefers-reduced-motion: no-preference) {
+    /* telas: entrada em cascata da pilha */
+    .tela:not([hidden]) > .stack > * { animation: rise var(--dur-enter) var(--ease-out) both; }
+    .tela:not([hidden]) > .stack > :nth-child(2) { animation-delay: 60ms; }
+    .tela:not([hidden]) > .stack > :nth-child(3) { animation-delay: 120ms; }
+    .tela:not([hidden]) > .stack > :nth-child(n+4) { animation-delay: 180ms; }
+    .tp, .pp span, .ready li { transition: border-color var(--dur), background var(--dur), color var(--dur), box-shadow var(--dur), translate 200ms var(--ease-out); }
+    .tp:hover { translate: 0 -2px; }
+    .tp img { transition: filter var(--dur), opacity var(--dur), scale 300ms var(--ease-pop); }
+    .tp:has(:checked) img { animation: pick 460ms var(--ease-pop); }
+    @keyframes pick { 40% { scale: 1.22; rotate: -7deg; } }
+    .tp:has(:checked)::after, .ready li.ok::before { animation: pop 380ms var(--ease-pop) both; }
+    .phone .screen { transition: background var(--dur-slow); }
+    .field label { transition: color var(--dur); }
+    .phone [data-face], .phone [data-body] { animation: none; }
+    /* entrar: o cartão sobe, o conteúdo entra em cascata, as estrelas piscam */
+    .auth-card > *, .auth-card form > *, .auth-help, .auth-say, .auth-note, .auth-logos > * { animation: rise var(--dur-enter) var(--ease-out) both; animation-delay: calc(var(--i, 0) * var(--stagger)); }
+    .auth-say { --i: 2; } .auth-note { --i: 3; } .auth-logos > :nth-child(2) { --i: 1; }
+    /* login: o cartão sobe, o conteúdo entra em cascata, as estrelas piscam */
+    .auth-card { animation: card-in 760ms var(--ease-out) 80ms both; }
+    .auth-card > :nth-child(1) { --i: 2; } .auth-card > :nth-child(2) { --i: 3; } .auth-card > :nth-child(3) { --i: 4; }
+    .auth-card form > :nth-child(1) { --i: 5; } .auth-card form > :nth-child(2) { --i: 6; } .auth-card form > :nth-child(3) { --i: 7; }
+    .auth-card > .link { --i: 8; } .auth-help { --i: 10; }
+    @keyframes card-in { from { opacity: 0; translate: 0 24px; scale: .97; } }
+    .auth-sky i { animation: sky var(--t) ease-in-out var(--d) infinite; }
+    @keyframes sky { 0%, 100% { opacity: .15; scale: .55; } 50% { opacity: .85; scale: 1; rotate: 45deg; } }
+    .auth-say .star { animation: pop 720ms var(--ease-pop) 520ms both, glint 4.5s ease-in-out 2.4s infinite; }
+    @keyframes glint { 0%, 84%, 100% { rotate: 0deg; scale: 1; } 90% { rotate: 72deg; scale: 1.3; } }
+    .auth-badge .star { animation: pop 620ms var(--ease-pop) 600ms both; }
+    /* foco: o anel nasce do campo */
+    .auth-card .input:focus { animation: ring 520ms var(--ease-out); }
+    @keyframes ring { from { box-shadow: 0 0 0 0 var(--select-bg); } }
+    .btn .spin { animation: spin 700ms linear infinite; }
+    .btn .ok-mark path { stroke-dasharray: 20; animation: draw 420ms var(--ease-out) both; }
+    @keyframes draw { from { stroke-dashoffset: 20; } }
+    .auth.ok .face.lead img { animation: yay 640ms var(--ease-pop) both; }
+    @keyframes yay { 40% { translate: 0 calc(var(--u) * -2.2); rotate: -6deg; } 70% { rotate: 4deg; } }
+    .auth.ok .faces .face:not(.lead) { --b: 0px; --o: 1; }
+    /* erro: o cartão balança e o aviso desliza */
+    .auth.erro .auth-card { animation: shake 440ms var(--ease-out); }
+    .auth.erro .alert { animation: rise 420ms var(--ease-out) both; }
+    .auth-say { animation: none; }
+    .auth-say .w > * { animation: word-up 900ms var(--ease-out) both; animation-delay: calc(var(--w) * 70ms + 260ms); }
+    @keyframes word-up { from { translate: 0 105%; } }
+    .auth-say em .star { animation: pop 720ms var(--ease-pop) 980ms both, glint 4.5s ease-in-out 3s infinite; }
+    .sobe { display: block; position: absolute; left: var(--x); bottom: 26%; width: 12px; aspect-ratio: 1; background: var(--fundhas-yellow); clip-path: polygon(50% 0, 61% 38%, 100% 50%, 61% 62%, 50% 100%, 39% 62%, 0 50%, 39% 38%); opacity: 0; animation: sobe 7s ease-in var(--d) infinite; }
+    @keyframes sobe { 0% { opacity: 0; translate: 0 0; scale: .4; } 12% { opacity: .95; scale: 1; } 70% { opacity: .7; } 100% { opacity: 0; translate: 6vw -48vh; scale: .5; rotate: 200deg; } }
+    /* estrela cadente de vez em quando */
+    .shoot { display: block; position: absolute; top: 12%; left: 30%; width: 120px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, oklch(1 0 0 / .9)); rotate: -18deg; opacity: 0; animation: shoot 9s ease-in 3s infinite; }
+    .shoot.s2 { top: 34%; left: 55%; animation-delay: 7.5s; animation-duration: 11s; }
+    @keyframes shoot { 0% { opacity: 0; translate: 0 0; } 2% { opacity: 1; } 8% { opacity: 0; translate: 260px 85px; } 100% { opacity: 0; translate: 260px 85px; } }
+    .auth-scene::after { animation: aurora 16s ease-in-out infinite alternate; }
+    @keyframes aurora { 50% { translate: -18% 14%; scale: 1.15; } 100% { translate: -6% 30%; scale: .95; } }
+    .faces, .auth-sky { transition: translate 900ms var(--ease-out); }
+    .auth-card .btn-primary { position: relative; overflow: hidden; }
+    .auth-card .btn-primary::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, oklch(1 0 0 / .35) 50%, transparent 70%); translate: -120% 0; transition: translate 0s; }
+    .auth-card .btn-primary:hover::after { translate: 120% 0; transition: translate 700ms var(--ease-out); }
+    /* sucesso: chuva de estrelas saindo do botão */
+    .burst { animation: burst 900ms var(--ease-out) forwards; }
+    @keyframes burst { from { translate: -50% -50%; scale: .4; opacity: 1; } to { translate: calc(-50% + var(--dx)) calc(-50% + var(--dy)); scale: 1; rotate: var(--r); opacity: 0; } }
+    @keyframes shake { 20% { translate: -8px 0; } 40% { translate: 7px 0; } 60% { translate: -4px 0; } 80% { translate: 2px 0; } }
+    /* a turma entra desfocada e flutua; o Helinho chega por último, em foco */
+    .face img { animation: drift var(--t, 5s) ease-in-out var(--d, 0s) infinite alternate; }
+    .face { animation: focus-in 900ms var(--ease-out) both; animation-delay: var(--in, 200ms); transition: filter 400ms var(--ease-out), opacity 400ms var(--ease-out), scale 400ms var(--ease-out); }
+    .f-byte { --t: 5.2s; --d: -1s; --in: 150ms; } .f-luna { --t: 4.6s; --d: -2.2s; --in: 220ms; } .f-lia { --t: 5.8s; --d: -.6s; --in: 290ms; }
+    .f-flora { --t: 4.4s; --d: -3s; --in: 330ms; } .f-max { --t: 4.9s; --d: -1.7s; --in: 400ms; }
+    .face.lead { animation: hero-in 900ms var(--ease-pop) 620ms both; }
+    .face.lead img { animation: hero-float 3.6s ease-in-out 1.6s infinite alternate; transform-origin: 50% 90%; }
+    .faces::before { animation: halo 3.6s ease-in-out 1.2s infinite alternate; }
+    @keyframes focus-in { from { opacity: 0; filter: blur(12px); translate: 0 calc(var(--u) * 1.5); } }
+    @keyframes hero-in { 0% { opacity: 0; scale: .7; translate: 0 calc(var(--u) * 3); } 60% { opacity: 1; } }
+    @keyframes drift { to { translate: 0 calc(var(--u) * -.7); } }
+    @keyframes hero-float { 0% { rotate: -1.5deg; } 100% { rotate: 1.5deg; translate: 0 calc(var(--u) * -.6); } }
+    @keyframes halo { to { scale: 1.08; opacity: .7; } }
+  }
+}
+
 /* ---- PONTE do legado (remover junto com o legado) ----
    A base do Recreio zera a margem de h1/h2/p e define o tamanho do h1, e camada
    vence especificidade: sem isto, os títulos do tema antigo perderiam o espaço. */
 @layer components {
   .page-title { margin-bottom: var(--gap); }
   .section-title { margin-bottom: 12px; }
-  .auth-card .page-title { font-size: var(--fs-section); margin-bottom: 16px; }
   /* O .table do Recreio tem th sem quebra de linha; a tabela larga rola dentro do cartão. */
   .card-panel:has(> .table) { overflow-x: auto; }
+  /* O reboot do Bootstrap dá a legend fonte grande e float; a preview usa a legend nativa. */
+  legend { font-size: inherit; line-height: inherit; float: none; width: auto; }
   :root[data-theme="dark"] .form-control, :root[data-theme="dark"] .form-select { background-color: var(--stage); color: var(--ink); }
   /* No escuro, as superfícies do legado seguiam brancas com texto claro (ilegível). */
   :root[data-theme="dark"] { --surface: var(--stage); --raised: var(--canvas); --border: var(--rule); --text: var(--ink); --muted: var(--ink-2); --bs-body-color: var(--ink); --bs-secondary-color: var(--ink-2); --bs-border-color: var(--rule); }
   :root[data-theme="dark"] .card { --bs-card-bg: var(--stage); --bs-card-border-color: var(--rule); --bs-card-cap-bg: var(--canvas); }
   :root[data-theme="dark"] .table { --bs-table-color: var(--ink); --bs-table-border-color: var(--rule); --bs-table-hover-bg: var(--canvas); }
   :root[data-theme="dark"] .table > thead { --bs-table-bg: var(--canvas); }
+}
+
+/* PONTE (remover com o legado): o .auth do Recreio tem duas colunas (marca + formulário);
+   a marcação antiga só tem o cartão. Fica em screens para vencer o .auth de screens acima. */
+@layer screens {
+  .auth:not(:has(.auth-scene)) { grid-template-columns: minmax(0, 1fr); place-items: center; padding: 16px; }
+  /* o .auth do legado centraliza e põe 16px; a cena do Recreio ocupa a coluna inteira */
+  .auth:has(.auth-scene) { place-items: stretch; padding: 0; }
+  /* a ponte do legado dá margem inferior a todo .page-title; no Recreio o espaço vem do gap/.sub */
+  .page-head .page-title, .profile .page-title, .auth-card .page-title, .bare-card .page-title { margin-bottom: 0; }
 }
 
 /* ---- LEGADO: tema antigo, intacto, a remover na limpeza do Recreio ---- */
