@@ -113,6 +113,8 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
     [InlineData(".btn-lg {")]
     [InlineData(".btn-sm {")]
     [InlineData(".input {")]
+    [InlineData(".input[aria-invalid=\"true\"] {")]
+    [InlineData(".input[aria-invalid=\"true\"]:focus {")]
     [InlineData(".select {")]
     [InlineData(".field {")]
     [InlineData(".panel {")]
@@ -133,10 +135,12 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
 
         var css = await client.GetStringAsync("/css/theme.css", Ct);
 
+        // Só o bloco do Recreio (até a ponte do legado), e o seletor no início da regra:
+        // ".input {" não pode passar por causa de ".alt .input {".
         var start = css.IndexOf("@layer components {", StringComparison.Ordinal);
-        var end = css.IndexOf("@layer legado {", StringComparison.Ordinal);
+        var end = css.IndexOf("/* ---- PONTE", start, StringComparison.Ordinal);
         Assert.True(start >= 0 && end > start);
-        Assert.Contains(selector, css[start..end]);
+        Assert.Matches(new Regex(@"(?m)^\s*" + Regex.Escape(selector)), css[start..end]);
     }
 
     [Fact]

@@ -200,6 +200,9 @@
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .input { font: 600 var(--fs-md) var(--font); color: var(--ink); width: 100%; height: var(--h-control-lg); padding: 0 14px; border: 2px solid var(--rule-strong); border-radius: var(--r-md); background: var(--stage); transition: border-color var(--dur), box-shadow var(--dur); }
   .input:focus { outline: none; border-color: var(--select-line); box-shadow: 0 0 0 4px var(--select-bg); }
+  /* erro (recreio.css 301-302): depois de :focus para a borda --bad vencer no campo focado */
+  .input[aria-invalid="true"] { border-color: var(--bad); }
+  .input[aria-invalid="true"]:focus { box-shadow: 0 0 0 4px var(--bad-bg); }
   .field { display: grid; gap: 6px; }
   .field label { font-weight: 800; }
   .field small { color: var(--ink-3); font-weight: 600; }
