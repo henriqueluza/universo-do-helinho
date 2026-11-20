@@ -22,6 +22,8 @@ A stack foi decidida por Henrique no discovery e coincide com a stack padrão do
 
 **Dados.** Modelo relacional pequeno: unidades, usuários (master, administradores, alunos), questões e alternativas, sessões de quiz e respostas, eventos, missões diárias e progresso, conquistas, inventário, sessões de API, tokens de push. Volume baixo (algumas centenas de alunos; pico de todos simultâneos em eventos). **Consistência forte**: a resposta de quiz soma XP uma única vez (idempotência) e o logout revoga na hora. Um PostgreSQL único resolve; não há caso para consistência eventual, cache distribuído ou fila.
 
+> **Nota de 19/11/2026:** o trecho "não há caso para […] fila" é revisto pelo [ADR-0003](ADR-0003-emails-brevo.md) (seção 5.0, proposto): e-mail com repetição e, na Sprint 4, trabalhos de IA pedem fila, que fica em uma tabela no próprio PostgreSQL, sem Redis e sem broker.
+
 **Infraestrutura.** O MVP roda local: PostgreSQL em `compose.yaml`, custo zero. Hospedagem, cenários de custo por carga, ambientes, autenticação do CI no provedor, segredos de produção e rollback são decididos em ADR próprio na fase final (seção 6). O pico de "todos simultâneos" são centenas de requisições leves; cabe em uma instância pequena e será verificado por teste de carga antes de publicar.
 
 **Segurança/Compliance.** Dados pessoais de menores (LGPD art. 14, ECA), segregação por unidade, tablets compartilhados. Threat model na seção 7. No MVP só existem dados sintéticos.
