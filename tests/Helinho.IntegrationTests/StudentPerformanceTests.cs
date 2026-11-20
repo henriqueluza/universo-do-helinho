@@ -6,6 +6,7 @@ using Helinho.Domain;
 using Helinho.Domain.Entities;
 using Helinho.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
 #pragma warning disable CA1859 // consulta pela porta IAppDbContext, como o caso de uso
@@ -98,6 +99,9 @@ public partial class StudentPerformanceTests(PostgresFixture postgres, StudentPe
         db.QuizAnswers.AddRange(
             new QuizAnswer(session.Id, questionIds[0], "a", true, 10, Now),
             new QuizAnswer(session.Id, questionIds[1], "b", false, 0, Now));
+        var sessionCaio = new QuizSession(caio.Id, QuizType.Ambiental, 1, Now);
+        db.QuizSessions.Add(sessionCaio);
+        db.QuizAnswers.Add(new QuizAnswer(sessionCaio.Id, questionIds[0], "a", true, 10, Now));
         var badge = new Badge($"desemp-{Guid.NewGuid():N}", "Explorador do Bosque", "");
         db.Badges.Add(badge);
         db.StudentBadges.Add(new StudentBadge(ana.Id, badge.Id, Now));
@@ -105,10 +109,16 @@ public partial class StudentPerformanceTests(PostgresFixture postgres, StudentPe
         return (factory, new Seed(unitA.Id, unitB.Id, ana.Id, bia.Id, caio.Id));
     }
 
-    private static async Task<T> WithDbAsync<T>(HelinhoWebFactory factory, string role, Guid? unitId, Func<IAppDbContext, Task<T>> body)
+    private static async Task<T> WithDbAsync<T>(
+        HelinhoWebFactory factory, string role, Guid? unitId, Func<IAppDbContext, Task<T>> body, Action<string>? onCommand = null)
     {
-        await using var context = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options, new FakeUser(role, unitId));
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString);
+        if (onCommand is not null)
+        {
+            options.LogTo(onCommand, [RelationalEventId.CommandExecuted]);
+        }
+
+        await using var context = new AppDbContext(options.Options, new FakeUser(role, unitId));
         return await body(context);
     }
 
@@ -126,6 +136,24 @@ public partial class StudentPerformanceTests(PostgresFixture postgres, StudentPe
         var ana = todos.Rows.Single(r => r.Id == seed.Ana);
         Assert.Equal((350, 3, "Explorador"), (ana.Xp, ana.Level, ana.LevelName));
         Assert.Equal([seed.Bia], faixa.Rows.Select(r => r.Id));
+        Assert.Equal((2, 1), (ana.Answered, ana.Correct));
+        var bia = todos.Rows.Single(r => r.Id == seed.Bia);
+        Assert.Equal((0, 0), (bia.Answered, bia.Correct));
+    }
+
+    [Fact]
+    public async Task Respostas_e_acertos_ficam_na_unidade_do_admin_e_sem_consulta_por_aluno()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (factory, seed) = await shared.GetAsync(postgres);
+        var comandos = 0;
+
+        var listaB = await WithDbAsync(factory, RoleNames.Admin, seed.UnitB,
+            db => StudentPerformanceQueries.ListAsync(db, new FixedClock(), null, 1, ct), _ => comandos++);
+
+        var caio = Assert.Single(listaB.Rows);
+        Assert.Equal((seed.Caio, 1, 1), (caio.Id, caio.Answered, caio.Correct));
+        Assert.Equal(2, comandos); // contagem + página; respostas e acertos vêm na mesma consulta (sem N+1)
     }
 
     [Fact]
@@ -223,6 +251,16 @@ public partial class StudentPerformanceTests(PostgresFixture postgres, StudentPe
         Assert.Contains(">Aplicar</button>", html, StringComparison.Ordinal);
         Assert.True(HasClasses(html, "tag", "tag-neutral"), "nível sem a tag do tema");
         Assert.Contains("2 alunos", html, StringComparison.Ordinal);
+        Assert.Contains("<th scope=\"col\">Acerto</th>", html, StringComparison.Ordinal);
+        var linhaAna = LinhaDoTipo(">Ana</a>").Match(html);
+        Assert.True(linhaAna.Success, "lista sem a linha da Ana");
+        Assert.Matches(BarraDecorativa(50), linhaAna.Value);
+        Assert.Contains("<span>50%</span>", linhaAna.Value, StringComparison.Ordinal);
+        var linhaBia = LinhaDoTipo(">Bia</a>").Match(html);
+        Assert.True(linhaBia.Success, "lista sem a linha da Bia");
+        Assert.Contains("<span>—</span>", linhaBia.Value, StringComparison.Ordinal); // sem respostas: sem barra e sem 0% inventado
+        Assert.DoesNotContain("class=\"meter", linhaBia.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain(">0%<", linhaBia.Value, StringComparison.Ordinal);
         Assert.DoesNotContain("111.111.111-11", html, StringComparison.Ordinal);
         Assert.Contains("id=\"desempenho-vazio\"", vazio, StringComparison.Ordinal);
         Assert.Contains("width=\"117\" height=\"120\"", vazio, StringComparison.Ordinal);

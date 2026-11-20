@@ -54,7 +54,11 @@ public static class StudentPerformanceQueries
             .Skip((current - 1) * PageSize).Take(PageSize)
             .Select(s => new
             {
-                s.Id, s.FullName, s.ClassName, s.BirthDate, s.Xp,
+                s.Id,
+                s.FullName,
+                s.ClassName,
+                s.BirthDate,
+                s.Xp,
                 Answered = (from a in db.QuizAnswers
                             join q in db.QuizSessions on a.SessionId equals q.Id
                             where q.StudentId == s.Id
