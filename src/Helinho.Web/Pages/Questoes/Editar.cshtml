@@ -68,7 +68,7 @@
                     <label class="tp @tema.Css">
                         <input type="radio" name="Input.QuizType" value="@t" id="@(t == quizTypes[0] ? "Input_QuizType" : "Input_QuizType_" + t)" checked="@(quiz == t)" aria-invalid="@Bad("QuizType")" aria-describedby="@Desc("QuizType")" />
                         <img src="~/img/@tema.Imagem" width="@tema.Largura" height="@tema.Altura" alt="" />
-                        <b>@TemaQuiz.Of(t).Nome</b>
+                        <b>@tema.Nome</b>
                         <small>@tema.Personagem</small>
                     </label>
                 }
@@ -162,7 +162,7 @@
                     {
                         var ptema = TemaQuiz.Of(pt);
                         <img src="~/img/@ptema.Imagem" width="@ptema.Largura" height="@ptema.Altura" alt="" />
-                        <span>@TemaQuiz.Of(pt).Nome</span>
+                        <span>@ptema.Nome</span>
                     }
                     else
                     {

@@ -147,9 +147,9 @@ else
             @foreach (var tipo in t.AccuracyByType)
             {
                 var ch = TemaQuiz.Of(tipo.QuizType);
-                <a class="castcard @TemaQuiz.Of(tipo.QuizType).Css" href="@Url.Page("/Desempenho/Index")">
+                <a class="castcard @ch.Css" href="@Url.Page("/Desempenho/Index")">
                     <img src="~/img/@(ch.Slug)-corpo.webp" width="@ch.LarguraCorpo" height="300" alt="" />
-                    <span class="name">@TemaQuiz.Of(tipo.QuizType).Nome<span>@ch.Com</span></span>
+                    <span class="name">@ch.Nome<span>@ch.Com</span></span>
                     @if (tipo.AccuracyPercent is { } pct)
                     {
                         <span class="pct"><span data-count="@pct">@pct</span><small>%</small></span>
