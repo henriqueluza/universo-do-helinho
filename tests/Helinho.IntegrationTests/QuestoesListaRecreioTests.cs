@@ -11,7 +11,8 @@ namespace Helinho.IntegrationTests;
 
 /// <summary>Lista de Questões no tema Recreio (#162): tema + personagem, situação em texto, sem IA, estado vazio.</summary>
 [Collection(PostgresCollection.Name)]
-public class QuestoesListaRecreioTests(PostgresFixture postgres)
+public class QuestoesListaRecreioTests(PostgresFixture postgres, QuestoesListaRecreioTests.SharedFactory shared)
+    : IClassFixture<QuestoesListaRecreioTests.SharedFactory>
 {
     private static readonly string[] ForaDoEscopo =
     [
@@ -21,10 +22,37 @@ public class QuestoesListaRecreioTests(PostgresFixture postgres)
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private async Task<HelinhoWebFactory> NewFactoryAsync()
+    /// <summary>
+    /// Uma fábrica (um host) para a classe inteira, com as questões zeradas a cada teste. Cada host deixa
+    /// observadores de arquivo (inotify no Linux), e o runner do CI limita a 128 instâncias (#215).
+    /// </summary>
+    public sealed class SharedFactory : IAsyncDisposable
     {
-        var factory = new HelinhoWebFactory(postgres);
-        await factory.EnsureDatabaseAsync();
+        private HelinhoWebFactory? _factory;
+
+        public async Task<HelinhoWebFactory> GetAsync(PostgresFixture postgres)
+        {
+            if (_factory is null)
+            {
+                _factory = new HelinhoWebFactory(postgres);
+                await _factory.EnsureDatabaseAsync();
+            }
+
+            return _factory;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_factory is not null)
+            {
+                await _factory.DisposeAsync();
+            }
+        }
+    }
+
+    private async Task<HelinhoWebFactory> CleanFactoryAsync()
+    {
+        var factory = await shared.GetAsync(postgres);
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.QuizAnswers.ExecuteDeleteAsync(Ct);
@@ -50,7 +78,7 @@ public class QuestoesListaRecreioTests(PostgresFixture postgres)
     [Fact]
     public async Task Lista_usa_o_tema_Recreio_com_tema_e_personagem_e_sem_IA()
     {
-        await using var factory = await NewFactoryAsync();
+        var factory = await CleanFactoryAsync();
         await SeedAsync(factory, "Quantos jogadores ficam em quadra?");
         using var client = factory.CreateClientAs(RoleNames.Master);
 
@@ -72,7 +100,7 @@ public class QuestoesListaRecreioTests(PostgresFixture postgres)
     [Fact]
     public async Task Linha_tem_Editar_em_toda_questao_e_Aprovar_so_no_rascunho()
     {
-        await using var factory = await NewFactoryAsync();
+        var factory = await CleanFactoryAsync();
         var rascunho = await SeedAsync(factory, "Qual esporte usa uma rede baixa e peteca?");
         var aprovada = await SeedAsync(factory, "Qual esporte usa raquete e bolinha amarela?", approved: true);
         using var client = factory.CreateClientAs(RoleNames.Master);
@@ -93,7 +121,7 @@ public class QuestoesListaRecreioTests(PostgresFixture postgres)
     [Fact]
     public async Task Lista_vazia_mostra_estado_vazio_com_acao()
     {
-        await using var factory = await NewFactoryAsync();
+        var factory = await CleanFactoryAsync();
         using var client = factory.CreateClientAs(RoleNames.Master);
 
         var html = WebUtility.HtmlDecode(await client.GetStringAsync("/Questoes", Ct));
@@ -110,7 +138,7 @@ public class QuestoesListaRecreioTests(PostgresFixture postgres)
     [Fact]
     public async Task Lista_filtrada_sem_resultado_oferece_limpar_filtros()
     {
-        await using var factory = await NewFactoryAsync();
+        var factory = await CleanFactoryAsync();
         await SeedAsync(factory, "Quantos jogadores ficam em quadra?");
         using var client = factory.CreateClientAs(RoleNames.Master);
 
@@ -126,7 +154,7 @@ public class QuestoesListaRecreioTests(PostgresFixture postgres)
     [Fact]
     public async Task Paginacao_aparece_so_com_mais_de_uma_pagina()
     {
-        await using var factory = await NewFactoryAsync();
+        var factory = await CleanFactoryAsync();
         for (var i = 0; i <= ListQuestions.PageSize; i++)
         {
             await SeedAsync(factory, $"Questão sintética de paginação {i}?");
