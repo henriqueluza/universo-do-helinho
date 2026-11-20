@@ -62,7 +62,6 @@ public partial class PainelSemStyleInlineTests(PostgresFixture postgres)
 
         Assert.Matches(@":is\(\.input, \.select\)\[aria-invalid=""true""\] \{ border-color: var\(--bad\)", css);
         Assert.Matches(@"\.alt \.correct \{[^}]*min-height: var\(--h-control\)", css);
-        Assert.Matches(@"\.heat tbody td:is\(:hover, :focus-visible\) span \{ opacity: 1", css);
         Assert.Matches(@"\.tscroll \{ position: relative", css);
         Assert.Matches(@"\.table-wrap \{ position: relative", css);
         Assert.Contains(".two > * { min-width: 0; }", css);

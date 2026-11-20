@@ -87,7 +87,7 @@ public sealed class IndexModel(IAppDbContext db, ICurrentUser user, IClock clock
     public static string AlertTitle(AttentionAlert a) => a.Kind switch
     {
         AttentionKind.InactiveStudents => $"{a.Value} {(a.Value == 1 ? "aluno" : "alunos")} sem jogar há {GetDashboardAttention.InactiveAfterDays} dias",
-        AttentionKind.LowAccuracy => $"{TemaQuiz.Of(a.QuizType!.Value).Nome} abaixo de {GetDashboardAttention.LowAccuracyPercent}%",
+        AttentionKind.LowAccuracy => $"{(a.QuizType is { } t ? TemaQuiz.Of(t).Nome : "Acerto")} abaixo de {GetDashboardAttention.LowAccuracyPercent}%",
         AttentionKind.DraftQuestions => $"{a.Value} {(a.Value == 1 ? "questão" : "questões")} em rascunho",
         _ => $"{a.EventTitle} termina {(a.Value == 0 ? "hoje" : a.Value == 1 ? "amanhã" : $"em {a.Value} dias")}",
     };

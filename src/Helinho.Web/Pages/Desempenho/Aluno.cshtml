@@ -1,6 +1,7 @@
 @page "{id:guid}"
 @using Helinho.Web.Painel
 @model Helinho.Web.Pages.Desempenho.AlunoModel
+@using Helinho.Web.Painel
 @{
     ViewData["Title"] = Model.Student.FullName;
     var s = Model.Student;
@@ -35,9 +36,9 @@
                     @foreach (var t in s.Scores)
                     {
                         var tema = TemaQuiz.Of(t.Type);
-                        var pct = t.Answered == 0 ? 0 : 100 * t.Correct / t.Answered;
+                        var pct = AlunoModel.CorrectPercent(t.Answered, t.Correct);
                         <tr>
-                            <td><span class="tag tag-type @tema.Css"><img src="~/img/@tema.Imagem" alt="" width="20" height="20" />@tema.Nome · @tema.Personagem</span></td>
+                            <td><span class="tag tag-type @tema.Css"><img src="~/img/@tema.Imagem" alt="" width="@tema.Largura" height="@tema.Altura" />@tema.Nome · @tema.Personagem</span></td>
                             <td class="num">@t.Answered</td>
                             <td class="num">@t.Correct</td>
                             <td>
@@ -79,7 +80,7 @@
                             <svg class="icon" width="48" height="48" role="img" aria-label="Selo @b.Title"><use href="#i-star"/></svg>
                         }
                         @b.Title
-                        <small>Desbloqueado em @b.UnlockedAt.ToOffset(TimeSpan.FromHours(-3)).ToString("dd/MM/yyyy")</small>
+                        <small>Desbloqueado em @AlunoModel.UnlockedOn(b.UnlockedAt)</small>
                     </div>
                 }
             </div>

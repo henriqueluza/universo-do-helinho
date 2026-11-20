@@ -15,7 +15,7 @@
     var letters = new[] { "A", "B", "C", "D" };
     var optionFields = new[] { "OptionA", "OptionB", "OptionC", "OptionD" };
     var optionValues = new[] { Model.Input.OptionA, Model.Input.OptionB, Model.Input.OptionC, Model.Input.OptionD };
-    var bands = new[] { AgeBand.Age6To7, AgeBand.Age8To10, AgeBand.Age11To12, AgeBand.Age13To14 };
+    var bands = Enum.GetValues<AgeBand>();
     var quizTypes = Enum.GetValues<QuizType>();
     var quiz = Model.Input.QuizType;
     var age = Model.Input.AgeBand;
