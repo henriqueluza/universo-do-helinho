@@ -170,7 +170,9 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres, Dashbo
         Assert.Contains("Precisa de atenção", html, StringComparison.Ordinal);
         // O título tem de estar dentro do mesmo <a> do destino: a busca não atravessa o </a> para o alerta vizinho.
         Assert.Matches(
-            $"""<a class="attn" href="/Desempenho"><span class="ic cul"(?:(?!</a>).)*Cultural abaixo de {GetDashboardAttention.LowAccuracyPercent}%""",
+            new Regex(
+                $"""<a class="attn" href="/Desempenho"><span class="ic cul"(?:(?!</a>).)*Cultural abaixo de {GetDashboardAttention.LowAccuracyPercent}%""",
+                RegexOptions.Singleline),
             html);
         Assert.Matches("""href="/Questoes/Editar/[0-9a-f-]{36}">Revisar""", html);
         Assert.DoesNotContain("href=\"\"", html, StringComparison.Ordinal);
@@ -197,7 +199,9 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres, Dashbo
     // Critério 4 da #179, para os dois papéis: blocos da preview sem dado que os sustente.
     private static void AssertSemBlocosDaPreviewSemDado(string html)
     {
-        Assert.DoesNotMatch(new Regex("""\bcome[çc]""", RegexOptions.IgnoreCase), html);
+        // Qualquer forma do verbo (começa, começará, começando, comece). O substantivo "começo" fica de fora: o banco
+        // de questões do seed tem "no começo do ano" num enunciado que pode entrar em "Questões que mais confundem".
+        Assert.DoesNotMatch(new Regex("""\bcome[çc](?!o\b)""", RegexOptions.IgnoreCase), html);
         Assert.DoesNotMatch(new Regex("""\d+\s+de\s+\d+\s+perguntas""", RegexOptions.IgnoreCase), html);
         Assert.DoesNotContain("perguntas prontas", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Revise antes do evento", html, StringComparison.OrdinalIgnoreCase);
