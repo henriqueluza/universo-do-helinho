@@ -1,0 +1,33 @@
+@model Helinho.Web.Pages.Dashboard.IndexModel
+@using Helinho.Application.Painel
+@using Helinho.Web.Pages.Dashboard
+<section class="panel panel-pad" style="min-width:0" aria-labelledby="t-feed">
+    <div class="panel-head"><h2 id="t-feed">Acabou de acontecer</h2><p>Últimas @GetDashboardFeed.WindowHours horas</p></div>
+    @if (Model.Feed.IsEmpty)
+    {
+        <div class="empty" id="feed-vazio">
+            <img src="~/img/helinho-corpo.webp" width="182" height="360" alt="" />
+            <b>Nenhuma jogada nas últimas @GetDashboardFeed.WindowHours horas</b>
+            <p>Quando os alunos voltarem a jogar, as conquistas aparecem aqui.</p>
+            <a class="btn" href="@Url.Page("/Alunos/Index")">Ver alunos</a>
+        </div>
+    }
+    else
+    {
+        <ul class="feed" id="feed">
+            @foreach (var e in Model.Feed.Events)
+            {
+                var tipo = e.QuizType is { } q ? IndexModel.TypeShort(q) : null;
+                <li>
+                    <span class="av" style="@(tipo is null ? null : $"background:var(--q-{tipo}-bg);color:var(--q-{tipo}-ink)")" aria-hidden="true">@IndexModel.Initial(e.FirstName)</span>
+                    <div><b>@e.FirstName</b><small>@e.Text · @e.UnitName</small></div>
+                    @if (e.QuizType is { } qt)
+                    {
+                        <span class="tag tag-type @tipo"><img src="~/img/@(IndexModel.Character(qt).Slug).webp" width="160" height="160" alt="" />@IndexModel.TypeLabel(qt)</span>
+                    }
+                    <time datetime="@e.At.ToString("O")">@IndexModel.LocalTime(e.At)</time>
+                </li>
+            }
+        </ul>
+    }
+</section>

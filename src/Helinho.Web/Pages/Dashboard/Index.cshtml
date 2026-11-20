@@ -193,33 +193,8 @@ else
         </div>
     }
 
-    <h2 class="section-title">Atividade recente</h2>
-    <div class="card-panel p-0">
-        <table class="table mb-0">
-            <caption class="visually-hidden">Últimas respostas dos alunos</caption>
-            <thead>
-                <tr><th scope="col">Aluno</th><th scope="col">Quiz</th><th scope="col">Resultado</th><th scope="col">Quando</th></tr>
-            </thead>
-            <tbody>
-                @foreach (var r in Model.Result.Recent)
-                {
-                    <tr>
-                        <td>@r.StudentName</td>
-                        <td><span class="badge type-badge @IndexModel.TypeClass(r.QuizType)">@IndexModel.TypeLabel(r.QuizType)</span></td>
-                        <td>
-                            @if (r.IsCorrect)
-                            {
-                                <span class="badge badge-ok">Acertou</span>
-                            }
-                            else
-                            {
-                                <span class="badge badge-miss">Errou</span>
-                            }
-                        </td>
-                        <td><time datetime="@r.AnsweredAt.ToString("O")">@r.AnsweredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</time></td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+    <div class="two">
+        <partial name="_Calor" model="Model" />
+        <partial name="_Feed" model="Model" />
     </div>
 }
