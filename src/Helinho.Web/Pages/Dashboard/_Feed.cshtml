@@ -1,7 +1,7 @@
 @model Helinho.Web.Pages.Dashboard.IndexModel
 @using Helinho.Application.Painel
 @using Helinho.Web.Pages.Dashboard
-<section class="panel panel-pad" style="min-width:0" aria-labelledby="t-feed">
+<section class="panel panel-pad" aria-labelledby="t-feed">
     <div class="panel-head"><h2 id="t-feed">Acabou de acontecer</h2><p>Últimas @GetDashboardFeed.WindowHours horas</p></div>
     @if (Model.Feed.IsEmpty)
     {
@@ -19,7 +19,7 @@
             {
                 var tipo = e.QuizType is { } q ? IndexModel.TypeShort(q) : null;
                 <li>
-                    <span class="av" style="@(tipo is null ? null : $"background:var(--q-{tipo}-bg);color:var(--q-{tipo}-ink)")" aria-hidden="true">@IndexModel.Initial(e.FirstName)</span>
+                    <span class="av @tipo" aria-hidden="true">@IndexModel.Initial(e.FirstName)</span>
                     <div><b>@e.FirstName</b><small>@e.Text · @e.UnitName</small></div>
                     @if (e.QuizType is { } qt)
                     {

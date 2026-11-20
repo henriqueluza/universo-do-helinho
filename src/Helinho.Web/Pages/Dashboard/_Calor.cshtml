@@ -6,7 +6,7 @@
     var turnos = new[] { DayShift.Morning, DayShift.Afternoon, DayShift.Night };
     var calor = Model.Heatmap;
 }
-<section class="panel panel-pad" style="min-width:0" aria-labelledby="t-quando">
+<section class="panel panel-pad" aria-labelledby="t-quando">
     <div class="panel-head"><div><h2 id="t-quando">Quando a turma joga</h2><p>Respostas por dia e turno nos últimos @Model.Dias dias</p></div>
         <span class="heat-scale" aria-hidden="true">menos<i></i>mais</span></div>
     @if (calor.IsEmpty)
@@ -15,7 +15,7 @@
     }
     else
     {
-        <div class="tscroll" style="position:relative"><table class="heat">
+        <div class="tscroll"><table class="heat">
             <caption class="sr">Respostas por dia da semana e turno</caption>
             <thead><tr><td></td>@foreach (var d in dias){<th scope="col"><abbr title="@IndexModel.WeekdayName(d)">@IndexModel.WeekdayShort(d)</abbr></th>}</tr></thead>
             <tbody>

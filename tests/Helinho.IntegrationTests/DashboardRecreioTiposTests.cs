@@ -171,7 +171,7 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres, Dashbo
         // O título tem de estar dentro do mesmo <a> do destino: a busca não atravessa o </a> para o alerta vizinho.
         Assert.Matches(
             new Regex(
-                $"""<a class="attn" href="/Desempenho"><span class="ic cul"(?:(?!</a>).)*Cultural abaixo de {GetDashboardAttention.LowAccuracyPercent}%""",
+                $"""<a class="attn" href="/Desempenho"><span class="ic ic-q cul"(?:(?!</a>).)*Cultural abaixo de {GetDashboardAttention.LowAccuracyPercent}%""",
                 RegexOptions.Singleline),
             html);
         Assert.Matches("""href="/Questoes/Editar/[0-9a-f-]{36}">Revisar""", html);
