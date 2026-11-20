@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
     <title>@(ViewData["Title"] is string t ? t + " · " : "")Universo do Helinho</title>
+    <script src="~/js/tema.js" asp-append-version="true"></script>
     <link rel="stylesheet" href="~/css/theme.css" asp-append-version="true" />
 </head>
 <body>
@@ -13,5 +14,6 @@
     <main id="conteudo" class="auth" tabindex="-1">
         @RenderBody()
     </main>
+    <script src="~/js/painel.js" asp-append-version="true" defer></script>
 </body>
 </html>
