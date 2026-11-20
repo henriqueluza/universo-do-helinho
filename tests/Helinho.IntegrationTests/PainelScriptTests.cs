@@ -50,6 +50,11 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [InlineData("tip.replaceChildren(")]
     [InlineData("createElementNS")]
     [InlineData("matchMedia('(prefers-reduced-motion: reduce)')")]
+    [InlineData("[data-maker]")] // prévia ao vivo do criador de questões (#160)
+    [InlineData("[data-bind]")]
+    [InlineData("[data-check]")]
+    [InlineData("[data-count-for]")]
+    [InlineData("[data-ready-hint]")]
     public async Task Painel_js_mantem_os_modulos_da_preview(string marcador)
     {
         var body = await GetBodyAsync();
@@ -83,6 +88,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [InlineData("new IntersectionObserver", "main")]
     [InlineData(".linechart[data-fonte]", "graficos")]
     [InlineData(".linechart[data-fonte]", "tab")]
+    [InlineData("[data-maker]", "maker")]
     public async Task Modulo_sai_cedo_quando_o_elemento_nao_existe(string marcador, string variavel)
     {
         var body = await GetBodyAsync();
@@ -197,6 +203,106 @@ public partial class PainelScriptTests(PostgresFixture postgres)
         Assert.DoesNotContain("sessionStorage", body, StringComparison.Ordinal);
         Assert.DoesNotContain("document.cookie", body, StringComparison.Ordinal);
         Assert.All(ChavesDeLocalStorage().Matches(body), m => Assert.Equal("'tema'", m.Groups[1].Value));
+    }
+
+    // Issue #160: prévia, checklist e contador do criador de questões acompanham o formulário. O módulo
+    // só escreve texto por textContent e monta nós por createElement; sem o formulário, não faz nada.
+    [Fact]
+    public async Task Criador_escreve_por_textContent_e_monta_nos_por_createElement()
+    {
+        var maker = Modulo(await GetBodyAsync(), "[data-maker]");
+
+        Assert.Matches(AtribuiTextContent(), maker);
+        Assert.Contains("document.createElement('img')", maker, StringComparison.Ordinal);
+        Assert.Contains("document.createElement('span')", maker, StringComparison.Ordinal);
+        Assert.DoesNotContain("innerHTML", maker, StringComparison.Ordinal);
+        Assert.DoesNotContain("insertAdjacentHTML", maker, StringComparison.Ordinal);
+    }
+
+    // Issue #160: os ganchos que o servidor emite em Editar.cshtml são os que o módulo procura.
+    [Theory]
+    [InlineData("[data-preview]")]
+    [InlineData(".theme-pick input[data-k]")]
+    [InlineData("[data-group=\"age\"] input:checked")]
+    [InlineData("input[name=\"Input.Correct\"]:checked")]
+    [InlineData("[data-alt]")]
+    [InlineData("[data-tick]")]
+    [InlineData("[data-face]")]
+    [InlineData("[data-check-text]")]
+    public async Task Criador_procura_os_ganchos_emitidos_pelo_servidor(string gancho)
+    {
+        var maker = Modulo(await GetBodyAsync(), "[data-maker]");
+
+        Assert.Contains(gancho, maker, StringComparison.Ordinal);
+        Assert.Contains("querySelectorAll('[data-bind]')", maker, StringComparison.Ordinal);
+        Assert.Contains("[data-show=\"${k}\"]", maker, StringComparison.Ordinal);
+    }
+
+    // Issue #160: o checklist repete as regras do servidor (enunciado com texto depois do trim); a regra
+    // de 10 caracteres da preview não existe aqui.
+    [Fact]
+    public async Task Criador_checklist_usa_as_regras_do_servidor_e_os_textos_feito_e_falta()
+    {
+        var maker = Modulo(await GetBodyAsync(), "[data-maker]");
+
+        Assert.Contains("' (feito)'", maker, StringComparison.Ordinal);
+        Assert.Contains("' (falta)'", maker, StringComparison.Ordinal);
+        Assert.DoesNotContain(">= 10", maker, StringComparison.Ordinal);
+        Assert.DoesNotContain(">=10", maker, StringComparison.Ordinal);
+    }
+
+    // Issue #160: a dica viva só é gravada quando muda (não repete o anúncio do leitor de tela) e o
+    // aria-live liga só depois da primeira atualização, para a carga da página não ser anunciada.
+    [Fact]
+    public async Task Criador_dica_e_gravada_so_quando_muda_e_aria_live_liga_depois_da_primeira_atualizacao()
+    {
+        var maker = Modulo(await GetBodyAsync(), "[data-maker]");
+
+        Assert.Contains("[data-ready-hint]", maker, StringComparison.Ordinal);
+        Assert.Contains("'Tudo pronto para salvar. '", maker, StringComparison.Ordinal);
+        Assert.Contains("Falta", maker, StringComparison.Ordinal);
+        Assert.Matches(@"Falta\$\{[^}]*'m'", maker); // plural: "Falta" / "Faltam"
+        Assert.Contains("dica.textContent !== t", maker, StringComparison.Ordinal);
+        var primeira = maker.IndexOf("atualizar();", StringComparison.Ordinal);
+        var live = maker.IndexOf("dica?.setAttribute('aria-live', 'polite')", StringComparison.Ordinal);
+        Assert.True(primeira >= 0, "Falta a primeira chamada atualizar();");
+        Assert.True(live > primeira, "aria-live deve ser ligado depois da primeira atualizar();");
+    }
+
+    // Issue #160: o contador nasce oculto (hidden no HTML) e só o módulo o revela.
+    [Fact]
+    public async Task Criador_contador_so_e_revelado_pelo_modulo_com_hidden_false()
+    {
+        var maker = Modulo(await GetBodyAsync(), "[data-maker]");
+
+        Assert.Contains("[data-count-for]", maker, StringComparison.Ordinal);
+        Assert.Contains("c.hidden = false;", maker, StringComparison.Ordinal);
+        Assert.Contains("${campo.value.length}/${campo.maxLength}", maker, StringComparison.Ordinal);
+        Assert.DoesNotMatch(Ocultacao(), maker);
+    }
+
+    // Issue #160: sem animação por JS; o movimento da prévia é CSS e já respeita reduced-motion.
+    [Theory]
+    [InlineData("animate(")]
+    [InlineData("requestAnimationFrame")]
+    [InlineData("setTimeout")]
+    [InlineData("startViewTransition")]
+    public async Task Criador_nao_anima_por_JavaScript(string api)
+    {
+        var maker = Modulo(await GetBodyAsync(), "[data-maker]");
+
+        Assert.DoesNotContain(api, maker, StringComparison.Ordinal);
+    }
+
+    // Issue #160: acompanha o formulário a cada digitação e a cada troca de opção.
+    [Fact]
+    public async Task Criador_ouve_input_e_change_do_formulario()
+    {
+        var maker = Modulo(await GetBodyAsync(), "[data-maker]");
+
+        Assert.Contains("const maker = document.querySelector('[data-maker]');", maker, StringComparison.Ordinal);
+        Assert.Contains("maker.addEventListener('input', atualizar)", maker, StringComparison.Ordinal);
+        Assert.Contains("maker.addEventListener('change', atualizar)", maker, StringComparison.Ordinal);
     }
 
     // O detector de manipulador inline pega qualquer evento, não só os mais comuns.
