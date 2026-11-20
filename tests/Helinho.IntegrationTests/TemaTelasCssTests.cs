@@ -131,6 +131,6 @@ public partial class TemaTelasCssTests(PostgresFixture postgres)
         Assert.Matches(@"\.face \{[^}]*\btransition\s*:", guarded);
 
         // O zoom do personagem no hover só existe com mouse (toque não deixa o hover preso).
-        Assert.Contains("@media (hover: hover) { .face:not(.lead):hover", screens);
+        Assert.Matches(@"@media\s*\(hover:\s*hover\)\s*\{\s*\.face:not\(\.lead\):hover", screens);
     }
 }
