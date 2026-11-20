@@ -133,10 +133,10 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
 
         var css = await client.GetStringAsync("/css/theme.css", Ct);
 
-        // Só o bloco do Recreio (até a ponte do legado), e o seletor no início da regra:
+        // Só a camada components (até a camada screens), e o seletor no início da regra:
         // ".input {" não pode passar por causa de ".alt .input {".
         var start = css.IndexOf("@layer components {", StringComparison.Ordinal);
-        var end = css.IndexOf("@layer screens {", StringComparison.Ordinal);
+        var end = css.IndexOf("@layer screens {", start, StringComparison.Ordinal);
         Assert.True(start >= 0 && end > start);
         Assert.Matches(new Regex(@"(?m)^\s*" + Regex.Escape(selector)), css[start..end]);
     }
