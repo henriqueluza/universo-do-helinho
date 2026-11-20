@@ -11,7 +11,8 @@ namespace Helinho.IntegrationTests;
 
 /// <summary>Painel (Dashboard) no tema Recreio, fatia 2 (#165): acertos por tipo, atenção e rankings. Dados sintéticos.</summary>
 [Collection(PostgresCollection.Name)]
-public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
+public partial class DashboardRecreioTiposTests(PostgresFixture postgres, DashboardRecreioTiposTests.SharedWorld shared)
+    : IClassFixture<DashboardRecreioTiposTests.SharedWorld>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -21,20 +22,65 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
     [GeneratedRegex("<img\\b[^>]*>")]
     private static partial Regex ImgTag();
 
-    // Duas unidades, cada uma com 1 aluno que errou 6 vezes uma questão própria (acerto 0%, acima do mínimo de 5 respostas).
-    private static async Task<Guid> SeedAsync(HelinhoWebFactory factory)
+    internal sealed record World(HelinhoWebFactory Factory, Guid UnitA, Guid EmptyUnit);
+
+    /// <summary>
+    /// Um host para a classe inteira, com o mundo semeado uma vez; os testes só leem, então a ordem não importa.
+    /// Cada host deixa observadores de arquivo (inotify no Linux), e o runner do CI limita a 128 instâncias (#215).
+    /// </summary>
+    public sealed class SharedWorld : IAsyncDisposable
+    {
+        private World? _world;
+
+        internal async Task<World> GetAsync(PostgresFixture postgres)
+        {
+            if (_world is null)
+            {
+                var factory = new HelinhoWebFactory(postgres);
+                try
+                {
+                    await factory.EnsureDatabaseAsync();
+                    _world = await SeedAsync(factory);
+                }
+                catch
+                {
+                    await factory.DisposeAsync();
+                    throw;
+                }
+            }
+
+            return _world;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_world is not null)
+            {
+                await _world.Factory.DisposeAsync();
+            }
+        }
+    }
+
+    // Unidades A e B, cada uma com 1 aluno que errou 6 vezes uma questão própria (acerto 0%, acima do mínimo de 5
+    // respostas). A unidade A tem ainda uma turma parada (3B). Uma terceira unidade fica vazia. Um evento termina em 30 h.
+    private static async Task<World> SeedAsync(HelinhoWebFactory factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Unit a = new("Unidade Tipos A"), b = new("Unidade Tipos B");
-        db.Units.AddRange(a, b);
-        var users = new[] { new AppUser { UserName = "tipos-a", UnitId = a.Id }, new AppUser { UserName = "tipos-b", UnitId = b.Id } };
+        Unit a = new("Unidade Tipos A"), b = new("Unidade Tipos B"), empty = new("Unidade Tipos Vazia");
+        db.Units.AddRange(a, b, empty);
+        var users = new[]
+        {
+            new AppUser { UserName = "tipos-a", UnitId = a.Id }, new AppUser { UserName = "tipos-b", UnitId = b.Id },
+            new AppUser { UserName = "tipos-parado", UnitId = a.Id },
+        };
         db.Users.AddRange(users);
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        Student Novo(AppUser u, Unit unit, string name) => new(u.Id, unit.Id, $"TIP-{name}", name, "00.000.000-0", "000.000.000-00", "Rua Sintética, 1",
-            new DateOnly(2018, 3, 1), "Responsável Fictício", "5A", today);
-        Student sa = Novo(users[0], a, "Ana"), sb = Novo(users[1], b, "Caio");
-        db.Students.AddRange(sa, sb);
+        Student Novo(AppUser u, Unit unit, string name, string turma) => new(u.Id, unit.Id, $"TIP-{name}", name, "00.000.000-0", "000.000.000-00",
+            "Rua Sintética, 1", new DateOnly(2018, 3, 1), "Responsável Fictício", turma, today);
+        Student sa = Novo(users[0], a, "Ana", "5A"), sb = Novo(users[1], b, "Caio", "5A");
+        db.Students.AddRange(sa, sb, Novo(users[2], a, "Beto", "3B"));
+        db.LiveEvents.Add(new LiveEvent("Festival Sintético", "", QuizType.Ambiental, DateTimeOffset.UtcNow.AddHours(30)));
         await db.SaveChangesAsync(Ct);
         foreach (var (student, statement) in new[] { (sa, EnunciadoA), (sb, EnunciadoB) })
         {
@@ -50,22 +96,19 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
         }
 
         await db.SaveChangesAsync(Ct);
-        return a.Id;
+        return new World(factory, a.Id, empty.Id);
     }
 
-    private async Task<string> GetAsync(string role, bool asUnitA) => WebUtility.HtmlDecode(await GetRawAsync(role, asUnitA));
+    private static Guid? Todas(World _) => null;
 
-    private async Task<string> GetRawAsync(string role, bool asUnitA, Func<HelinhoWebFactory, Guid, Task>? extra = null)
+    private static Guid? UnidadeA(World world) => world.UnitA;
+
+    private async Task<string> GetAsync(string role, Func<World, Guid?> unit) => WebUtility.HtmlDecode(await GetRawAsync(role, unit));
+
+    private async Task<string> GetRawAsync(string role, Func<World, Guid?> unit)
     {
-        await using var factory = new HelinhoWebFactory(postgres);
-        await factory.EnsureDatabaseAsync();
-        var unitA = await SeedAsync(factory);
-        if (extra is not null)
-        {
-            await extra(factory, unitA);
-        }
-
-        using var client = factory.CreateClientAs(role, asUnitA ? unitA : null);
+        var world = await shared.GetAsync(postgres);
+        using var client = world.Factory.CreateClientAs(role, unit(world));
         var response = await client.GetAsync("/Dashboard", Ct);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return await response.Content.ReadAsStringAsync(Ct);
@@ -74,7 +117,7 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
     [Fact]
     public async Task Acertos_por_tipo_mostram_os_cinco_temas_com_nome_e_personagem_e_imagens_dimensionadas()
     {
-        var html = await GetAsync(RoleNames.Master, false);
+        var html = await GetAsync(RoleNames.Master, Todas);
 
         Assert.Equal(5, Regex.Count(html, "class=\"castcard "));
         foreach (var texto in new[] { "Ambiental", "Conhecimento", "Esportivo", "Cultural", "Diversidade", "com a Flora", "com o Byte", "com o Max", "com a Luna", "com a Lia" })
@@ -92,7 +135,7 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
     [Fact]
     public async Task Master_ve_as_duas_unidades_no_ranking_e_o_enunciado_e_codificado()
     {
-        var raw = await GetRawAsync(RoleNames.Master, false);
+        var raw = await GetRawAsync(RoleNames.Master, Todas);
         var html = WebUtility.HtmlDecode(raw);
 
         Assert.Contains("Unidades que mais jogam", html, StringComparison.Ordinal);
@@ -107,7 +150,7 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
     [Fact]
     public async Task Administrador_nao_recebe_o_bloco_de_unidades_nem_dados_da_outra_unidade()
     {
-        var raw = await GetRawAsync(RoleNames.Admin, true);
+        var raw = await GetRawAsync(RoleNames.Admin, UnidadeA);
         var html = WebUtility.HtmlDecode(raw);
 
         Assert.DoesNotContain("Unidades que mais jogam", html, StringComparison.Ordinal);
@@ -122,11 +165,12 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
     [Fact]
     public async Task Alerta_de_acerto_baixo_leva_a_rota_que_existe_e_o_botao_revisar_abre_a_questao()
     {
-        var html = await GetAsync(RoleNames.Admin, true);
+        var html = await GetAsync(RoleNames.Admin, UnidadeA);
 
         Assert.Contains("Precisa de atenção", html, StringComparison.Ordinal);
+        // O título tem de estar dentro do mesmo <a> do destino: a busca não atravessa o </a> para o alerta vizinho.
         Assert.Matches(
-            new Regex($"""<a class="attn" href="/Desempenho"><span class="ic cul".*Cultural abaixo de {GetDashboardAttention.LowAccuracyPercent}%""", RegexOptions.Singleline),
+            $"""<a class="attn" href="/Desempenho"><span class="ic cul"(?:(?!</a>).)*Cultural abaixo de {GetDashboardAttention.LowAccuracyPercent}%""",
             html);
         Assert.Matches("""href="/Questoes/Editar/[0-9a-f-]{36}">Revisar""", html);
         Assert.DoesNotContain("href=\"\"", html, StringComparison.Ordinal);
@@ -139,18 +183,7 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
     [Fact]
     public async Task Painel_nao_mostra_evento_comecando_nem_perguntas_prontas_e_os_alertas_levam_a_rotas_reais()
     {
-        var raw = await GetRawAsync(RoleNames.Admin, true, async (factory, unitA) =>
-        {
-            await using var scope = factory.Services.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var user = new AppUser { UserName = "tipos-parado", UnitId = unitA };
-            db.Users.Add(user);
-            db.Students.Add(new Student(user.Id, unitA, "TIP-Parado", "Beto", "00.000.000-0", "000.000.000-00", "Rua Sintética, 2",
-                new DateOnly(2018, 5, 1), "Responsável Fictício", "3B", DateOnly.FromDateTime(DateTime.UtcNow)));
-            db.LiveEvents.Add(new LiveEvent("Festival Sintético", "", QuizType.Ambiental, DateTimeOffset.UtcNow.AddHours(30)));
-            await db.SaveChangesAsync(Ct);
-        });
-        var html = WebUtility.HtmlDecode(raw);
+        var html = await GetAsync(RoleNames.Admin, UnidadeA);
 
         Assert.Contains("Festival Sintético termina", html, StringComparison.Ordinal);
         Assert.Matches("""\d+ questões? em rascunho""", html);
@@ -164,7 +197,7 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
     // Critério 4 da #179, para os dois papéis: blocos da preview sem dado que os sustente.
     private static void AssertSemBlocosDaPreviewSemDado(string html)
     {
-        Assert.DoesNotMatch(new Regex("""\bcomeça\b""", RegexOptions.IgnoreCase), html);
+        Assert.DoesNotMatch(new Regex("""\bcome[çc]""", RegexOptions.IgnoreCase), html);
         Assert.DoesNotMatch(new Regex("""\d+\s+de\s+\d+\s+perguntas""", RegexOptions.IgnoreCase), html);
         Assert.DoesNotContain("perguntas prontas", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Revise antes do evento", html, StringComparison.OrdinalIgnoreCase);
@@ -181,20 +214,7 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
     [Fact]
     public async Task Unidade_sem_respostas_nao_desenha_cartoes_de_tipo()
     {
-        await using var factory = new HelinhoWebFactory(postgres);
-        await factory.EnsureDatabaseAsync();
-        Guid empty;
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var unit = new Unit("Unidade Tipos Vazia");
-            db.Units.Add(unit);
-            await db.SaveChangesAsync(Ct);
-            empty = unit.Id;
-        }
-
-        using var client = factory.CreateClientAs(RoleNames.Admin, empty);
-        var html = await client.GetStringAsync("/Dashboard", Ct);
+        var html = await GetRawAsync(RoleNames.Admin, world => world.EmptyUnit);
 
         Assert.Contains("Nenhuma resposta neste período.", html, StringComparison.Ordinal);
         Assert.DoesNotContain("class=\"castcard", html, StringComparison.Ordinal);
