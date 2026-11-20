@@ -783,7 +783,7 @@
   .legend li { display: inline-flex; align-items: center; gap: 6px; }
   .sw { display: inline-block; width: 16px; height: 4px; border-radius: 2px; background: var(--data); flex: none; }
   .sw-ref { background: repeating-linear-gradient(90deg, var(--data-ref) 0 5px, transparent 5px 8px); }
-  .tip { position: fixed; left: 0; top: 0; z-index: 60; pointer-events: none; display: grid; gap: 2px; min-width: 150px; padding: 8px 12px; border-radius: var(--r-md); background: var(--ink); color: var(--stage); font-size: var(--fs-sm); font-weight: 700; box-shadow: var(--shadow-float); opacity: 0; transition: opacity 120ms; }
+  .tip { position: fixed; left: 0; top: 0; z-index: 60; pointer-events: none; display: grid; gap: 2px; min-width: 150px; padding: 8px 12px; border-radius: var(--r-md); background: var(--ink); color: var(--stage); font-size: var(--fs-sm); font-weight: 700; box-shadow: var(--shadow-float); opacity: 0; }
   .tip.on { opacity: 1; }
   .tip b { font-weight: 900; }
   .tip span { display: flex; align-items: center; gap: 6px; }
@@ -847,9 +847,9 @@
   .heat thead td { width: 118px; }
   .heat abbr { text-decoration: none; }
   .heat tbody th { text-align: left; white-space: nowrap; color: var(--ink-2); font-size: var(--fs-sm); }
-  .heat td { height: 52px; padding: 0; border-radius: 10px; background: color-mix(in oklab, var(--data) calc(6% + var(--v) * 94%), var(--stage)); text-align: center; cursor: default; transition: scale 160ms var(--ease-pop), box-shadow 160ms; }
+  .heat td { height: 52px; padding: 0; border-radius: 10px; background: color-mix(in oklab, var(--data) calc(6% + var(--v) * 94%), var(--stage)); text-align: center; cursor: default; }
   .heat thead td { background: none; height: auto; }
-  .heat td span { font-size: var(--fs-xs); font-weight: 900; color: var(--stage); opacity: 0; transition: opacity 120ms; }
+  .heat td span { font-size: var(--fs-xs); font-weight: 900; color: var(--stage); opacity: 0; }
   .heat tbody td:hover { scale: 1.08; box-shadow: 0 0 0 2px var(--stage), 0 0 0 4px var(--data); position: relative; z-index: 1; }
   .heat tbody td:hover span { opacity: 1; }
   .heat-scale { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: var(--fs-xs); font-weight: 800; }
@@ -896,6 +896,10 @@
 @layer motion {
   .scene-hero { view-transition-name: helinho; }
   @media (prefers-reduced-motion: no-preference) {
+    /* Transições com duração fixa do Painel: ficam aqui para não rodarem com "reduzir movimento". */
+    .tip { transition: opacity 120ms; }
+    .heat td { transition: scale 160ms var(--ease-pop), box-shadow 160ms; }
+    .heat td span { transition: opacity 120ms; }
     .sk { animation: shimmer 1.4s linear infinite; }
     @keyframes shimmer { to { background-position: -150% 0; } }
     /* entrada em cascata do Painel */

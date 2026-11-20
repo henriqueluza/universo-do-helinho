@@ -89,8 +89,8 @@ public partial class TemaTelasCssTests(PostgresFixture postgres)
     public async Task Seletores_e_movimento_do_Painel_ficam_nas_camadas_certas()
     {
         var css = await CssAsync();
-        var screens = Layer(css, "screens");
-        var motion = Layer(css, "motion");
+        var screens = Split(css, ScreensLayer()).Inside;
+        var motion = Split(css, MotionLayer()).Inside;
 
         foreach (var selector in new[] { ".scene {", ".kpis {", ".kpi {", ".linechart {", ".dtable {", ".rank {", ".heat {", ".cast {", ".feed {", ".tip {", ".empty {" })
         {
