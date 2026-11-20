@@ -28,6 +28,15 @@ public partial class TemaAcabamentoCascataTests
     [GeneratedRegex(@"^var\(--([\w-]+)\)$")]
     private static partial Regex Var();
 
+    [GeneratedRegex(@"^:root(\[data-theme=""\w+""\])?\s*")]
+    private static partial Regex PrefixoDeTema();
+
+    [GeneratedRegex(@"<div class=""maker-bar"">(?<bloco>.*?)</div>", RegexOptions.Singleline)]
+    private static partial Regex BlocoDaBarra();
+
+    /// <summary>Variáveis que o Bootstrap pinta na célula por <c>box-shadow: inset 0 0 0 9999px</c>, que <c>background: none</c> não desfaz.</summary>
+    private static readonly string[] PintamPorSombra = ["--bs-table-accent-bg", "--bs-table-bg-type", "--bs-table-bg-state"];
+
     [Fact]
     public void Cabecalho_e_bordas_da_tabela_sao_os_do_Recreio_nos_dois_temas()
     {
@@ -48,21 +57,38 @@ public partial class TemaAcabamentoCascataTests
         Assert.Equal("0", celulas.Declaracoes["border-bottom"]);
         Assert.Equal("2px solid var(--rule)", celulas.Declaracoes["border-top"]);
 
-        // No escuro, a ponte só troca variáveis do Bootstrap; nenhuma regra que vence a camada components
-        // (ou a ponte dentro dela) volta a pintar fundo ou borda inferior no cabeçalho ou nas células.
+        // O cinza do legado (#f3f4f6 no thead) fica na camada legado, abaixo da regra acima.
+        var fundosDoLegado = regras.Where(r => r.Declaracoes.TryGetValue("--bs-table-bg", out var v) && !v.StartsWith("var(", StringComparison.Ordinal)).ToList();
+        Assert.NotEmpty(fundosDoLegado);
+        Assert.All(fundosDoLegado, r => Assert.Equal("legado", r.Camada));
+
+        // Nenhuma regra que vence a camada components volta a pintar fundo, borda inferior ou sombra
+        // no cabeçalho ou nas células, nem com .table nem com seletor só de elemento (th, thead th).
         var camadasQueVencem = new HashSet<string?> { "components", "screens", "motion", null };
         var reintroduzem = regras
             .Where(r => camadasQueVencem.Contains(r.Camada))
-            .Where(r => ClasseTable().IsMatch(r.Seletor) && CelulaOuCabecalho().IsMatch(r.Seletor))
-            .Where(r => r != cabecalho && r != celulas)
-            .Where(r => r.Declaracoes.Keys.Any(p => p.StartsWith("background", StringComparison.Ordinal) || p.StartsWith("border-bottom", StringComparison.Ordinal)))
+            .Where(r => !ReferenceEquals(r, cabecalho) && !ReferenceEquals(r, celulas))
+            .Where(r => MiraCelulaDaTabela(r.Seletor) && r.Declaracoes.Keys.Any(PintaCelula))
             .Select(r => $"{r.Seletor} (camada {r.Camada ?? "nenhuma"})")
             .ToList();
         Assert.True(reintroduzem.Count == 0, "regra volta a pintar o cabeçalho ou as células da tabela: " + string.Join("; ", reintroduzem));
 
+        // No escuro, a ponte só troca variáveis do Bootstrap, e nenhuma delas pinta a célula pela sombra.
         var pontesEscuras = regras.Where(r => r.Seletor.Contains("data-theme=\"dark\"", StringComparison.Ordinal) && ClasseTable().IsMatch(r.Seletor)).ToList();
         Assert.NotEmpty(pontesEscuras);
-        Assert.All(pontesEscuras, r => Assert.All(r.Declaracoes.Keys, p => Assert.StartsWith("--", p)));
+        Assert.All(pontesEscuras, r => Assert.All(r.Declaracoes.Keys, p =>
+        {
+            Assert.StartsWith("--", p);
+            Assert.DoesNotContain(p, PintamPorSombra);
+        }));
+
+        // A borda de 2 px do Recreio (--rule) e o fundo do hover da linha (--canvas) têm valor próprio no escuro.
+        string Token(string seletor, string nome) => regras
+            .Where(r => r.Camada == "tokens" && r.Seletor == seletor && r.Medias.Count == 0 && r.Declaracoes.ContainsKey(nome))
+            .Select(r => r.Declaracoes[nome])
+            .First();
+        Assert.NotEqual(Token(":root", "--rule"), Token(":root[data-theme=\"dark\"]", "--rule"));
+        Assert.NotEqual(Token(":root", "--canvas"), Token(":root[data-theme=\"dark\"]", "--canvas"));
     }
 
     [Fact]
@@ -70,7 +96,10 @@ public partial class TemaAcabamentoCascataTests
     {
         var root = FindRepositoryRoot();
         var editar = File.ReadAllText(Path.Combine(root, "src", "Helinho.Web", "Pages", "Questoes", "Editar.cshtml"));
-        Assert.Matches(@"<div class=""maker-bar"">\s*<button class=""btn [^""]*""[^>]*>[^<]*</button>\s*<a class=""link""[^>]*>[^<]*</a>\s*<span class=""hint"">", editar);
+        var bloco = BlocoDaBarra().Match(editar);
+        Assert.True(bloco.Success, "Questoes/Editar precisa da .maker-bar");
+        Assert.Matches(@"<button class=""btn\b", bloco.Groups["bloco"].Value);
+        Assert.Matches(@"class=""[^""]*\bhint\b", bloco.Groups["bloco"].Value);
 
         var regras = Regras(Css());
         var tokens = regras.Where(r => r.Camada == "tokens" && r.Seletor == ":root" && r.Medias.Count == 0)
@@ -90,19 +119,34 @@ public partial class TemaAcabamentoCascataTests
         Assert.True(barraCelular.Posicao > barra.Posicao, ".maker-bar do celular precisa vir depois da regra geral");
         Assert.True(dicaCelular.Posicao > dica.Posicao, ".maker-bar .hint do celular precisa vir depois da regra geral");
 
-        // A 375 px a dica cai para a segunda linha: altura fixa = padding vertical × 2 + botão + espaço entre linhas
-        // (com os tokens de hoje, 84 px na regra geral e 60 px no celular; no Chromium a barra mede 108 → 82 px).
-        double Altura(Regra b, Regra btn) =>
-            (2 * Px(Primeiro(b.Declaracoes["padding"]), tokens)) + Px(btn.Declaracoes["height"], tokens) + Px(Primeiro(b.Declaracoes["gap"]), tokens);
+        // Cada parte da altura encolhe no celular: padding vertical, botão e espaço entre linhas (a dica vai para a segunda).
+        (double Geral, double Celular) padding = (Px(Primeiro(barra.Declaracoes["padding"]), tokens), Px(Primeiro(barraCelular.Declaracoes["padding"]), tokens));
+        (double Geral, double Celular) altura = (Px(botao.Declaracoes["height"], tokens), Px(botaoCelular.Declaracoes["height"], tokens));
+        (double Geral, double Celular) entreLinhas = (Px(Primeiro(barra.Declaracoes["gap"]), tokens), Px(Primeiro(barraCelular.Declaracoes["gap"]), tokens));
+        Assert.True(padding.Celular < padding.Geral, $"padding vertical: {padding.Celular}px no celular contra {padding.Geral}px");
+        Assert.True(altura.Celular < altura.Geral, $"botão: {altura.Celular}px no celular contra {altura.Geral}px");
+        Assert.True(entreLinhas.Celular < entreLinhas.Geral, $"espaço entre linhas: {entreLinhas.Celular}px no celular contra {entreLinhas.Geral}px");
 
-        var antes = Altura(barra, botao);
-        var depois = Altura(barraCelular, botaoCelular);
-        Assert.True(depois < antes, $"no celular a barra deveria encolher: {depois}px contra {antes}px");
+        // Altura fixa sem a dica, com os tokens de hoje: 84 px na regra geral, 60 px no celular (no Chromium a barra mede 108 → 82 px).
+        (double Geral, double Celular) alturaFixaSemDica = ((2 * padding.Geral) + altura.Geral + entreLinhas.Geral, (2 * padding.Celular) + altura.Celular + entreLinhas.Celular);
+        Assert.True(alturaFixaSemDica.Celular < alturaFixaSemDica.Geral, $"no celular a barra deveria encolher: {alturaFixaSemDica.Celular}px contra {alturaFixaSemDica.Geral}px");
 
         Assert.Equal("0", dicaCelular.Declaracoes["margin-left"]);
         Assert.Equal("100%", dicaCelular.Declaracoes["width"]);
         Assert.True(Rem(dicaCelular.Declaracoes["font-size"], tokens) < Rem(dica.Declaracoes["font-size"], tokens), "a dica no celular usa fonte menor");
     }
+
+    /// <summary>Alguma parte do seletor mira th/thead/td da tabela: com <c>.table</c> ou só com elementos (<c>th</c>, <c>thead th</c>).</summary>
+    private static bool MiraCelulaDaTabela(string seletor) =>
+        seletor.Split(',').Select(p => PrefixoDeTema().Replace(p.Trim(), string.Empty)).Any(p =>
+            CelulaOuCabecalho().IsMatch(p) && (ClasseTable().IsMatch(p) || p.IndexOfAny(['.', '#', '[']) < 0));
+
+    private static bool PintaCelula(string propriedade) =>
+        propriedade is "border" or "border-width" or "border-style" or "border-color" or "border-image"
+        || propriedade.StartsWith("background", StringComparison.Ordinal)
+        || propriedade.StartsWith("border-bottom", StringComparison.Ordinal)
+        || propriedade.StartsWith("border-block", StringComparison.Ordinal)
+        || propriedade.StartsWith("box-shadow", StringComparison.Ordinal);
 
     private static Regra Unica(IEnumerable<Regra> regras, string seletor, string camada, string[]? medias = null)
     {
