@@ -1,5 +1,6 @@
 using Helinho.Application.Abstractions;
 using Helinho.Domain;
+using Helinho.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Helinho.Application.Painel;
@@ -42,19 +43,7 @@ public static class GetDashboard
         var isMaster = user.IsInRole(RoleNames.Master);
         var since = clock.UtcNow.AddDays(-NormalizeDays(query.Days));
         var today = DateOnly.FromDateTime(clock.UtcNow.ToOffset(BrasiliaOffset).DateTime);
-        var unitId = isMaster ? query.UnitId : null;
-
-        var students = db.Students.AsQueryable();
-        if (unitId is { } unit)
-        {
-            students = students.Where(s => s.UnitId == unit);
-        }
-
-        if (query.AgeBand is { } band)
-        {
-            var (youngest, oldest) = BirthDateRange(band, today);
-            students = students.Where(s => s.BirthDate <= youngest && s.BirthDate > oldest);
-        }
+        var students = ScopedStudents(db, user, query, today);
 
         var answers = from a in db.QuizAnswers
                       where a.AnsweredAt >= since
@@ -83,6 +72,26 @@ public static class GetDashboard
             .ToList();
 
         return new DashboardResult(active, byType.Sum(r => r.Total), accuracy, recent, units);
+    }
+
+    /// <summary>Escopo dos filtros (T1 do ADR-0001): só o master escolhe a unidade; os demais ficam presos à própria
+    /// (sem unidade, não veem ninguém). O filtro global de <c>Student</c> reforça a regra.</summary>
+    internal static IQueryable<Student> ScopedStudents(IAppDbContext db, ICurrentUser user, DashboardQuery query, DateOnly today)
+    {
+        var unitId = user.IsInRole(RoleNames.Master) ? query.UnitId : user.UnitId ?? Guid.Empty;
+        var students = db.Students.AsQueryable();
+        if (unitId is { } unit)
+        {
+            students = students.Where(s => s.UnitId == unit);
+        }
+
+        if (query.AgeBand is { } band)
+        {
+            var (youngest, oldest) = BirthDateRange(band, today);
+            students = students.Where(s => s.BirthDate <= youngest && s.BirthDate > oldest);
+        }
+
+        return students;
     }
 
     /// <summary>Nascidos até <c>Youngest</c> (já têm a idade mínima) e depois de <c>Oldest</c> (ainda não passaram da máxima).</summary>
