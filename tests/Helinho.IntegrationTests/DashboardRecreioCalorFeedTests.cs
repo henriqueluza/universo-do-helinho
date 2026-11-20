@@ -13,8 +13,21 @@ public partial class DashboardRecreioCalorFeedTests(PostgresFixture postgres)
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    [GeneratedRegex("""<td style="--v:[0-9.]+" data-tip="[^"]*" tabindex="0"><span>([0-9.]+)</span></td>""")]
+    // Grupo 1: número visível; grupo 2: dia e turno em texto para leitor de tela (B2 da revisão do #187).
+    [GeneratedRegex("""<td style="--v:[0-9.]+" data-tip="[^"]*" tabindex="0"><span><span class="sr">([^<]*): </span>([0-9.]+)<span class="sr"> respostas</span></span></td>""")]
     private static partial Regex HeatCell();
+
+    [GeneratedRegex("""^(Segunda|Terça|Quarta|Quinta|Sexta|Sábado|Domingo), (manhã|tarde|noite)$""")]
+    private static partial Regex DiaETurno();
+
+    [GeneratedRegex(@"/\*.*?\*/", RegexOptions.Singleline)]
+    private static partial Regex CssComment();
+
+    [GeneratedRegex(@"@media\s*\(hover:\s*none\)\s*\{([^{}]*\{[^{}]*\})+\s*\}")]
+    private static partial Regex HoverNone();
+
+    private static int Total(string html) =>
+        HeatCell().Matches(html).Sum(m => int.Parse(m.Groups[2].Value, System.Globalization.NumberStyles.AllowThousands, System.Globalization.CultureInfo.GetCultureInfo("pt-BR")));
 
     private sealed record Seeded(Guid UnitA, Guid UnitB, Guid UnitOld);
 
@@ -80,6 +93,35 @@ public partial class DashboardRecreioCalorFeedTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Cada_celula_do_mapa_traz_dia_e_turno_em_texto_para_leitor_de_tela()
+    {
+        var (_, html) = await GetAsync(RoleNames.Master, _ => null);
+
+        var rotulos = HeatCell().Matches(html).Select(m => m.Groups[1].Value).ToList();
+        Assert.Equal(21, rotulos.Count);
+        Assert.All(rotulos, r => Assert.Matches(DiaETurno(), r));
+        Assert.Equal(21, rotulos.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public async Task Numero_da_celula_aparece_no_foco_do_teclado_e_fica_visivel_e_legivel_em_tela_de_toque()
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        await factory.EnsureDatabaseAsync();
+        using var client = factory.CreateAnonymousClient();
+        var css = CssComment().Replace(await client.GetStringAsync("/css/theme.css", Ct), string.Empty);
+
+        Assert.Contains(".heat tbody td:hover span, .heat tbody td:focus-visible span { opacity: 1; }", css, StringComparison.Ordinal);
+        var toque = HoverNone().Matches(css).Select(m => m.Value).SingleOrDefault(b => b.Contains(".heat td > span", StringComparison.Ordinal));
+        Assert.NotNull(toque);
+        Assert.Contains("opacity: 1", toque, StringComparison.Ordinal);
+        Assert.Contains("background: var(--stage)", toque, StringComparison.Ordinal);
+        Assert.Contains("color: var(--ink)", toque, StringComparison.Ordinal);
+        Assert.Contains(":root[data-theme=\"dark\"] .heat td > span", toque, StringComparison.Ordinal);
+        Assert.True(css.IndexOf(toque, StringComparison.Ordinal) > css.IndexOf(":root[data-theme=\"dark\"] .heat td span { color:", StringComparison.Ordinal), "a regra de toque precisa vir depois da cor do escuro para vencer a cascata");
+    }
+
+    [Fact]
     public async Task Administrador_so_ve_o_feed_e_o_mapa_da_propria_unidade()
     {
         var (_, html) = await GetAsync(RoleNames.Admin, s => s.UnitA);
@@ -87,7 +129,7 @@ public partial class DashboardRecreioCalorFeedTests(PostgresFixture postgres)
         Assert.Contains("<b>Ana</b>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Caio", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Unidade Feed B", html, StringComparison.Ordinal);
-        Assert.Equal(3, HeatCell().Matches(html).Sum(m => int.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)));
+        Assert.Equal(3, Total(html));
     }
 
     [Fact]
@@ -98,7 +140,7 @@ public partial class DashboardRecreioCalorFeedTests(PostgresFixture postgres)
         Assert.Contains("id=\"feed-vazio\"", html, StringComparison.Ordinal);
         Assert.Contains("Nenhuma jogada nas últimas 24 horas", html, StringComparison.Ordinal);
         Assert.DoesNotContain("<ul class=\"feed\"", html, StringComparison.Ordinal);
-        Assert.Equal(2, HeatCell().Matches(html).Sum(m => int.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)));
+        Assert.Equal(2, Total(html));
         Assert.DoesNotContain("<i>Eva</i>", raw, StringComparison.Ordinal);
     }
 
