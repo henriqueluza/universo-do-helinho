@@ -101,6 +101,7 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
         Assert.Contains(EnunciadoB, html, StringComparison.Ordinal);
         Assert.DoesNotContain("<script>alert", raw, StringComparison.Ordinal);
         Assert.Contains("&lt;script&gt;", raw, StringComparison.Ordinal);
+        AssertSemBlocosDaPreviewSemDado(html);
     }
 
     [Fact]
@@ -153,14 +154,20 @@ public partial class DashboardRecreioTiposTests(PostgresFixture postgres)
 
         Assert.Contains("Festival Sintético termina", html, StringComparison.Ordinal);
         Assert.Matches("""\d+ questões? em rascunho""", html);
-        Assert.DoesNotMatch(new Regex("""\bcomeça\b""", RegexOptions.IgnoreCase), html);
-        Assert.DoesNotMatch(new Regex("""\d+\s+de\s+\d+\s+perguntas""", RegexOptions.IgnoreCase), html);
-        Assert.DoesNotContain("perguntas prontas", html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Revise antes do evento", html, StringComparison.OrdinalIgnoreCase);
+        AssertSemBlocosDaPreviewSemDado(html);
 
         Assert.Contains("""<a class="attn" href="/Eventos">""", html, StringComparison.Ordinal);
         Assert.Contains("""<a class="attn" href="/Questoes?status=Draft">""", html, StringComparison.Ordinal);
         Assert.Matches("""<a class="attn" href="/Alunos\?unidade=[0-9a-f-]{36}&turma=3B">""", html);
+    }
+
+    // Critério 4 da #179, para os dois papéis: blocos da preview sem dado que os sustente.
+    private static void AssertSemBlocosDaPreviewSemDado(string html)
+    {
+        Assert.DoesNotMatch(new Regex("""\bcomeça\b""", RegexOptions.IgnoreCase), html);
+        Assert.DoesNotMatch(new Regex("""\d+\s+de\s+\d+\s+perguntas""", RegexOptions.IgnoreCase), html);
+        Assert.DoesNotContain("perguntas prontas", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Revise antes do evento", html, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
