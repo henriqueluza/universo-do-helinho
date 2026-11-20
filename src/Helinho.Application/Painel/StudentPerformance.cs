@@ -28,6 +28,7 @@ public sealed record StudentPerformance(
 /// <summary>
 /// Desempenho do aluno no painel. O escopo de unidade vem do filtro global de <c>Student</c>: aluno de outra unidade
 /// some da listagem e o detalhe devolve null (404), inclusive por URL direta. Não carrega CPF, RG nem endereço.
+/// A lista traz respostas e acertos de cada aluno na mesma consulta paginada, contados só dos alunos visíveis pelo filtro de unidade.
 /// </summary>
 public static class StudentPerformanceQueries
 {
@@ -51,13 +52,24 @@ public static class StudentPerformanceQueries
         var found = await students
             .OrderBy(s => s.FullName).ThenBy(s => s.Id)
             .Skip((current - 1) * PageSize).Take(PageSize)
-            .Select(s => new { s.Id, s.FullName, s.ClassName, s.BirthDate, s.Xp })
+            .Select(s => new
+            {
+                s.Id, s.FullName, s.ClassName, s.BirthDate, s.Xp,
+                Answered = (from a in db.QuizAnswers
+                            join q in db.QuizSessions on a.SessionId equals q.Id
+                            where q.StudentId == s.Id
+                            select a).Count(),
+                Correct = (from a in db.QuizAnswers
+                           join q in db.QuizSessions on a.SessionId equals q.Id
+                           where q.StudentId == s.Id && a.IsCorrect
+                           select a).Count(),
+            })
             .ToListAsync(cancellationToken);
         var rows = found.Select(s =>
         {
             var level = LevelPolicy.LevelFor(s.Xp);
             return new PerformanceRow(s.Id, s.FullName, s.ClassName, AgeBands.TryFromBirthDate(s.BirthDate, today),
-                s.Xp, level, LevelPolicy.LevelName(level), Answered: 0, Correct: 0); // #214: preenchido pela consulta
+                s.Xp, level, LevelPolicy.LevelName(level), s.Answered, s.Correct);
         }).ToList();
         return new PerformanceListResult(rows, total, current, PageSize);
     }
