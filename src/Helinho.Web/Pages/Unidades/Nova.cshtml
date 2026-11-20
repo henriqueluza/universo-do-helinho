@@ -4,7 +4,7 @@
     ViewData["Title"] = "Nova unidade";
     var erro = ModelState["Input.Name"]?.Errors.Count > 0;
 }
-<form class="panel panel-pad form" method="post" novalidate style="max-width: 560px">
+<form class="panel panel-pad form" method="post" novalidate>
     <partial name="_ResumoErros" view-data="ViewData" />
     <div class="field">
         <label asp-for="Input.Name">Nome da unidade <span class="req">(obrigatório)</span></label>

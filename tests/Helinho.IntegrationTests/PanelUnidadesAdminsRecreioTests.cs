@@ -69,8 +69,29 @@ public class PanelUnidadesAdminsRecreioTests(PostgresFixture postgres)
         Assert.Contains("class=\"page-head\"", html);
         Assert.Contains("class=\"table-wrap\"", html);
         Assert.Contains("Novo administrador", html);
+        // O seed sintético cria admin.norte e admin.sul ativos: a situação sai em texto, não só em cor.
+        Assert.Contains("admin.norte", html);
+        Assert.Matches("<span class=\"tag tag-ok\">Ativo</span>", html);
         Assert.DoesNotContain("btn-ai", html);
         Assert.DoesNotContain("Reenviar convite", html);
+    }
+
+    [Theory]
+    [InlineData("/Unidades")]
+    [InlineData("/Unidades/Nova")]
+    [InlineData("/Administradores")]
+    [InlineData("/Administradores/Novo")]
+    public async Task Telas_sem_style_inline_onchange_nem_noscript(string path)
+    {
+        await using var factory = await NewFactoryAsync();
+        using var client = factory.CreateFormClientAs(RoleNames.Master);
+
+        var html = await GetAsync(client, path);
+
+        // TEMA-PARA-IA: style="" só para variável de dado (style="--v:..."); largura vem de classe do tema.
+        Assert.DoesNotMatch("style=\"(?!--)", html);
+        Assert.DoesNotContain("onchange", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<noscript", html, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
