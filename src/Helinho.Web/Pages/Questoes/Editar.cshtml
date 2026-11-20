@@ -100,9 +100,8 @@
             <div class="field">
                 <label asp-for="Input.Statement">Enunciado <span class="req">(obrigatório)</span></label>
                 <textarea class="input textarea" asp-for="Input.Statement" rows="3" maxlength="500" aria-invalid="@Bad("Statement")" aria-describedby="@Desc("Statement")" data-bind="q"></textarea>
-                <small>Até 500 caracteres.</small>
-                @* Contador: só o painel.js o mostra (#160); sem JS a tela fica igual. *@
-                <span class="count-hint" data-count-for="Input_Statement" hidden></span>
+                @* Contador: só o painel.js o mostra (#160), na mesma linha da ajuda; sem JS a tela fica igual. *@
+                <small>Até 500 caracteres.<span class="count-hint" data-count-for="Input_Statement" hidden></span></small>
                 @if (Err("Statement") is { } statementError)
                 {
                     <span class="field-error" id="Input_Statement-erro">@statementError</span>

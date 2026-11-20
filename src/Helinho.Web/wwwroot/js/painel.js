@@ -280,62 +280,83 @@ const calmo = () => reduz.matches;
   const pv = maker.querySelector('[data-preview]');
   const dica = maker.querySelector('[data-ready-hint]');
   const temas = maker.querySelectorAll('.theme-pick input[data-k]');
-  const val = (b) => maker.querySelector(`[data-bind="${b}"]`)?.value.trim() ?? '';
+  const campos = maker.querySelectorAll('[data-bind]');
+  // O textarea guarda \n, mas o envio vira \r\n e o servidor corta e valida contando assim.
+  const comoEnviado = (s) => s.replace(/\r?\n/g, '\r\n');
+  const valor = (chave) => comoEnviado([...campos].find((c) => c.dataset.bind === chave)?.value.trim() ?? '');
   const show = (k, v) => maker.querySelectorAll(`[data-show="${k}"]`).forEach((el) => {
     const max = Number(el.dataset.max);
     const texto = max && v.length > max ? `${v.slice(0, max)}…` : v;
     el.textContent = texto || (el.dataset.empty ?? '');
     el.classList.toggle('is-empty', !texto && 'empty' in el.dataset);
   });
-  const atualizar = () => {
+  const atualizarTema = () => {
     const marcado = [...temas].find((i) => i.checked);
     temas.forEach((i) => pv?.classList.toggle(i.dataset.k, i === marcado));
-    show('tname', marcado?.closest('label')?.querySelector('b')?.textContent.trim() ?? '');
-    const img = marcado?.closest('label')?.querySelector('img');
-    if (pv && img) {
-      let face = pv.querySelector('[data-face]');
-      if (!face) {
-        face = document.createElement('img');
-        face.alt = '';
-        face.dataset.face = '';
-        pv.querySelector('.gq-head')?.prepend(face);
-      }
-      ['src', 'width', 'height'].forEach((a) => { if (img.getAttribute(a) !== null) face.setAttribute(a, img.getAttribute(a)); });
+    const rotulo = marcado?.closest('label');
+    show('tname', rotulo?.querySelector('b')?.textContent.trim() ?? '');
+    const img = rotulo?.querySelector('img');
+    if (!pv || !img) return marcado;
+    let face = pv.querySelector('[data-face]');
+    if (!face) {
+      face = document.createElement('img');
+      face.alt = '';
+      face.dataset.face = '';
+      pv.querySelector('.gq-head')?.prepend(face);
     }
+    ['src', 'width', 'height'].forEach((a) => { if (img.getAttribute(a) !== null) face.setAttribute(a, img.getAttribute(a)); });
+    return marcado;
+  };
+  const atualizarTextos = () => {
     const faixa = maker.querySelector('[data-group="age"] input:checked');
     show('age', faixa?.closest('label')?.querySelector('span')?.textContent.trim() ?? '');
-    maker.querySelectorAll('[data-bind]').forEach((el) => show(el.dataset.bind, el.value.trim()));
+    campos.forEach((el) => show(el.dataset.bind, comoEnviado(el.value.trim())));
+    return faixa;
+  };
+  const atualizarCerta = () => {
     const certa = maker.querySelector('input[name="Input.Correct"]:checked')?.value;
     maker.querySelectorAll('[data-alt]').forEach((s) => s.parentElement.classList.toggle('right', s.dataset.alt === certa));
     let tick = maker.querySelector('[data-tick]');
-    if (certa == null) tick?.remove();
-    else {
-      if (!tick) {
-        tick = document.createElement('span');
-        tick.dataset.tick = '';
-        tick.textContent = ' ✓';
-      }
-      maker.querySelector(`[data-alt="${certa}"]`)?.parentElement.append(tick);
+    if (certa == null) { tick?.remove(); return certa; }
+    if (!tick) {
+      tick = document.createElement('span');
+      tick.dataset.tick = '';
+      tick.textContent = ' ✓';
     }
-    maker.querySelectorAll('[data-count-for]').forEach((c) => {
-      const campo = document.getElementById(c.dataset.countFor);
-      if (!campo) return;
-      c.textContent = `${campo.value.length}/${campo.maxLength}`;
-      c.hidden = false;
-    });
-    // Mesmas regras do servidor para o checklist.
-    const ok = { tema: !!marcado, age: !!faixa, q: !!val('q'), alts: ['a0', 'a1', 'a2', 'a3'].every((b) => val(b)), right: certa != null };
+    const alvo = maker.querySelector(`[data-alt="${certa}"]`)?.parentElement;
+    if (alvo && tick.parentElement !== alvo) alvo.append(tick);
+    return certa;
+  };
+  const atualizarContador = () => maker.querySelectorAll('[data-count-for]').forEach((c) => {
+    const campo = document.getElementById(c.dataset.countFor);
+    if (!campo) return;
+    c.textContent = `${comoEnviado(campo.value).length}/${campo.maxLength}`;
+    c.hidden = false;
+  });
+  // Mesmas regras do servidor para o checklist. Devolve quantos itens faltam.
+  const atualizarChecklist = (feitos) => {
     let faltam = 0;
     maker.querySelectorAll('[data-check]').forEach((li) => {
-      const feito = !!ok[li.dataset.check];
+      const feito = !!feitos[li.dataset.check];
       if (!feito) faltam++;
       li.classList.toggle('ok', feito);
-      const t = li.querySelector('[data-check-text]');
-      if (t) t.textContent = feito ? ' (feito)' : ' (falta)';
+      const leitor = li.querySelector('[data-check-text]');
+      if (leitor) leitor.textContent = feito ? ' (feito)' : ' (falta)';
     });
+    return faltam;
+  };
+  const atualizarDica = (faltam) => {
     if (!dica) return;
-    const t = faltam ? `Falta${faltam > 1 ? 'm' : ''} ${faltam} ${faltam > 1 ? 'itens' : 'item'}. ` : 'Tudo pronto para salvar. ';
-    if (dica.textContent !== t) dica.textContent = t;
+    const textoDaDica = faltam === 0 ? 'Tudo pronto para salvar. ' : faltam === 1 ? 'Falta 1 item. ' : `Faltam ${faltam} itens. `;
+    if (dica.textContent !== textoDaDica) dica.textContent = textoDaDica;
+  };
+  const atualizar = () => {
+    const marcado = atualizarTema();
+    const faixa = atualizarTextos();
+    const certa = atualizarCerta();
+    atualizarContador();
+    const feitos = { tema: !!marcado, age: !!faixa, q: !!valor('q'), alts: ['a0', 'a1', 'a2', 'a3'].every((b) => valor(b)), right: certa != null };
+    atualizarDica(atualizarChecklist(feitos));
   };
   maker.addEventListener('input', atualizar);
   maker.addEventListener('change', atualizar);

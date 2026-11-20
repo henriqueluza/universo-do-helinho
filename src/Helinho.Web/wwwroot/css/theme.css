@@ -541,6 +541,8 @@
   .gq-why { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); }
   /* prévia ao vivo (#160): o servidor sempre emite a faixa e a explicação; vazias, não aparecem */
   .gq-head .lvl:empty, .gq-why:empty { display: none; }
+  /* contador ao lado da ajuda do campo: aparecer não empurra a página */
+  .field small:has(> .count-hint) { display: flex; justify-content: space-between; gap: var(--sp-2); }
   .dots { display: flex; justify-content: center; gap: 6px; }
   .dots i { width: 7px; height: 7px; border-radius: 50%; background: oklch(from var(--q) l c h / .3); }
   .dots i.on { width: 20px; border-radius: 99px; background: var(--q); }
