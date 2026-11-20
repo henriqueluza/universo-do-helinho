@@ -1,4 +1,5 @@
 using Helinho.Application.Abstractions;
+using Helinho.Application.Quizzes;
 using Helinho.Domain;
 using Helinho.Domain.Entities;
 using Helinho.Infrastructure.Persistence;
@@ -58,7 +59,7 @@ public class ContentSeedTests(PostgresFixture postgres)
         Assert.Equal(1, quests.Count(q => q.QuizType != null));
         Assert.Equal(10, await db.Badges.CountAsync(b => ContentSeeder.Badges.Select(x => x.Code).Contains(b.Code), ct));
 
-        // Histórico: só alunos aprovados do seed, últimos 14 dias, XP coerente com as respostas e com o nível.
+        // Histórico: só alunos aprovados do seed, dentro da janela, XP coerente com as respostas e com o nível.
         var enrollments = Enumerable.Range(1, 10).Select(n => $"{2026000 + n}").ToList();
         var students = await db.Students.IgnoreQueryFilters()
             .Where(s => enrollments.Contains(s.Enrollment) && s.GuardianApproved).ToListAsync(ct);
@@ -74,9 +75,10 @@ public class ContentSeedTests(PostgresFixture postgres)
             var xp = await db.QuizAnswers.Where(a => sessionIds.Contains(a.SessionId)).SumAsync(a => a.XpGained, ct);
             var correct = await db.QuizAnswers.CountAsync(a => sessionIds.Contains(a.SessionId) && a.IsCorrect, ct);
             Assert.Equal(xp, student.Xp);
-            Assert.Equal(correct * HistorySeeder.XpPerCorrectAnswer, student.Xp);
+            Assert.Equal(correct * AnswerQuiz.XpPerCorrect, student.Xp);
             Assert.True(xp > 0);
-            Assert.Equal(3, await db.QuestProgress.CountAsync(p => p.StudentId == student.Id && p.Day == DateOnly.FromDateTime(now.UtcDateTime), ct));
+            // O progresso das missões deriva das respostas de cada dia; HistorySeedTests confere a conta.
+            Assert.True(await db.QuestProgress.AnyAsync(p => p.StudentId == student.Id, ct));
             Assert.Equal(5, await db.InventoryItems.CountAsync(i => i.StudentId == student.Id, ct));
             Assert.True(await db.StudentBadges.CountAsync(b => b.StudentId == student.Id, ct) >= 1);
         }
