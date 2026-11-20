@@ -107,6 +107,56 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
         }
     }
 
+    [Theory]
+    [InlineData(".btn {")]
+    [InlineData(".btn-primary {")]
+    [InlineData(".btn-lg {")]
+    [InlineData(".btn-sm {")]
+    [InlineData(".input {")]
+    [InlineData(".input[aria-invalid=\"true\"] {")]
+    [InlineData(".input[aria-invalid=\"true\"]:focus {")]
+    [InlineData(".select {")]
+    [InlineData(".field {")]
+    [InlineData(".panel {")]
+    [InlineData(".tag {")]
+    [InlineData(".tag-draft {")]
+    [InlineData(".table {")]
+    [InlineData(".table-wrap {")]
+    [InlineData(".pager {")]
+    [InlineData(".form-grid {")]
+    [InlineData(".textarea {")]
+    [InlineData(".alt {")]
+    [InlineData(".note {")]
+    [InlineData(".meter {")]
+    public async Task Camada_components_tem_os_seletores_chave(string selector)
+    {
+        await using var factory = await NewFactoryAsync();
+        using var client = factory.CreateAnonymousClient();
+
+        var css = await client.GetStringAsync("/css/theme.css", Ct);
+
+        // Só o bloco do Recreio (até a ponte do legado), e o seletor no início da regra:
+        // ".input {" não pode passar por causa de ".alt .input {".
+        var start = css.IndexOf("@layer components {", StringComparison.Ordinal);
+        var end = css.IndexOf("/* ---- PONTE", start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start);
+        Assert.Matches(new Regex(@"(?m)^\s*" + Regex.Escape(selector)), css[start..end]);
+    }
+
+    [Fact]
+    public async Task Tema_nao_tem_seletor_de_ia()
+    {
+        await using var factory = await NewFactoryAsync();
+        using var client = factory.CreateAnonymousClient();
+
+        var css = await client.GetStringAsync("/css/theme.css", Ct);
+
+        foreach (var forbidden in new[] { ".btn-ai", ".tag-ai", ".note.ai", ".ai-help", ".ai-filled", ".ai-flag", ".ai-panel" })
+        {
+            Assert.DoesNotContain(forbidden, css);
+        }
+    }
+
     [Fact]
     public async Task Css_do_painel_nao_referencia_cdn()
     {

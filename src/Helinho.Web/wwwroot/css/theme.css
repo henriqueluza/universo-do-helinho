@@ -3,7 +3,7 @@
    1) ordem das camadas e Bootstrap dentro da camada "bootstrap";
    2) tokens e base do Recreio (copiados da preview, valores intactos);
    3) tema antigo, na camada "legado" (REMOVER na limpeza, quando a última
-      tela for portada). Components, screens e motion chegam nos próximos PRs.
+      tela for portada). Components já está aqui; screens e motion chegam nos próximos PRs.
    Por que camadas: CSS sem camada vence qualquer regra em @layer; por isso
    o Bootstrap entra por @import ... layer(bootstrap) (o <link> saiu dos
    layouts) e o legado fica em @layer legado, abaixo de tokens/base.
@@ -164,6 +164,137 @@
   :root[data-theme="dark"] { --ai: oklch(0.75 0.13 295); --ai-bg: oklch(0.31 0.07 295); --ai-ink: oklch(0.9 0.07 295); }
 }
 
+/* ---- Recreio: components (recreio.css 130-194 e telas.css 13-75, sem os componentes de IA) ---- */
+@layer components {
+  /* botão = tecla de brinquedo: face + lábio inferior */
+  .btn { --face: var(--stage); --lip-c: var(--rule-strong); --txt: var(--ink);
+    display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
+    height: var(--h-control); padding: 0 var(--sp-5) var(--lip); border-radius: var(--r-md);
+    font: 800 var(--fs-md)/1 var(--font); color: var(--txt); text-decoration: none; white-space: nowrap; cursor: pointer;
+    background: var(--face); border: 2px solid var(--lip-c); border-bottom-width: calc(2px + var(--lip));
+    transition: transform var(--dur-fast) var(--ease), filter var(--dur) var(--ease), background var(--dur); }
+  .btn:hover { filter: brightness(1.04); }
+  .btn:active { transform: translateY(var(--lip)); border-bottom-width: 2px; margin-bottom: var(--lip); }
+  .btn-primary { --face: var(--action); --lip-c: var(--action-lip); --txt: var(--on-action); border-color: var(--action-lip); border-top-color: var(--action); border-left-color: var(--action); border-right-color: var(--action); }
+  .btn-primary:hover { --face: var(--action-hover); }
+  .btn-lg { height: var(--h-control-lg); padding-inline: var(--sp-6); font-size: var(--fs-lg); }
+  .btn[disabled] { opacity: .5; cursor: not-allowed; transform: none; }
+
+  /* chip de filtro (faixa etária) */
+  .chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+  .chip { height: var(--h-control); display: inline-flex; align-items: center; padding: 0 14px; border-radius: var(--r-md); border: 2px solid var(--rule); background: var(--stage); color: var(--ink-2); font-weight: 800; text-decoration: none; transition: border-color var(--dur), background var(--dur), color var(--dur); }
+  .chip:hover { border-color: var(--rule-strong); color: var(--ink); }
+  .chip[aria-current="true"] { background: var(--select-bg); border-color: var(--select-line); color: var(--select-ink); }
+
+  .select { font: 700 var(--fs-md) var(--font); color: var(--ink); height: var(--h-control); padding: 0 34px 0 12px; border: 2px solid var(--rule); border-radius: var(--r-md); background: var(--stage) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%237b8494' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 12px center; appearance: none; cursor: pointer; }
+  .select:hover { border-color: var(--rule-strong); }
+  /* estados de todos os campos: foco, hover, desabilitado, placeholder */
+  .select { transition: border-color var(--dur), box-shadow var(--dur); }
+  .select:focus-visible { outline: none; border-color: var(--select-line); box-shadow: 0 0 0 4px var(--select-bg); }
+  .select option { background: var(--stage); color: var(--ink); }
+  .input:hover:not(:focus):not([aria-invalid="true"]):not(:disabled) { border-color: oklch(from var(--rule-strong) calc(l - .1) c h); }
+  .input::placeholder { color: var(--ink-3); opacity: 1; font-weight: 600; }
+  .input:disabled, .select:disabled { background: var(--canvas); color: var(--ink-3); border-style: dashed; cursor: not-allowed; }
+  .input[readonly] { background: var(--canvas); }
+  input[type="radio"], input[type="checkbox"] { accent-color: var(--action); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .input { font: 600 var(--fs-md) var(--font); color: var(--ink); width: 100%; height: var(--h-control-lg); padding: 0 14px; border: 2px solid var(--rule-strong); border-radius: var(--r-md); background: var(--stage); transition: border-color var(--dur), box-shadow var(--dur); }
+  .input:focus { outline: none; border-color: var(--select-line); box-shadow: 0 0 0 4px var(--select-bg); }
+  /* erro (recreio.css 301-302): depois de :focus para a borda --bad vencer no campo focado */
+  .input[aria-invalid="true"] { border-color: var(--bad); }
+  .input[aria-invalid="true"]:focus { box-shadow: 0 0 0 4px var(--bad-bg); }
+  .field { display: grid; gap: 6px; }
+  .field label { font-weight: 800; }
+  .field small { color: var(--ink-3); font-weight: 600; }
+
+  /* superfície */
+  .panel { background: var(--stage); border: 2px solid var(--rule); border-radius: var(--r-lg); box-shadow: 0 2px 0 var(--rule), 0 12px 32px oklch(0.29 0.045 255 / .05); }
+  .panel-pad { padding: var(--sp-6); }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-4); }
+  .panel-head p { color: var(--ink-3); font-size: var(--fs-sm); font-weight: 700; }
+
+  /* selos */
+  .tag { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--r-sm); font-size: var(--fs-sm); font-weight: 800; white-space: nowrap; }
+  .tag-ok { background: var(--ok-bg); color: var(--ok-ink); }
+  .tag-bad { background: var(--bad-bg); color: var(--bad-ink); }
+  .tag-warn { background: var(--warn-bg); color: var(--warn-ink); }
+  .tag-neutral { background: var(--neutral-bg); color: var(--neutral-ink); }
+  .tag-type { background: var(--qb); color: var(--qi); }
+  .tag-type img { width: 20px; height: 20px; border-radius: 6px; margin-left: -6px; object-fit: cover; object-position: top; background: oklch(1 0 0 / .6); }
+
+  .amb { --q: var(--q-amb); --qb: var(--q-amb-bg); --qi: var(--q-amb-ink); }
+  .con { --q: var(--q-con); --qb: var(--q-con-bg); --qi: var(--q-con-ink); }
+  .cul { --q: var(--q-cul); --qb: var(--q-cul-bg); --qi: var(--q-cul-ink); }
+  .esp { --q: var(--q-esp); --qb: var(--q-esp-bg); --qi: var(--q-esp-ink); }
+  .div { --q: var(--q-div); --qb: var(--q-div-bg); --qi: var(--q-div-ink); }
+
+  /* estrela (destaque, vem do logo do jogo) */
+  .star { width: 1em; height: 1em; color: var(--star); flex: none; filter: drop-shadow(0 1px 0 oklch(0.6 0.12 75)); }
+
+  /* barra */
+  .meter { height: 12px; border-radius: var(--r-pill); background: oklch(from var(--q, var(--action)) l c h / .18); overflow: hidden; }
+  .meter > i { display: block; height: 100%; border-radius: inherit; background: var(--q, var(--action)); box-shadow: inset 0 -3px 0 oklch(0 0 0 / .12); }
+
+  .page-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: var(--sp-4); }
+  .page-head .sub { color: var(--ink-2); font-weight: 600; margin-top: 6px; max-width: 62ch; }
+  .page-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+  .back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: var(--sp-2); font-weight: 800; font-size: var(--fs-sm); color: var(--select-ink); text-decoration: none; }
+  .back:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .btn-sm { height: var(--h-control-sm); padding-inline: 12px; font-size: var(--fs-sm); }
+  .btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .btn svg.fill { fill: currentColor; stroke: none; }
+
+  /* tabela */
+  .table-wrap { overflow-x: auto; }
+  .table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  .table thead th { text-align: left; padding: 0 12px 10px; color: var(--ink-3); font-size: var(--fs-xs); font-weight: 800; letter-spacing: .02em; white-space: nowrap; }
+  .table td, .table tbody th { padding: 12px; border-top: 2px solid var(--rule); font-weight: 600; vertical-align: middle; text-align: left; }
+  .table tbody th { font-weight: 800; }
+  .table tbody tr { transition: background var(--dur); }
+  .table tbody tr:hover { background: var(--canvas); }
+  .table .num { text-align: right; }
+  .table .actions { text-align: right; white-space: nowrap; }
+  .table small { display: block; color: var(--ink-3); font-weight: 700; font-size: var(--fs-xs); }
+  .table .clip { max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .table a.name { font-weight: 800; color: var(--ink); text-decoration-color: var(--rule-strong); text-underline-offset: 3px; }
+  .table a.name:hover { color: var(--select-ink); }
+  .link-btn { font: 800 var(--fs-sm) var(--font); color: var(--select-ink); background: none; border: 0; padding: 6px 8px; border-radius: var(--r-sm); text-decoration: none; cursor: pointer; }
+  .link-btn:hover { background: var(--select-bg); }
+  .pager { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--sp-3); padding-top: var(--sp-4); color: var(--ink-2); font-weight: 700; font-size: var(--fs-sm); }
+  .pager nav { display: flex; gap: var(--sp-2); }
+
+  /* formulário */
+  .form { display: grid; gap: var(--sp-5); }
+  .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-5); }
+  .form-grid .full { grid-column: 1 / -1; }
+  .form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); padding-top: var(--sp-2); }
+  .form .form-actions .btn, .maker-bar .btn, .bare-card .btn { height: var(--h-control-lg); }
+  .field .req { color: var(--ink-3); font-weight: 700; }
+  .select-lg { width: 100%; height: var(--h-control-lg); background-position: right 14px center; }
+  .textarea { height: auto; min-height: 112px; padding: 12px 14px; line-height: 1.5; resize: vertical; }
+  .check { display: flex; gap: 10px; align-items: flex-start; font-weight: 700; }
+  .check input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--action); }
+  .count-hint { justify-self: end; color: var(--ink-3); font-size: var(--fs-xs); font-weight: 800; }
+
+  /* alternativas da questão */
+  .alts { display: grid; gap: var(--sp-3); border: 0; padding: 0; margin: 0; min-width: 0; }
+  .alts legend { font-weight: 800; margin-bottom: var(--sp-2); padding: 0; }
+  .alt { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: var(--sp-3); align-items: center; padding: 8px 8px 8px 10px; border: 2px solid var(--rule); border-radius: var(--r-md); transition: border-color var(--dur), background var(--dur); }
+  .alt:has(input[type="radio"]:checked) { border-color: oklch(from var(--ok) l c h / .6); background: var(--ok-bg); }
+  .alt .key { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--neutral-bg); color: var(--neutral-ink); font-weight: 900; }
+  .alt:has(input[type="radio"]:checked) .key { background: var(--ok); color: oklch(1 0 0); }
+  .alt .input { height: var(--h-control); }
+  .alt .correct { display: flex; align-items: center; gap: 6px; padding: 0 6px; color: var(--ink-2); font-size: var(--fs-xs); font-weight: 800; cursor: pointer; white-space: nowrap; }
+  .alt .correct input { width: 18px; height: 18px; accent-color: var(--ok); }
+
+  /* avisos */
+  .note { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-3); align-items: start; padding: 12px 14px; border-radius: var(--r-md); background: var(--warn-bg); color: var(--warn-ink); font-weight: 700; }
+  .note.info { background: var(--select-bg); color: var(--select-ink); }
+  .note.ok { background: var(--ok-bg); color: var(--ok-ink); }
+  .note svg { width: 18px; height: 18px; margin-top: 2px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .tag-draft { background: var(--warn-bg); color: var(--warn-ink); }
+}
+
 /* ---- PONTE do legado (remover junto com o legado) ----
    A base do Recreio zera a margem de h1/h2/p e define o tamanho do h1, e camada
    vence especificidade: sem isto, os títulos do tema antigo perderiam o espaço. */
@@ -171,6 +302,14 @@
   .page-title { margin-bottom: var(--gap); }
   .section-title { margin-bottom: 12px; }
   .auth-card .page-title { font-size: var(--fs-section); margin-bottom: 16px; }
+  /* O .table do Recreio tem th sem quebra de linha; a tabela larga rola dentro do cartão. */
+  .card-panel:has(> .table) { overflow-x: auto; }
+  :root[data-theme="dark"] .form-control, :root[data-theme="dark"] .form-select { background-color: var(--stage); color: var(--ink); }
+  /* No escuro, as superfícies do legado seguiam brancas com texto claro (ilegível). */
+  :root[data-theme="dark"] { --surface: var(--stage); --raised: var(--canvas); --border: var(--rule); --text: var(--ink); --muted: var(--ink-2); --bs-body-color: var(--ink); --bs-secondary-color: var(--ink-2); --bs-border-color: var(--rule); }
+  :root[data-theme="dark"] .card { --bs-card-bg: var(--stage); --bs-card-border-color: var(--rule); --bs-card-cap-bg: var(--canvas); }
+  :root[data-theme="dark"] .table { --bs-table-color: var(--ink); --bs-table-border-color: var(--rule); --bs-table-hover-bg: var(--canvas); }
+  :root[data-theme="dark"] .table > thead { --bs-table-bg: var(--canvas); }
 }
 
 /* ---- LEGADO: tema antigo, intacto, a remover na limpeza do Recreio ---- */
