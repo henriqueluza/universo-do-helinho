@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using Helinho.Application.Abstractions;
 using Helinho.Application.Painel;
 using Helinho.Domain;
@@ -13,7 +14,8 @@ namespace Helinho.IntegrationTests;
 
 /// <summary>Desempenho do aluno no painel (#18): lista com XP e nível, filtro por faixa, detalhe, segregação por unidade e estado vazio (dados sintéticos).</summary>
 [Collection(PostgresCollection.Name)]
-public class StudentPerformanceTests(PostgresFixture postgres)
+public partial class StudentPerformanceTests(PostgresFixture postgres, StudentPerformanceTests.SharedWorld shared)
+    : IClassFixture<StudentPerformanceTests.SharedWorld>
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 10, 15, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly Today = new(2026, 11, 10);
@@ -34,9 +36,39 @@ public class StudentPerformanceTests(PostgresFixture postgres)
         public DateTimeOffset UtcNow => Now;
     }
 
-    private sealed record Seed(Guid UnitA, Guid UnitB, Guid Ana, Guid Bia, Guid Caio);
+    internal sealed record Seed(Guid UnitA, Guid UnitB, Guid Ana, Guid Bia, Guid Caio);
 
-    private async Task<(HelinhoWebFactory Factory, Seed Seed)> NewWorldAsync()
+    /// <summary>
+    /// Um host para a classe, com o mundo semeado uma vez e o selo "Cem perguntas" (com arte) da Ana. Só testes que
+    /// apenas leem esse mundo o usam. Cada host deixa observadores de arquivo (inotify no Linux), e o runner do CI
+    /// limita a 128 instâncias (#215).
+    /// </summary>
+    public sealed class SharedWorld : IAsyncDisposable
+    {
+        private (HelinhoWebFactory Factory, Seed Seed)? _world;
+
+        internal async Task<(HelinhoWebFactory Factory, Seed Seed)> GetAsync(PostgresFixture postgres)
+        {
+            if (_world is null)
+            {
+                var world = await NewWorldAsync(postgres);
+                await GiveBadgeAsync(world.Factory, world.Seed.Ana, "Cem perguntas");
+                _world = world;
+            }
+
+            return _world.Value;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_world is { } world)
+            {
+                await world.Factory.DisposeAsync();
+            }
+        }
+    }
+
+    private static async Task<(HelinhoWebFactory Factory, Seed Seed)> NewWorldAsync(PostgresFixture postgres)
     {
         var factory = new HelinhoWebFactory(postgres);
         await factory.EnsureDatabaseAsync();
@@ -84,8 +116,7 @@ public class StudentPerformanceTests(PostgresFixture postgres)
     public async Task Lista_mostra_xp_e_nivel_e_filtra_por_faixa()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (factory, seed) = await NewWorldAsync();
-        await using var _ = factory;
+        var (factory, seed) = await shared.GetAsync(postgres);
 
         var todos = await WithDbAsync(factory, RoleNames.Admin, seed.UnitA,
             db => StudentPerformanceQueries.ListAsync(db, new FixedClock(), null, 1, ct));
@@ -101,8 +132,7 @@ public class StudentPerformanceTests(PostgresFixture postgres)
     public async Task Admin_so_ve_alunos_da_propria_unidade_na_lista_e_no_detalhe_por_url_direta()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (factory, seed) = await NewWorldAsync();
-        await using var _ = factory;
+        var (factory, seed) = await shared.GetAsync(postgres);
 
         var lista = await WithDbAsync(factory, RoleNames.Admin, seed.UnitA,
             db => StudentPerformanceQueries.ListAsync(db, new FixedClock(), null, 1, ct));
@@ -122,7 +152,7 @@ public class StudentPerformanceTests(PostgresFixture postgres)
     public async Task Detalhe_mostra_nivel_acertos_por_tipo_e_conquistas()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (factory, seed) = await NewWorldAsync();
+        var (factory, seed) = await NewWorldAsync(postgres); // mundo próprio: confere a lista exata de selos
         await using var _ = factory;
 
         var detail = await WithDbAsync(factory, RoleNames.Master, null,
@@ -146,8 +176,7 @@ public class StudentPerformanceTests(PostgresFixture postgres)
     public async Task Aluno_sem_respostas_mostra_estado_vazio_e_nao_erro()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (factory, seed) = await NewWorldAsync();
-        await using var _ = factory;
+        var (factory, seed) = await shared.GetAsync(postgres);
 
         using var client = factory.CreateClientAs(RoleNames.Admin, seed.UnitA);
         var response = await client.GetAsync($"/Desempenho/Aluno/{seed.Bia}", ct);
@@ -162,21 +191,12 @@ public class StudentPerformanceTests(PostgresFixture postgres)
     public async Task Ficha_usa_marcacao_recreio_com_personagem_selo_e_sem_pii()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (factory, seed) = await NewWorldAsync();
-        await using var _ = factory;
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var art = new Badge($"cem-{Guid.NewGuid():N}", "Cem perguntas", "");
-            db.Badges.Add(art);
-            db.StudentBadges.Add(new StudentBadge(seed.Ana, art.Id, Now));
-            await db.SaveChangesAsync(ct);
-        }
+        var (factory, seed) = await shared.GetAsync(postgres); // a Ana tem o selo "Cem perguntas", com arte entregue
 
         using var client = factory.CreateClientAs(RoleNames.Master);
         var html = await (await client.GetAsync($"/Desempenho/Aluno/{seed.Ana}", ct)).Content.ReadAsStringAsync(ct);
 
-        Assert.Contains("class=\"profile panel panel-pad\"", html, StringComparison.Ordinal);
+        Assert.True(HasClasses(html, "profile", "panel"), "ficha sem o bloco .profile");
         Assert.Contains("Ambiental · Flora", html, StringComparison.Ordinal);
         Assert.Contains("Diversidade · Lia", html, StringComparison.Ordinal);
         Assert.Contains("src=\"/img/selo-cem-perguntas.webp\" alt=\"Selo Cem perguntas\" width=\"96\" height=\"109\"", html, StringComparison.Ordinal);
@@ -190,19 +210,103 @@ public class StudentPerformanceTests(PostgresFixture postgres)
     public async Task Lista_usa_marcacao_recreio_com_aplicar_e_resumo()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (factory, seed) = await NewWorldAsync();
-        await using var _ = factory;
+        var (factory, seed) = await shared.GetAsync(postgres);
 
         using var client = factory.CreateClientAs(RoleNames.Admin, seed.UnitA);
         var html = await (await client.GetAsync("/Desempenho", ct)).Content.ReadAsStringAsync(ct);
         var vazio = await (await client.GetAsync("/Desempenho?faixa=Age13To14", ct)).Content.ReadAsStringAsync(ct);
 
-        Assert.Contains("class=\"filters-bar\"", html, StringComparison.Ordinal);
+        Assert.True(HasClasses(html, "page-head"), "lista sem o cabeçalho da página");
+        Assert.True(HasClasses(html, "filters-bar"), "lista sem a barra de filtros");
+        Assert.True(HasClasses(html, "table"), "lista sem a tabela do tema");
+        Assert.Contains("<th scope=\"row\"><a class=\"name\"", html, StringComparison.Ordinal);
         Assert.Contains(">Aplicar</button>", html, StringComparison.Ordinal);
-        Assert.Contains("class=\"tag tag-neutral\"", html, StringComparison.Ordinal);
+        Assert.True(HasClasses(html, "tag", "tag-neutral"), "nível sem a tag do tema");
         Assert.Contains("2 alunos", html, StringComparison.Ordinal);
         Assert.DoesNotContain("111.111.111-11", html, StringComparison.Ordinal);
         Assert.Contains("id=\"desempenho-vazio\"", vazio, StringComparison.Ordinal);
         Assert.Contains("width=\"117\" height=\"120\"", vazio, StringComparison.Ordinal);
+        AssertSemScriptInlineNemOnchange(html);
+        AssertSemScriptInlineNemOnchange(vazio);
     }
+
+    [Fact]
+    public async Task Ficha_mostra_nivel_aproveitamento_e_selos_em_texto_alem_das_barras()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (factory, seed) = await shared.GetAsync(postgres); // a Ana tem o selo "Cem perguntas", com arte entregue
+
+        using var client = factory.CreateClientAs(RoleNames.Master);
+        var html = await (await client.GetAsync($"/Desempenho/Aluno/{seed.Ana}", ct)).Content.ReadAsStringAsync(ct);
+
+        // .level: 350 de 600 XP -> barra decorativa em 58% e o valor sempre em texto.
+        var nivel = BlocoNivel().Match(html);
+        Assert.True(nivel.Success, "ficha sem o bloco .level#aluno-nivel");
+        Assert.Contains("Nível 3 — Explorador", nivel.Value, StringComparison.Ordinal);
+        Assert.Contains("350 XP", nivel.Value, StringComparison.Ordinal);
+        Assert.Contains("Próximo nível em 600 XP", nivel.Value, StringComparison.Ordinal);
+        Assert.Matches(BarraDecorativa(58), nivel.Value);
+
+        // Ambiental: 2 respostas, 1 acerto -> 50% na barra (aria-hidden) e "50%" em texto na mesma célula.
+        var ambiental = LinhaDoTipo("Ambiental · Flora").Match(html);
+        Assert.True(ambiental.Success, "tabela sem a linha do tipo Ambiental");
+        Assert.Matches(BarraDecorativa(50), ambiental.Value);
+        Assert.Contains("<span>50%</span>", ambiental.Value, StringComparison.Ordinal);
+        var cultural = LinhaDoTipo("Cultural · Luna").Match(html);
+        Assert.True(cultural.Success, "tabela sem a linha do tipo Cultural");
+        Assert.Contains("<span>—</span>", cultural.Value, StringComparison.Ordinal); // sem respostas: sem barra e sem 0% inventado
+        Assert.DoesNotContain("class=\"meter", cultural.Value, StringComparison.Ordinal);
+
+        // .badges > .badge-card: cada selo é um cartão com o nome em texto, o nome acessível e a data no fuso de Brasília.
+        var cartoes = CartaoDeSelo().Matches(html).Select(m => m.Groups["c"].Value).ToList();
+        Assert.Equal(2, cartoes.Count);
+        var cem = Assert.Single(cartoes, c => c.Contains("Cem perguntas", StringComparison.Ordinal));
+        Assert.Contains("alt=\"Selo Cem perguntas\"", cem, StringComparison.Ordinal);
+        Assert.Contains("Desbloqueado em 10/11/2026", cem, StringComparison.Ordinal);
+        var semArte = Assert.Single(cartoes, c => c.Contains("Explorador do Bosque", StringComparison.Ordinal));
+        Assert.Contains("role=\"img\" aria-label=\"Selo Explorador do Bosque\"", semArte, StringComparison.Ordinal);
+        AssertSemScriptInlineNemOnchange(html);
+    }
+
+    /// <summary>Contrato da #153: filtros com botão Aplicar, sem onchange, &lt;noscript&gt; nem script inline.</summary>
+    private static void AssertSemScriptInlineNemOnchange(string html)
+    {
+        Assert.DoesNotContain("<noscript", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("onchange=", html, StringComparison.Ordinal);
+        Assert.DoesNotMatch("""<script(?![^>]*\bsrc=)""", html);
+    }
+
+    private static async Task GiveBadgeAsync(HelinhoWebFactory factory, Guid studentId, string title)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var badge = new Badge($"selo-{Guid.NewGuid():N}", title, "");
+        db.Badges.Add(badge);
+        db.StudentBadges.Add(new StudentBadge(studentId, badge.Id, Now));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>Há um elemento cujo atributo class tem todas as classes pedidas, em qualquer ordem.</summary>
+    private static bool HasClasses(string html, params string[] classes) =>
+        AtributoClass().Matches(html).Any(m =>
+        {
+            var tokens = m.Groups["c"].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return classes.All(tokens.Contains);
+        });
+
+    private static Regex LinhaDoTipo(string nome) =>
+        new($"<tr>(?:(?!</tr>)[\\s\\S])*{Regex.Escape(nome)}(?:(?!</tr>)[\\s\\S])*</tr>", RegexOptions.None, TimeSpan.FromSeconds(1));
+
+    private static Regex BarraDecorativa(int percent) =>
+        new($"<span class=\"[^\"]*\\bmeter\\b[^\"]*\" aria-hidden=\"true\"[^>]*><i style=\"width: {percent}%\"></i></span>", RegexOptions.None, TimeSpan.FromSeconds(1));
+
+    [GeneratedRegex("class=\"(?<c>[^\"]*)\"", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex AtributoClass();
+
+    // .level e .badge-card não têm <div> aninhado: o bloco vai até o primeiro </div>. Se ganharem, troque o fim do padrão.
+    [GeneratedRegex("""<div class="[^"]*\blevel\b[^"]*" id="aluno-nivel">[\s\S]*?</div>""", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex BlocoNivel();
+
+    [GeneratedRegex("""<div class="[^"]*\bbadge-card\b[^"]*">(?<c>[\s\S]*?)</div>""", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex CartaoDeSelo();
 }

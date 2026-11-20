@@ -58,7 +58,8 @@ public class QuestoesRecreioTests(PostgresFixture postgres)
 
         var html = await GetAsync(client, "/Questoes/Editar");
 
-        var criador = html[html.IndexOf("<div class=\"maker\"", StringComparison.Ordinal)..];
+        var inicio = html.IndexOf("<div class=\"maker\"", StringComparison.Ordinal);
+        var criador = html[inicio..html.IndexOf("</main>", inicio, StringComparison.Ordinal)];
         Assert.Equal(1, Regex.Count(criador, "<form[ >]"));
         Assert.Contains("<form class=\"maker-form\" method=\"post\"", criador, StringComparison.Ordinal);
         Assert.Equal(3, Regex.Count(html, "<fieldset class=\"step\""));
@@ -73,10 +74,10 @@ public class QuestoesRecreioTests(PostgresFixture postgres)
         Assert.Contains("class=\"theme-pick\"", html, StringComparison.Ordinal);
         Assert.Contains("class=\"pill-pick\"", html, StringComparison.Ordinal);
         Assert.Contains("class=\"maker-bar\"", html, StringComparison.Ordinal);
-        Assert.Contains("class=\"phone \" aria-hidden=\"true\"", html, StringComparison.Ordinal);
+        Assert.Matches("class=\"phone\\s*\" aria-hidden=\"true\"", html);
         Assert.Matches("<img [^>]*width=\"\\d+\" height=\"\\d+\" alt=\"\"", html);
         Assert.DoesNotMatch("<script(?![^>]*\\bsrc=)", html);
-        Assert.All(ForaDoEscopo, s => Assert.DoesNotContain(s, html, StringComparison.OrdinalIgnoreCase));
+        Assert.All(ForaDoEscopo, s => Assert.DoesNotContain(s, criador, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -105,10 +106,45 @@ public class QuestoesRecreioTests(PostgresFixture postgres)
         Assert.Matches("id=\"Input_OptionB\"[^>]*aria-invalid=\"true\"[^>]*aria-describedby=\"Input_OptionB-erro\"", html);
         Assert.Contains("id=\"Input_OptionB-erro\"", html, StringComparison.Ordinal);
         Assert.Matches("id=\"Input_AgeBand\"[^>]*aria-invalid=\"true\"[^>]*aria-describedby=\"Input_AgeBand-erro\"", html);
-        Assert.Contains("checked=\"checked\"", html, StringComparison.Ordinal);
+        Assert.Matches("value=\"Cultural\"[^>]*checked=\"checked\"", html);
+        Assert.Matches("id=\"Input_OptionA\"[^>]*value=\"Um\"", html);
         Assert.Contains("class=\"phone cul\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain(Xss, raw, StringComparison.Ordinal);
         Assert.Contains("&lt;script&gt;alert(1)&lt;/script&gt;", raw, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Criador_recusa_enunciado_acima_de_500_e_alternativa_acima_de_300_caracteres_sem_salvar()
+    {
+        await using var factory = await NewFactoryAsync();
+        using var client = factory.CreateClientAs(RoleNames.Master);
+        var form = WebUtility.HtmlDecode(await client.GetStringAsync("/Questoes/Editar", Ct));
+        Assert.Matches("<textarea [^>]*maxlength=\"500\"[^>]*id=\"Input_Statement\"|<textarea [^>]*id=\"Input_Statement\"[^>]*maxlength=\"500\"", form);
+        Assert.Matches("id=\"Input_OptionA\"[^>]*maxlength=\"300\"", form);
+        var token = Regex.Match(form, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
+        var fields = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["Input.QuizType"] = "Cultural",
+            ["Input.AgeBand"] = "Age8To10",
+            ["Input.Statement"] = new string('e', 501),
+            ["Input.OptionA"] = new string('a', 301),
+            ["Input.OptionB"] = "Dois",
+            ["Input.OptionC"] = "Três",
+            ["Input.OptionD"] = "Quatro",
+            ["Input.Correct"] = "1",
+            ["Input.Explanation"] = "Explicação.",
+        };
+
+        var response = await client.PostAsync("/Questoes/Editar", new FormUrlEncodedContent(fields), Ct);
+        var html = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync(Ct));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("O enunciado deve ter até 500 caracteres.", html, StringComparison.Ordinal);
+        Assert.Contains("A alternativa A deve ter até 300 caracteres.", html, StringComparison.Ordinal);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(0, await db.Questions.CountAsync(Ct));
     }
 
     [Fact]
@@ -125,7 +161,7 @@ public class QuestoesRecreioTests(PostgresFixture postgres)
         Assert.Matches("value=\"Age8To10\"[^>]*checked=\"checked\"", html);
         Assert.Matches("value=\"2\"[^>]*checked=\"checked\"", html);
         Assert.Contains("class=\"phone esp\"", html, StringComparison.Ordinal);
-        Assert.Contains("<li data-k=\"C\" class=\" right\">", html, StringComparison.Ordinal);
+        Assert.Matches("<li data-k=\"C\" class=\"\\s*right\">", html);
         Assert.Contains("Quantos jogadores ficam em quadra?", html, StringComparison.Ordinal);
     }
 }
