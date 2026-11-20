@@ -405,6 +405,19 @@
   :root[data-theme="dark"] .table > thead { --bs-table-bg: var(--canvas); }
 }
 
+/* ---- PONTE do escuro no legado (Issue #140; remover junto com o legado) ----
+   A casca liga o botão de tema em todas as telas, inclusive as não portadas. Medido no
+   navegador: sem isto, no escuro, o filtro ativo do Dashboard ficava em 1,03:1, o erro de
+   campo em 3,04:1 e a seta do select em 1,53:1. A seta é a do modo escuro do Bootstrap 5.3. */
+@layer tokens {
+  :root[data-theme="dark"] { --legado-seta-select: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23dee2e6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e"); }
+}
+@layer components {
+  :root[data-theme="dark"] .seg-item[aria-current="true"] { background: var(--select-bg); border-color: var(--select-line); color: var(--select-ink); }
+  :root[data-theme="dark"] .text-negative { color: var(--bad-ink); }
+  :root[data-theme="dark"] .form-select { --bs-form-select-bg-img: var(--legado-seta-select); }
+}
+
 /* ---- LEGADO: tema antigo, intacto, a remover na limpeza do Recreio ---- */
 @layer legado {
 /* Tema do painel: tokens de docs/design/DESIGN.md (seção 9). O Bootstrap fica abaixo, na camada bootstrap (@import no topo). */

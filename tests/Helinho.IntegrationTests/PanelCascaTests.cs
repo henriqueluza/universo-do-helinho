@@ -17,6 +17,9 @@ public partial class PanelCascaTests(PostgresFixture postgres)
     [GeneratedRegex("<script\\b[^>]*>")]
     private static partial Regex ScriptTag();
 
+    [GeneratedRegex("<button class=\"menu-toggle\"[^>]*>")]
+    private static partial Regex MenuToggle();
+
     private async Task<string> GetAsync(string role, string path)
     {
         await using var factory = new HelinhoWebFactory(postgres);
@@ -123,6 +126,36 @@ public partial class PanelCascaTests(PostgresFixture postgres)
             Assert.Contains($"--tile-{item.Tile}:", css);
             Assert.Contains($"<symbol id=\"{item.Icon}\"", html);
         }
+    }
+
+    [Theory]
+    [InlineData(""":root[data-theme="dark"] .seg-item[aria-current="true"] { background: var(--select-bg);""")]
+    [InlineData(""":root[data-theme="dark"] .text-negative { color: var(--bad-ink); }""")]
+    [InlineData(""":root[data-theme="dark"] .form-select { --bs-form-select-bg-img: var(--legado-seta-select); }""")]
+    public async Task Ponte_do_escuro_cobre_o_legado_medido_no_navegador(string regra)
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        await factory.EnsureDatabaseAsync();
+        using var client = factory.CreateAnonymousClient();
+        var css = await client.GetStringAsync("/css/theme.css", Ct);
+
+        // Entre a ponte e o legado (camada components vence base, legado e bootstrap).
+        var inicio = css.IndexOf("PONTE do escuro no legado", StringComparison.Ordinal);
+        var fim = css.IndexOf("LEGADO: tema antigo", StringComparison.Ordinal);
+        Assert.True(inicio > 0 && fim > inicio);
+        Assert.Contains(regra, css[inicio..fim]);
+        Assert.Contains("--legado-seta-select: url(\"data:image/svg+xml,", css[inicio..fim]);
+    }
+
+    [Fact]
+    public async Task Botao_de_abrir_nao_tem_aria_expanded_fixo()
+    {
+        var html = await GetAsync(RoleNames.Master, "/Dashboard");
+
+        // O offcanvas do Bootstrap não atualiza aria-expanded; um "false" fixo mentiria com a gaveta aberta.
+        var botao = MenuToggle().Match(html);
+        Assert.True(botao.Success);
+        Assert.DoesNotContain("aria-expanded", botao.Value);
     }
 
     [Fact]
