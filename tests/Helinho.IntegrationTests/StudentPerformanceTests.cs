@@ -258,7 +258,7 @@ public partial class StudentPerformanceTests(PostgresFixture postgres, StudentPe
         Assert.Contains("<span>50%</span>", linhaAna.Value, StringComparison.Ordinal);
         var linhaBia = LinhaDoTipo(">Bia</a>").Match(html);
         Assert.True(linhaBia.Success, "lista sem a linha da Bia");
-        Assert.Contains("<span>—</span>", linhaBia.Value, StringComparison.Ordinal); // sem respostas: sem barra e sem 0% inventado
+        Assert.Contains("<span aria-hidden=\"true\">—</span><span class=\"visually-hidden\">Sem respostas</span>", linhaBia.Value, StringComparison.Ordinal); // sem barra e sem 0% inventado
         Assert.DoesNotContain("class=\"meter", linhaBia.Value, StringComparison.Ordinal);
         Assert.DoesNotContain(">0%<", linhaBia.Value, StringComparison.Ordinal);
         Assert.DoesNotContain("111.111.111-11", html, StringComparison.Ordinal);
