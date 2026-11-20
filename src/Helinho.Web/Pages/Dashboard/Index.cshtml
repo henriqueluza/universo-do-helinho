@@ -1,93 +1,197 @@
 @page
 @model Helinho.Web.Pages.Dashboard.IndexModel
 @using Helinho.Domain
+@using Helinho.Application.Painel
+@using Helinho.Web.Pages.Dashboard
 @{
     ViewData["Title"] = "Dashboard";
     var periodo = Model.Dias;
+    var t = Model.Trends;
+    var e = Model.Engagement;
+    var semana = t.AnswersByDay.TakeLast(7).ToList();
+    var maximo = Math.Max(1, semana.Max(d => d.Correct));
+    var versus = "vs. período anterior";
 }
-<form method="get" class="card-panel dash-filters mb-4" aria-label="Filtros do dashboard">
-    <div role="group" aria-label="Faixa etária" class="seg">
-        <a class="seg-item" href="@Model.Link(null)" aria-current="@(Model.Faixa is null ? "true" : "false")">Todas</a>
+<section class="scene" aria-label="Resumo do período">
+    <svg class="scene-twinkle t1" aria-hidden="true"><use href="#i-spark" /></svg>
+    <svg class="scene-twinkle t2" aria-hidden="true"><use href="#i-spark" /></svg>
+    <svg class="scene-twinkle t3" aria-hidden="true"><use href="#i-spark" /></svg>
+    <div class="scene-copy">
+        <p class="hello">@Model.Greeting</p>
+        <p class="headline"><span data-count="@t.CorrectAnswers.Value">@IndexModel.Num(t.CorrectAnswers.Value ?? 0)</span><svg class="star" aria-hidden="true"><use href="#i-star" /></svg></p>
+        <p class="scene-sub"><b>respostas certas</b> nos últimos @periodo dias
+            @if (t.CorrectAnswers.Trend.Direction == TrendDirection.Up){<span class="up">@t.CorrectAnswers.Trend.Text</span>}else{<span>(@t.CorrectAnswers.Trend.Text)</span>}</p>
+        <div class="week">
+            <ol aria-label="Respostas certas por dia, últimos 7 dias">
+                @for (var i = 0; i < semana.Count; i++)
+                {
+                    var d = semana[i];
+                    <li class="@(i == semana.Count - 1 ? "today" : null)" style="--v:@IndexModel.Inv(Math.Round(d.Correct / (double)maximo, 2));--d:@i"><span class="bar"></span><small aria-hidden="true">@IndexModel.DayShort(d.Day)</small><span class="sr">@IndexModel.DayName(d.Day): @d.Correct</span></li>
+                }
+            </ol>
+        </div>
+    </div>
+    <img class="scene-hero" src="~/img/helinho-corpo.webp" width="182" height="360" alt="" />
+    <div class="scene-stats" role="group" aria-label="Alunos ativos, respostas e missões concluídas no período">
+        <p class="stat" id="kpi-ativos"><b data-count="@t.ActiveStudents.Value">@IndexModel.Num(t.ActiveStudents.Value ?? 0)</b> alunos ativos</p>
+        <p class="stat" id="kpi-respostas"><b data-count="@t.Answers.Value">@IndexModel.Num(t.Answers.Value ?? 0)</b> respostas</p>
+        <p class="stat"><b data-count="@e.CompletedQuests.Value">@IndexModel.Num(e.CompletedQuests.Value ?? 0)</b> missões concluídas</p>
+    </div>
+</section>
+
+<form method="get" class="filters" aria-label="Filtros do dashboard">
+    <div class="chips" role="group" aria-label="Faixa etária">
+        <a class="chip" href="@Model.Link(null)" aria-current="@(Model.Faixa is null ? "true" : "false")">Todas as idades</a>
         @foreach (var band in Enum.GetValues<AgeBand>())
         {
-            <a class="seg-item" href="@Model.Link(band)" aria-current="@(Model.Faixa == band ? "true" : "false")">@IndexModel.BandLabel(band)</a>
+            <a class="chip" href="@Model.Link(band)" aria-current="@(Model.Faixa == band ? "true" : "false")">@IndexModel.BandLabel(band) anos</a>
         }
     </div>
     @if (Model.Faixa is { } f)
     {
         <input type="hidden" name="faixa" value="@f" />
     }
-    <div class="dash-selects">
-        <label class="muted" for="dias">Período</label>
-        <select id="dias" name="dias" class="form-select">
-            @foreach (var d in Helinho.Application.Painel.GetDashboard.AllowedDays)
-            {
-                <option value="@d" selected="@(d == periodo)">Últimos @d dias</option>
-            }
-        </select>
+    <div class="filters-end">
         @if (Model.IsMaster)
         {
-            <label class="muted" for="unidade">Unidade</label>
-            <select id="unidade" name="unidade" class="form-select">
+            <span class="field-inline"><label for="unidade">Unidade</label>
+            <select id="unidade" name="unidade" class="select">
                 <option value="">Todas as unidades</option>
                 @foreach (var u in Model.Result.Units)
                 {
                     <option value="@u.Id" selected="@(u.Id == Model.Unidade)">@u.Name</option>
                 }
-            </select>
+            </select></span>
         }
-        <button type="submit" class="btn btn-outline-secondary">Aplicar</button>
+        <span class="field-inline"><label for="dias">Período</label>
+        <select id="dias" name="dias" class="select">
+            @foreach (var d in GetDashboard.AllowedDays)
+            {
+                <option value="@d" selected="@(d == periodo)">Últimos @d dias</option>
+            }
+        </select></span>
+        <button type="submit" class="btn">Aplicar</button>
         @if (Model.HasFilters)
         {
-            <a class="btn btn-outline-secondary" href="@Url.Page("/Dashboard/Index")">Limpar filtros</a>
+            <a class="btn btn-sm" href="@Url.Page("/Dashboard/Index")">Limpar filtros</a>
         }
     </div>
 </form>
 
-@if (Model.Result.Answers == 0)
+@if (t.IsEmpty)
 {
-    <div class="card-panel" id="dashboard-vazio">
-        <p class="mb-1 fw-semibold">Nenhuma resposta neste período.</p>
-        <p class="muted mb-0">Ajuste a faixa etária, o período ou a unidade para ver os indicadores.</p>
+    <div class="empty" id="dashboard-vazio">
+        <img src="~/img/helinho-corpo.webp" width="182" height="360" alt="" />
+        <b>Nenhuma resposta neste período.</b>
+        <p>Ajuste a faixa etária, o período ou a unidade para ver os indicadores.</p>
     </div>
 }
 else
 {
-    <div class="kpi-grid mb-4">
-        <div class="card-panel kpi">
-            <p class="muted kpi-label">Alunos ativos</p>
-            <p class="kpi-value" id="kpi-ativos">@Model.Result.ActiveStudents</p>
-            <p class="muted kpi-context">Responderam nos últimos @Model.Dias dias</p>
-        </div>
-        <div class="card-panel kpi">
-            <p class="muted kpi-label">Respostas no período</p>
-            <p class="kpi-value" id="kpi-respostas">@Model.Result.Answers</p>
-            <p class="muted kpi-context">Últimos @Model.Dias dias</p>
-        </div>
+    <section class="kpis" aria-label="Indicadores do período">
+        <partial name="_Kpi" model="@(new KpiView("Taxa de acerto", "i-target", t.AccuracyPercent.Value?.ToString() ?? "—", t.AccuracyPercent.Value is null ? "" : "%", t.AccuracyPercent.Trend, true, versus,
+            IndexModel.Spark(semana.Select(d => (double?)d.AccuracyPercent))))" />
+        <partial name="_Kpi" model="@(new KpiView("Tempo médio por sessão", "i-clock", e.AverageSessionMinutes.Value?.ToString() ?? "—", e.AverageSessionMinutes.Value is null ? "" : "min", e.AverageSessionMinutes.Trend, null, versus,
+            IndexModel.Spark(e.LastDays.Select(d => (double?)d.AverageSessionMinutes))))" />
+        <partial name="_Kpi" model="@(new KpiView("Sessões por aluno", "i-play", e.SessionsPerStudent.Value?.ToString() ?? "—", e.SessionsPerStudent.Value is null ? "" : "no período", e.SessionsPerStudent.Trend, true, versus,
+            IndexModel.Spark(e.LastDays.Select(d => (double?)d.SessionsPerStudent))))" />
+        <partial name="_Kpi" model="@(new KpiView("Sem jogar há 7+ dias", "i-moon", IndexModel.Num(e.InactiveStudents.Value ?? 0), "alunos", e.InactiveStudents.Trend, false, "precisa de atenção",
+            IndexModel.Spark(e.LastDays.Select(d => (double?)d.InactiveStudents)), Url.Page("/Alunos/Index")))" />
+    </section>
+
+    <div class="two">
+        <section class="panel panel-pad chart-card" style="min-width:0" aria-labelledby="t-resp">
+            <div class="panel-head">
+                <div><h2 id="t-resp">Respostas por dia</h2><p>Últimos @periodo dias · @IndexModel.Num(t.Answers.Value ?? 0) respostas, <b class="@(t.Answers.Trend.Direction == TrendDirection.Up ? "txt-good" : null)">@t.Answers.Trend.Text</b> sobre os @periodo anteriores</p></div>
+                <ul class="legend" aria-hidden="true"><li><i class="sw sw-data"></i>Últimos @periodo dias</li><li><i class="sw sw-ref"></i>@periodo dias anteriores</li></ul>
+            </div>
+            <div class="linechart" data-fonte="tab-resp" tabindex="0" role="img" aria-label="Linha de respostas por dia nos últimos @periodo dias, comparada aos @periodo anteriores. Use as setas para percorrer os dias; os números estão na tabela logo abaixo."></div>
+            <details class="chart-table"><summary><svg class="icon" aria-hidden="true"><use href="#i-table" /></svg>Ver em tabela</summary>
+                <div class="tscroll">
+                    <table id="tab-resp" class="dtable">
+                        <caption class="sr">Respostas por dia</caption>
+                        <thead><tr><th scope="col">Dia</th><th scope="col">Últimos @periodo dias</th><th scope="col">@periodo dias anteriores</th></tr></thead>
+                        <tbody>
+                            @foreach (var d in t.AnswersByDay)
+                            {
+                                <tr><th scope="row" data-curto="@IndexModel.DateShort(d.Day)">@IndexModel.DayLabel(d.Day)</th><td>@d.Answers</td><td>@d.PreviousAnswers</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+        </section>
+
+        <section class="panel panel-pad" style="min-width:0" aria-labelledby="t-attn">
+            <div class="panel-head"><h2 id="t-attn">Precisa de atenção</h2></div>
+            @if (Model.Attention.IsEmpty)
+            {
+                <p class="foot-note">Nada precisa de atenção agora.</p>
+            }
+            else
+            {
+                <div class="attention">
+                    @foreach (var al in Model.Attention.Alerts)
+                    {
+                        <a class="attn" href="@Model.AlertHref(al)"><span class="ic @(al.QuizType is { } aq ? IndexModel.TypeShort(aq) : null)" style="@IndexModel.AlertStyle(al)"><svg aria-hidden="true"><use href="#@IndexModel.AlertIcon(al)" /></svg></span><span><b>@IndexModel.AlertTitle(al)</b><small>@al.Detail</small></span><svg class="icon go" aria-hidden="true"><use href="#i-go" /></svg></a>
+                    }
+                </div>
+            }
+        </section>
     </div>
 
-    <h2 class="section-title">Acerto médio por tipo de quiz</h2>
-    <div class="kpi-grid mb-4">
-        @foreach (var t in Model.Result.AccuracyByType)
-        {
-            <div class="card-panel kpi @IndexModel.TypeClass(t.QuizType)">
-                <p class="muted kpi-label"><span class="type-mark" aria-hidden="true"></span>@IndexModel.TypeLabel(t.QuizType)</p>
-                @if (t.AccuracyPercent is { } pct)
+    <section aria-labelledby="t-tipos">
+        <div class="panel-head"><h2 id="t-tipos">Acertos por tipo de quiz</h2><p>Cada personagem do jogo cuida de um tema</p><span class="cast-hint" aria-hidden="true">Deslize para ver os 5 temas →</span></div>
+        <div class="cast">
+            @foreach (var tipo in t.AccuracyByType)
+            {
+                var ch = IndexModel.Character(tipo.QuizType);
+                <a class="castcard @IndexModel.TypeShort(tipo.QuizType)" href="@Url.Page("/Desempenho/Index")">
+                    <img src="~/img/@(ch.Slug)-corpo.webp" width="@ch.BodyWidth" height="300" alt="" />
+                    <span class="name">@IndexModel.TypeLabel(tipo.QuizType)<span>@ch.With</span></span>
+                    @if (tipo.AccuracyPercent is { } pct)
+                    {
+                        <span class="pct"><span data-count="@pct">@pct</span><small>%</small></span>
+                        <span class="meter"><i style="width:@(pct)%"></i></span>
+                    }
+                    else
+                    {
+                        <span class="pct">—</span>
+                    }
+                    <span class="count">@(tipo.Answers == 0 ? "Sem respostas" : $"{IndexModel.Num(tipo.Answers)} respostas")</span>
+                </a>
+            }
+        </div>
+    </section>
+
+    var tops = Model.Rankings.TopUnits;
+    @if (tops is null)
+    {
+        <partial name="_Confusing" model="Model" />
+    }
+    else
+    {
+        <div class="two">
+            <partial name="_Confusing" model="Model" />
+            <section class="panel panel-pad" style="min-width:0" aria-labelledby="t-unid">
+                <div class="panel-head"><h2 id="t-unid">Unidades que mais jogam</h2></div>
+                @if (tops.Count == 0)
                 {
-                    <p class="kpi-value">@pct%</p>
-                    <div class="progress" role="progressbar" aria-label="Acerto em @IndexModel.TypeLabel(t.QuizType)" aria-valuenow="@pct" aria-valuemin="0" aria-valuemax="100">
-                        <div class="progress-bar type-bar" style="width: @(pct)%"></div>
-                    </div>
-                    <p class="muted kpi-context">@t.Answers respostas</p>
+                    <p class="foot-note">Nenhuma unidade com respostas no período.</p>
                 }
                 else
                 {
-                    <p class="kpi-value">—</p>
-                    <p class="muted kpi-context">Sem respostas</p>
+                    <ol class="rank">
+                        @for (var i = 0; i < tops.Count; i++)
+                        {
+                            <li style="--v:@IndexModel.Inv(tops[i].Share);--k:@i"><span class="pos">@(i + 1)</span><span class="rk-name">@tops[i].UnitName<small>@IndexModel.Num(tops[i].ActiveStudents) alunos ativos</small></span><b>@IndexModel.Num(tops[i].Answers)</b><span class="rk-bar" aria-hidden="true"><i></i></span></li>
+                        }
+                    </ol>
+                    <p class="foot-note">Respostas nos últimos @periodo dias</p>
                 }
-            </div>
-        }
-    </div>
+            </section>
+        </div>
+    }
 
     <h2 class="section-title">Atividade recente</h2>
     <div class="card-panel p-0">
