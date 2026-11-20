@@ -14,7 +14,8 @@ namespace Helinho.IntegrationTests;
 
 /// <summary>Desempenho do aluno no painel (#18): lista com XP e nível, filtro por faixa, detalhe, segregação por unidade e estado vazio (dados sintéticos).</summary>
 [Collection(PostgresCollection.Name)]
-public partial class StudentPerformanceTests(PostgresFixture postgres)
+public partial class StudentPerformanceTests(PostgresFixture postgres, StudentPerformanceTests.SharedWorld shared)
+    : IClassFixture<StudentPerformanceTests.SharedWorld>
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 10, 15, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly Today = new(2026, 11, 10);
@@ -35,9 +36,39 @@ public partial class StudentPerformanceTests(PostgresFixture postgres)
         public DateTimeOffset UtcNow => Now;
     }
 
-    private sealed record Seed(Guid UnitA, Guid UnitB, Guid Ana, Guid Bia, Guid Caio);
+    internal sealed record Seed(Guid UnitA, Guid UnitB, Guid Ana, Guid Bia, Guid Caio);
 
-    private async Task<(HelinhoWebFactory Factory, Seed Seed)> NewWorldAsync()
+    /// <summary>
+    /// Um host para a classe, com o mundo semeado uma vez e o selo "Cem perguntas" (com arte) da Ana. Só testes que
+    /// apenas leem esse mundo o usam. Cada host deixa observadores de arquivo (inotify no Linux), e o runner do CI
+    /// limita a 128 instâncias (#215).
+    /// </summary>
+    public sealed class SharedWorld : IAsyncDisposable
+    {
+        private (HelinhoWebFactory Factory, Seed Seed)? _world;
+
+        internal async Task<(HelinhoWebFactory Factory, Seed Seed)> GetAsync(PostgresFixture postgres)
+        {
+            if (_world is null)
+            {
+                var world = await NewWorldAsync(postgres);
+                await GiveBadgeAsync(world.Factory, world.Seed.Ana, "Cem perguntas");
+                _world = world;
+            }
+
+            return _world.Value;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_world is { } world)
+            {
+                await world.Factory.DisposeAsync();
+            }
+        }
+    }
+
+    private static async Task<(HelinhoWebFactory Factory, Seed Seed)> NewWorldAsync(PostgresFixture postgres)
     {
         var factory = new HelinhoWebFactory(postgres);
         await factory.EnsureDatabaseAsync();
@@ -85,8 +116,7 @@ public partial class StudentPerformanceTests(PostgresFixture postgres)
     public async Task Lista_mostra_xp_e_nivel_e_filtra_por_faixa()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (factory, seed) = await NewWorldAsync();
-        await using var _ = factory;
+        var (factory, seed) = await shared.GetAsync(postgres);
 
         var todos = await WithDbAsync(factory, RoleNames.Admin, seed.UnitA,
             db => StudentPerformanceQueries.ListAsync(db, new FixedClock(), null, 1, ct));
@@ -102,8 +132,7 @@ public partial class StudentPerformanceTests(PostgresFixture postgres)
     public async Task Admin_so_ve_alunos_da_propria_unidade_na_lista_e_no_detalhe_por_url_direta()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (factory, seed) = await NewWorldAsync();
-        await using var _ = factory;
+        var (factory, seed) = await shared.GetAsync(postgres);
 
         var lista = await WithDbAsync(factory, RoleNames.Admin, seed.UnitA,
             db => StudentPerformanceQueries.ListAsync(db, new FixedClock(), null, 1, ct));
@@ -123,7 +152,7 @@ public partial class StudentPerformanceTests(PostgresFixture postgres)
     public async Task Detalhe_mostra_nivel_acertos_por_tipo_e_conquistas()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (factory, seed) = await NewWorldAsync();
+        var (factory, seed) = await NewWorldAsync(postgres); // mundo próprio: confere a lista exata de selos
         await using var _ = factory;
 
         var detail = await WithDbAsync(factory, RoleNames.Master, null,
@@ -147,8 +176,7 @@ public partial class StudentPerformanceTests(PostgresFixture postgres)
     public async Task Aluno_sem_respostas_mostra_estado_vazio_e_nao_erro()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (factory, seed) = await NewWorldAsync();
-        await using var _ = factory;
+        var (factory, seed) = await shared.GetAsync(postgres);
 
         using var client = factory.CreateClientAs(RoleNames.Admin, seed.UnitA);
         var response = await client.GetAsync($"/Desempenho/Aluno/{seed.Bia}", ct);
@@ -163,9 +191,7 @@ public partial class StudentPerformanceTests(PostgresFixture postgres)
     public async Task Ficha_usa_marcacao_recreio_com_personagem_selo_e_sem_pii()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (factory, seed) = await NewWorldAsync();
-        await using var _ = factory;
-        await GiveBadgeAsync(factory, seed.Ana, "Cem perguntas"); // selo com arte entregue
+        var (factory, seed) = await shared.GetAsync(postgres); // a Ana tem o selo "Cem perguntas", com arte entregue
 
         using var client = factory.CreateClientAs(RoleNames.Master);
         var html = await (await client.GetAsync($"/Desempenho/Aluno/{seed.Ana}", ct)).Content.ReadAsStringAsync(ct);
@@ -184,8 +210,7 @@ public partial class StudentPerformanceTests(PostgresFixture postgres)
     public async Task Lista_usa_marcacao_recreio_com_aplicar_e_resumo()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (factory, seed) = await NewWorldAsync();
-        await using var _ = factory;
+        var (factory, seed) = await shared.GetAsync(postgres);
 
         using var client = factory.CreateClientAs(RoleNames.Admin, seed.UnitA);
         var html = await (await client.GetAsync("/Desempenho", ct)).Content.ReadAsStringAsync(ct);
@@ -209,9 +234,7 @@ public partial class StudentPerformanceTests(PostgresFixture postgres)
     public async Task Ficha_mostra_nivel_aproveitamento_e_selos_em_texto_alem_das_barras()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (factory, seed) = await NewWorldAsync();
-        await using var _ = factory;
-        await GiveBadgeAsync(factory, seed.Ana, "Cem perguntas"); // selo com arte entregue
+        var (factory, seed) = await shared.GetAsync(postgres); // a Ana tem o selo "Cem perguntas", com arte entregue
 
         using var client = factory.CreateClientAs(RoleNames.Master);
         var html = await (await client.GetAsync($"/Desempenho/Aluno/{seed.Ana}", ct)).Content.ReadAsStringAsync(ct);
