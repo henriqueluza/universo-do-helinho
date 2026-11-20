@@ -1,0 +1,22 @@
+@model Helinho.Web.Pages.Dashboard.KpiView
+@using Helinho.Web.Pages.Dashboard
+@{
+    var seta = IndexModel.ArrowIcon(Model.Trend);
+    void Corpo()
+    {
+        <h3><span class="kpi-ic"><svg class="icon" aria-hidden="true"><use href="#@Model.Icon" /></svg></span>@Model.Title</h3>
+        <p class="kpi-v"><b>@Model.Value</b>@if (Model.Unit.Length > 0){<small>@Model.Unit</small>}</p>
+        <p class="delta @IndexModel.DeltaClass(Model.Trend, Model.UpIsGood)">
+            @if (seta is not null){<svg class="icon" aria-hidden="true"><use href="#@seta" /></svg>}@Model.Trend.Text<span>@Model.Context</span>
+        </p>
+        @if (Model.Spark is not null){<svg class="spark" data-spark="@Model.Spark" aria-hidden="true"></svg>}
+    }
+}
+@if (Model.Href is not null)
+{
+    <a class="kpi" href="@Model.Href">@{ Corpo(); }</a>
+}
+else
+{
+    <article class="kpi">@{ Corpo(); }</article>
+}
