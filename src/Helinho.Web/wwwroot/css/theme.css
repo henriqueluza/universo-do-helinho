@@ -1,14 +1,13 @@
 /* =====================================================================
-   Tema Recreio (docs/design/TEMA-PARA-IA.md). Este arquivo tem 3 partes:
+   Tema Recreio (docs/design/TEMA-PARA-IA.md). Este arquivo tem 2 partes:
    1) ordem das camadas e Bootstrap dentro da camada "bootstrap";
-   2) tokens e base do Recreio (copiados da preview, valores intactos);
-   3) tema antigo, na camada "legado" (REMOVER na limpeza, quando a última
-      tela for portada). Components já está aqui; screens e motion chegam nos próximos PRs.
+   2) tokens, base, components, screens e motion do Recreio.
    Por que camadas: CSS sem camada vence qualquer regra em @layer; por isso
    o Bootstrap entra por @import ... layer(bootstrap) (o <link> saiu dos
-   layouts) e o legado fica em @layer legado, abaixo de tokens/base.
+   layouts) e fica abaixo de tokens/base. O tema antigo (camada "legado") foi
+   removido na Issue #195.
    ===================================================================== */
-@layer bootstrap, legado;
+@layer bootstrap;
 @layer tokens, base, components, screens, motion;
 @import url("../lib/bootstrap/bootstrap.min.css") layer(bootstrap);
 
@@ -253,7 +252,8 @@
       linear-gradient(to left, var(--stage) 30%, transparent) right / 28px 100% no-repeat local,
       linear-gradient(to right, oklch(from var(--ink) l c h / .16), transparent) left / var(--sp-3) 100% no-repeat scroll,
       linear-gradient(to left, oklch(from var(--ink) l c h / .16), transparent) right / var(--sp-3) 100% no-repeat scroll; }
-  .table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  /* O Bootstrap pinta as células com --bs-table-*; o tema fixa os valores nos tokens (vale nos dois temas). */
+  .table { --bs-table-bg: transparent; --bs-table-color: var(--ink); --bs-table-border-color: var(--rule); --bs-table-hover-bg: var(--canvas); --bs-table-striped-bg: transparent; width: 100%; border-collapse: separate; border-spacing: 0; }
   .table thead th { background: none; border-bottom: 0; text-align: left; padding: 0 12px 10px; color: var(--ink-3); font-size: var(--fs-xs); font-weight: 800; letter-spacing: .02em; white-space: nowrap; }
   .table td, .table tbody th { padding: 12px; border-top: 2px solid var(--rule); border-bottom: 0; font-weight: 600; vertical-align: middle; text-align: left; }
   .table tbody th { font-weight: 800; }
@@ -263,6 +263,8 @@
   .table .actions { text-align: right; white-space: nowrap; }
   .table small { display: block; color: var(--ink-3); font-weight: 700; font-size: var(--fs-xs); }
   .table .clip { max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Ainda usado em Desempenho/Aluno.cshtml (2 parágrafos); sai quando a página trocar por .foot-note (Issue de continuação). */
+  .muted { color: var(--ink-2); }
   .table a.name { font-weight: 800; color: var(--ink); text-decoration-color: var(--rule-strong); text-underline-offset: 3px; }
   .table a.name:hover { color: var(--select-ink); }
   .link-btn { font: 800 var(--fs-sm) var(--font); color: var(--select-ink); background: none; border: 0; padding: 6px 8px; border-radius: var(--r-sm); text-decoration: none; cursor: pointer; }
@@ -286,6 +288,8 @@
 
   /* alternativas da questão */
   .alts { display: grid; gap: var(--sp-3); border: 0; padding: 0; margin: 0; min-width: 0; }
+  /* O reboot do Bootstrap (que fica) dá à legend fonte grande, float e width 100%; só as três legends do painel precisam do reset. */
+  :is(.alts legend, .field-legend, legend.step-h) { font-size: inherit; line-height: inherit; float: none; width: auto; }
   .alts legend, .field-legend { font-weight: 800; margin-bottom: var(--sp-2); padding: 0; }
   .alt { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: var(--sp-3); align-items: center; padding: 8px 8px 8px 10px; border: 2px solid var(--rule); border-radius: var(--r-md); transition: border-color var(--dur), background var(--dur); }
   .alt:has(input[type="radio"]:checked) { border-color: oklch(from var(--ok) l c h / .6); background: var(--ok-bg); }
@@ -989,232 +993,4 @@
     .js .reveal:not(.vis) :is(.lc-series, .lc-today, .rk-bar i, .hit-bar i, .heat tbody td) { animation-play-state: paused; }
     .chart-table[open] .tscroll { animation: rise 360ms var(--ease-out); }
   }
-}
-
-/* ---- PONTE do legado (remover junto com o legado) ----
-   A base do Recreio zera a margem de h1/h2/p e define o tamanho do h1, e camada
-   vence especificidade: sem isto, os títulos do tema antigo perderiam o espaço. */
-@layer components {
-  .page-title { margin-bottom: var(--gap); }
-  .section-title { margin-bottom: 12px; }
-  /* O .table do Recreio tem th sem quebra de linha; a tabela larga rola dentro do cartão. */
-  .card-panel:has(> .table) { overflow-x: auto; }
-  /* O reboot do Bootstrap dá a legend fonte grande e float; a preview usa a legend nativa. */
-  legend { font-size: inherit; line-height: inherit; float: none; width: auto; }
-  :root[data-theme="dark"] .form-control, :root[data-theme="dark"] .form-select { background-color: var(--stage); color: var(--ink); }
-  /* No escuro, as superfícies do legado seguiam brancas com texto claro (ilegível). */
-  :root[data-theme="dark"] { --surface: var(--stage); --raised: var(--canvas); --border: var(--rule); --text: var(--ink); --muted: var(--ink-2); --bs-body-color: var(--ink); --bs-secondary-color: var(--ink-2); --bs-border-color: var(--rule); }
-  :root[data-theme="dark"] .card { --bs-card-bg: var(--stage); --bs-card-border-color: var(--rule); --bs-card-cap-bg: var(--canvas); }
-  :root[data-theme="dark"] .table { --bs-table-color: var(--ink); --bs-table-border-color: var(--rule); --bs-table-hover-bg: var(--canvas); }
-  :root[data-theme="dark"] .table > thead { --bs-table-bg: var(--canvas); }
-}
-
-/* PONTE (remover com o legado): o .auth do Recreio tem duas colunas (marca + formulário);
-   a marcação antiga só tem o cartão. Fica em screens para vencer o .auth de screens acima. */
-@layer screens {
-  .auth:not(:has(.auth-scene)) { grid-template-columns: minmax(0, 1fr); place-items: center; padding: 16px; }
-  /* o .auth do legado centraliza e põe 16px; a cena do Recreio ocupa a coluna inteira */
-  .auth:has(.auth-scene) { place-items: stretch; padding: 0; }
-  /* a ponte do legado dá margem inferior a todo .page-title; no Recreio o espaço vem do gap/.sub */
-  .page-head .page-title, .profile .page-title, .auth-card .page-title, .bare-card .page-title, .scene .page-title { margin-bottom: 0; }
-  /* o .kpi do Recreio termina no minigráfico (sem padding inferior); o cartão antigo não tem minigráfico */
-  .kpi:not(:has(.spark)) { padding-bottom: var(--sp-5); }
-}
-
-/* ---- LEGADO: tema antigo, intacto, a remover na limpeza do Recreio ---- */
-@layer legado {
-/* Tema do painel: tokens de docs/design/DESIGN.md (seção 9). O Bootstrap fica abaixo, na camada bootstrap (@import no topo). */
-@font-face { font-family: "DM Sans"; font-weight: 400; font-style: normal; font-display: swap; src: url("../fonts/dm-sans-latin-400-normal.woff2") format("woff2"); }
-@font-face { font-family: "DM Sans"; font-weight: 500; font-style: normal; font-display: swap; src: url("../fonts/dm-sans-latin-500-normal.woff2") format("woff2"); }
-@font-face { font-family: "DM Sans"; font-weight: 600; font-style: normal; font-display: swap; src: url("../fonts/dm-sans-latin-600-normal.woff2") format("woff2"); }
-@font-face { font-family: "DM Sans"; font-weight: 700; font-style: normal; font-display: swap; src: url("../fonts/dm-sans-latin-700-normal.woff2") format("woff2"); }
-
-:root {
-  /* superfície e texto */
-  --ground: #f9fafb;
-  --surface: #ffffff;
-  --raised: #f3f4f6;
-  --border: #e5e7eb;
-  --rule: #f2f2f2;
-  --control: #8a919c;
-  --text: #111827;
-  --muted: #5f6672;
-
-  /* acento (um só) */
-  --accent: #b8336a;
-  --accent-hover: #a22e5f;
-  --accent-soft: #fdf2f7;
-  --accent-track: #f8dbe8;
-  --accent-ink: #6b1d3e;
-
-  /* semânticas */
-  --positive: #247b50;
-  --negative: #c4242a;
-  --warning: #92400e;
-
-  /* selos */
-  --pill-positive-bg: #dcfce7; --pill-positive-ink: #14532d;
-  --pill-negative-bg: #ffedea; --pill-negative-ink: #831c1e;
-  --pill-warning-bg:  #fffbeb; --pill-warning-ink:  #92400e;
-  --pill-neutral-bg:  #f3f4f6; --pill-neutral-ink:  #374151;
-  --pill-accent-bg:   #fdf2f7; --pill-accent-ink:   #6b1d3e;
-
-  /* tipos de quiz: definidos aqui, uma vez */
-  --quiz-ambiental:         #2f7d4f; --quiz-ambiental-bg:         #dcfce7; --quiz-ambiental-ink:         #14532d;
-  --quiz-conhecimento:      #2563a8; --quiz-conhecimento-bg:      #dbeafe; --quiz-conhecimento-ink:      #1e3a8a;
-  --quiz-cultural:          #7a4fa3; --quiz-cultural-bg:          #f3e8ff; --quiz-cultural-ink:          #581c87;
-  --quiz-esportivo:         #c2570c; --quiz-esportivo-bg:         #ffedd5; --quiz-esportivo-ink:         #7c2d12;
-  --quiz-diversidade:       #0f7f86; --quiz-diversidade-bg:       #ccfbf1; --quiz-diversidade-ink:       #134e4a;
-
-  /* forma e medidas */
-  --radius-card: 8px;
-  --radius-control: 6px;
-  --radius-pill: 999px;
-  --row-height: 45px;
-  --sidebar-width: 230px;
-  --gap: 24px;
-  --pad: 24px;
-  --control-height: 32px;
-  --shadow-overlay: 0 8px 24px rgb(17 24 39 / .12);
-  --transition: 140ms ease;
-
-  /* tipografia */
-  --font-sans: "DM Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --fs-title: 2rem;      /* 32px */
-  --fs-section: 1.125rem; /* 18px */
-  --fs-kpi: 1.5rem;      /* 24px */
-  --fs-body: 0.875rem;   /* 14px */
-  --fs-small: 0.75rem;   /* 12px */
-}
-
-@media (max-width: 575.98px) {
-  :root { --fs-title: 1.5rem; --gap: 16px; --pad: 16px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root { --transition: 0ms; }
-}
-
-.quiz-ambiental { --quiz: var(--quiz-ambiental); --quiz-bg: var(--quiz-ambiental-bg); --quiz-ink: var(--quiz-ambiental-ink); }
-.quiz-conhecimento { --quiz: var(--quiz-conhecimento); --quiz-bg: var(--quiz-conhecimento-bg); --quiz-ink: var(--quiz-conhecimento-ink); }
-.quiz-cultural { --quiz: var(--quiz-cultural); --quiz-bg: var(--quiz-cultural-bg); --quiz-ink: var(--quiz-cultural-ink); }
-.quiz-esportivo { --quiz: var(--quiz-esportivo); --quiz-bg: var(--quiz-esportivo-bg); --quiz-ink: var(--quiz-esportivo-ink); }
-.quiz-diversidade { --quiz: var(--quiz-diversidade); --quiz-bg: var(--quiz-diversidade-bg); --quiz-ink: var(--quiz-diversidade-ink); }
-
-:root {
-  --bs-body-font-family: var(--font-sans);
-  --bs-body-font-size: var(--fs-body);
-  --bs-body-line-height: 1.5;
-  --bs-body-color: #111827;
-  --bs-body-color-rgb: 17, 24, 39;
-  --bs-body-bg: #f9fafb;
-  --bs-body-bg-rgb: 249, 250, 251;
-  --bs-secondary-color: #5f6672;
-  --bs-secondary-bg: #f3f4f6;
-  --bs-tertiary-bg: #f3f4f6;
-  --bs-emphasis-color: #111827;
-
-  --bs-primary: #b8336a;
-  --bs-primary-rgb: 184, 51, 106;
-  --bs-primary-text-emphasis: #6b1d3e;
-  --bs-primary-bg-subtle: #fdf2f7;
-  --bs-primary-border-subtle: #f8dbe8;
-  --bs-success: #247b50;
-  --bs-success-rgb: 36, 123, 80;
-  --bs-success-text-emphasis: #14532d;
-  --bs-success-bg-subtle: #dcfce7;
-  --bs-danger: #c4242a;
-  --bs-danger-rgb: 196, 36, 42;
-  --bs-danger-text-emphasis: #831c1e;
-  --bs-danger-bg-subtle: #ffedea;
-  --bs-warning: #92400e;
-  --bs-warning-rgb: 146, 64, 14;
-  --bs-warning-text-emphasis: #92400e;
-  --bs-warning-bg-subtle: #fffbeb;
-  --bs-secondary: #5f6672;
-  --bs-secondary-rgb: 95, 102, 114;
-
-  --bs-link-color: #b8336a;
-  --bs-link-color-rgb: 184, 51, 106;
-  --bs-link-hover-color: #a22e5f;
-  --bs-link-hover-color-rgb: 162, 46, 95;
-
-  --bs-border-color: #e5e7eb;
-  --bs-border-radius: 6px;
-  --bs-border-radius-sm: 4px;
-  --bs-border-radius-lg: 8px;
-  --bs-border-radius-pill: 999px;
-  --bs-focus-ring-color: rgba(184, 51, 106, .35);
-  --bs-focus-ring-width: 3px;
-  --bs-box-shadow: none;
-  --bs-box-shadow-sm: none;
-}
-
-.btn-primary {
-  --bs-btn-bg: #b8336a;            --bs-btn-border-color: #b8336a;
-  --bs-btn-color: #ffffff;
-  --bs-btn-hover-bg: #a22e5f;      --bs-btn-hover-border-color: #a22e5f;
-  --bs-btn-active-bg: #8f2955;     --bs-btn-active-border-color: #8f2955;
-  --bs-btn-disabled-bg: #b8336a;   --bs-btn-disabled-border-color: #b8336a;
-  --bs-btn-focus-shadow-rgb: 184, 51, 106;
-}
-.btn-outline-secondary {
-  --bs-btn-color: #111827;         --bs-btn-border-color: #8a919c;
-  --bs-btn-hover-bg: #f3f4f6;      --bs-btn-hover-color: #111827;
-  --bs-btn-hover-border-color: #8a919c;
-}
-.btn { --bs-btn-padding-y: .25rem; --bs-btn-padding-x: .75rem; --bs-btn-font-size: .875rem; --bs-btn-border-radius: 6px; min-height: 32px; }
-.form-control, .form-select { border-color: #8a919c; min-height: 32px; font-size: .875rem; background-color: #fff; }
-.form-control:focus, .form-select:focus { border-color: #b8336a; box-shadow: 0 0 0 3px rgba(184, 51, 106, .35); }
-.form-control.is-invalid, .form-select.is-invalid { border-color: #c4242a; }
-.text-negative { color: #c4242a; }
-.card { --bs-card-bg: #fff; --bs-card-border-color: #e5e7eb; --bs-card-border-radius: 8px; --bs-card-spacer-y: 24px; --bs-card-spacer-x: 24px; --bs-card-cap-bg: #f3f4f6; }
-.table { --bs-table-bg: transparent; --bs-table-border-color: #f2f2f2; --bs-table-hover-bg: #f3f4f6; --bs-table-striped-bg: transparent; --bs-table-cell-padding-y: .75rem; }
-.table > thead { --bs-table-bg: #f3f4f6; font-size: .75rem; font-weight: 600; }
-.nav-pills { --bs-nav-pills-link-active-bg: #fdf2f7; --bs-nav-pills-link-active-color: #6b1d3e; --bs-nav-link-color: #111827; --bs-nav-link-hover-color: #111827; --bs-nav-link-padding-y: .25rem; --bs-nav-pills-border-radius: 6px; }
-.badge { --bs-badge-font-size: .75rem; --bs-badge-font-weight: 500; --bs-badge-padding-x: .5rem; --bs-badge-padding-y: .125rem; --bs-badge-border-radius: 999px; }
-.progress { --bs-progress-bg: #f8dbe8; --bs-progress-bar-bg: #b8336a; --bs-progress-height: .5rem; --bs-progress-border-radius: 999px; }
-.alert { --bs-alert-border-radius: 8px; }
-.modal { --bs-modal-border-radius: 8px; --bs-modal-box-shadow: 0 8px 24px rgb(17 24 39 / .12); }
-:focus-visible { outline: 2px solid #b8336a; outline-offset: 2px; }
-
-/* ---- Casca do painel (DESIGN.md seção 7) ---- */
-body { font-variant-numeric: tabular-nums; }
-.muted { color: var(--muted); }
-.skip-link { position: absolute; left: 8px; top: -48px; z-index: 2000; background: var(--surface); color: var(--accent); padding: 8px 12px; border-radius: var(--radius-control); }
-.skip-link:focus { top: 8px; }
-.shell { min-height: 100vh; }
-.content { padding: 16px; outline: none; }
-.page-title { font-size: var(--fs-title); font-weight: 700; margin: 0 0 var(--gap); }
-.brand { font-size: var(--fs-section); font-weight: 600; }
-.card-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: var(--pad); }
-.auth { display: grid; place-items: center; min-height: 100vh; padding: 16px; outline: none; }
-.auth-card { width: 100%; max-width: 400px; }
-.auth-card .page-title { font-size: var(--fs-section); font-weight: 600; margin-bottom: 16px; }
-
-/* ---- Dashboard (DESIGN.md 7.2 e 7.3) ---- */
-.section-title { font-size: var(--fs-section); font-weight: 600; margin: 0 0 12px; }
-.dash-filters { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
-.dash-selects { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
-.dash-selects .form-select { width: auto; }
-.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; }
-.seg-item { padding: 4px 12px; border-radius: var(--radius-control); color: var(--text); text-decoration: none; font-size: var(--fs-body); border: 1px solid var(--control); }
-.seg-item:hover { background: var(--raised); }
-.seg-item[aria-current="true"] { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
-.seg-item:focus-visible, .dash-selects a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.kpi-grid { display: grid; gap: var(--gap); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-.kpi p { margin: 0; }
-.kpi-label { font-size: var(--fs-small); }
-.kpi-value { font-size: var(--fs-kpi); font-weight: 600; }
-.kpi-context { font-size: var(--fs-small); margin-top: 4px !important; }
-.type-mark { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 2px; background: var(--quiz); }
-.type-bar { background: var(--quiz); }
-.type-badge { background: var(--quiz-bg); color: var(--quiz-ink); }
-.badge-ok { background: var(--pill-positive-bg); color: var(--pill-positive-ink); }
-.badge-miss { background: var(--pill-negative-bg); color: var(--pill-negative-ink); }
-.badge-draft { background: var(--pill-warning-bg); color: var(--pill-warning-ink); }
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
-}
 }
