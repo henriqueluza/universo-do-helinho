@@ -3,27 +3,29 @@
 @{
     ViewData["Title"] = "Unidades";
 }
-<div class="card-panel">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <p class="muted mb-0">@Model.Units.Count unidade(s) cadastrada(s)</p>
-        <a class="btn btn-primary" href="/Unidades/Nova">Nova unidade</a>
+<div class="page-head">
+    <div><p class="sub">@Model.Units.Count unidade(s) cadastrada(s)</p></div>
+    <div class="page-actions">
+        <a class="btn btn-primary" href="/Unidades/Nova"><svg aria-hidden="true"><use href="#i-plus" /></svg>Nova unidade</a>
     </div>
+</div>
+<section class="panel panel-pad" aria-label="Unidades">
     @if (Model.Units.Count == 0)
     {
         <p class="mb-0">Nenhuma unidade cadastrada. Crie a primeira com “Nova unidade”.</p>
     }
     else
     {
-        <div class="table-responsive">
+        <div class="table-wrap">
             <table class="table">
                 <thead><tr><th scope="col">Nome</th></tr></thead>
                 <tbody>
                     @foreach (var u in Model.Units)
                     {
-                        <tr><td>@u.Name</td></tr>
+                        <tr><th scope="row">@u.Name</th></tr>
                     }
                 </tbody>
             </table>
         </div>
     }
-</div>
+</section>
