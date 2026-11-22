@@ -22,13 +22,23 @@ public class BrevoEmailSenderTests
     {
         public HttpRequestMessage? Request { get; private set; }
         public string Body { get; private set; } = "";
+        public int Calls { get; private set; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            Calls++;
             Request = request;
             Body = request.Content is { } content ? await content.ReadAsStringAsync(cancellationToken) : "";
             return await respond(cancellationToken);
         }
+    }
+
+    /// <summary>Corpo de resposta que falha ou não termina de chegar.</summary>
+    private sealed class BrokenContent(Func<CancellationToken, Task> read) : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) => read(CancellationToken.None);
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken) => read(cancellationToken);
+        protected override bool TryComputeLength(out long length) => (length = 0) != 0;
     }
 
     private sealed class CapturingLogger : ILogger<BrevoEmailSender>
@@ -41,16 +51,18 @@ public class BrevoEmailSenderTests
     }
 
     private static async Task<(EmailSendResult Result, StubHandler Handler, CapturingLogger Logs)> SendAsync(
-        Func<CancellationToken, Task<HttpResponseMessage>> respond, CancellationToken cancellationToken, TimeSpan? timeout = null)
+        Func<CancellationToken, Task<HttpResponseMessage>> respond, CancellationToken cancellationToken, TimeSpan? timeout = null,
+        EmailMessage? message = null, string apiKey = ApiKey)
     {
         var handler = new StubHandler(respond);
         var logs = new CapturingLogger();
         using var http = new HttpClient(handler);
-        var options = new EmailOptions { ApiKey = ApiKey, SenderEmail = "nao-responda@example.org", SenderName = "Helinho Teste" };
+        var options = new EmailOptions { ApiKey = apiKey, SenderEmail = "nao-responda@example.org", SenderName = "Helinho Teste" };
         var sender = new BrevoEmailSender(http, Options.Create(options), logs);
         Assert.Equal(TimeSpan.FromSeconds(10), http.Timeout);
-        http.Timeout = timeout ?? http.Timeout; // só o teste de tempo esgotado encurta, para não esperar 10 s
-        var result = await sender.SendAsync(Message, cancellationToken);
+        Assert.Equal(16 * 1024, http.MaxResponseContentBufferSize);
+        http.Timeout = timeout ?? http.Timeout; // só os testes de tempo esgotado encurtam, para não esperar 10 s
+        var result = await sender.SendAsync(message ?? Message, cancellationToken);
 
         // Nada de chave, destinatário, assunto, corpo nem texto da resposta de erro em log, no resultado ou no ToString da mensagem.
         string[] secrets = [ApiKey, Message.Recipient, Message.Subject, "corpo-html-sintetico", Message.TextBody, ProviderEcho];
@@ -95,6 +107,7 @@ public class BrevoEmailSenderTests
     [InlineData(400, "codigo_desconhecido", EmailSendStatus.PermanentFailure, "http_400")]
     [InlineData(404, "document_not_found", EmailSendStatus.PermanentFailure, "document_not_found")]
     [InlineData(400, "duplicate_parameter", EmailSendStatus.Sent, "duplicate_parameter")]
+    [InlineData(400, "duplicate_request", EmailSendStatus.Sent, "duplicate_request")]
     [InlineData(400, "not_enough_credits", EmailSendStatus.ProviderSuspended, "not_enough_credits")]
     [InlineData(401, "unauthorized", EmailSendStatus.ProviderSuspended, "unauthorized")]
     [InlineData(402, "", EmailSendStatus.ProviderSuspended, "http_402")]
@@ -104,9 +117,10 @@ public class BrevoEmailSenderTests
     [InlineData(503, "", EmailSendStatus.TransientFailure, "http_503")]
     public async Task Classifica_cada_resposta_de_erro(int status, string code, EmailSendStatus expected, string expectedCode)
     {
-        var (result, _, logs) = await SendAsync(Respond((HttpStatusCode)status, code.Length > 0 ? Error(code) : "<html>erro</html>"), Ct);
+        var (result, handler, logs) = await SendAsync(Respond((HttpStatusCode)status, code.Length > 0 ? Error(code) : "<html>erro</html>"), Ct);
 
         Assert.Equal(new EmailSendResult(expected, ErrorCode: expectedCode), result);
+        Assert.Equal(1, handler.Calls); // uma tentativa: repetir é da fila
         var line = Assert.Single(logs.Lines);
         Assert.Contains($"HTTP {status}", line, StringComparison.Ordinal);
         Assert.StartsWith(expected == EmailSendStatus.Sent ? "Information" : status == 404 ? "Error" : "Warning", line, StringComparison.Ordinal);
@@ -116,11 +130,86 @@ public class BrevoEmailSenderTests
     [InlineData("45", 45)]
     [InlineData("999999", 3600)]
     [InlineData("-1", null)]
-    public async Task No_429_devolve_a_espera_pedida_pela_Brevo_com_teto(string reset, int? expectedSeconds)
+    [InlineData("abc", null)]
+    [InlineData(null, null)]
+    public async Task No_429_devolve_a_espera_pedida_pela_Brevo_com_teto(string? reset, int? expectedSeconds)
     {
         var (result, _, _) = await SendAsync(Respond(HttpStatusCode.TooManyRequests, "{}", reset), Ct);
 
         Assert.Equal(expectedSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : null, result.RetryAfter);
+    }
+
+    [Fact]
+    public async Task Sem_chave_de_idempotencia_a_duplicata_e_recusa_e_o_corpo_nao_leva_tags_nem_headers()
+    {
+        var plain = Message with { Tag = null, IdempotencyKey = null };
+
+        var (result, handler, _) = await SendAsync(Respond(HttpStatusCode.BadRequest, Error("duplicate_parameter")), Ct, message: plain);
+
+        Assert.Equal(new EmailSendResult(EmailSendStatus.PermanentFailure, ErrorCode: "duplicate_parameter"), result);
+        var body = JsonDocument.Parse(handler.Body).RootElement;
+        Assert.False(body.TryGetProperty("tags", out _) || body.TryGetProperty("headers", out _));
+    }
+
+    /// <summary>
+    /// O status decide. Depois de um 2xx a Brevo já aceitou: corpo acima de 16 KB, cortado, atrasado, vazio ou fora do
+    /// formato continua <c>Sent</c> (repetir mandaria o e-mail em dobro). O corpo "grande" traz <c>messageId</c> e
+    /// <c>code</c> válidos no começo: se o teto não valesse, eles apareceriam no resultado.
+    /// </summary>
+    [Theory]
+    [InlineData("grande", 201, EmailSendStatus.Sent, "no_message_id")]
+    [InlineData("queda", 201, EmailSendStatus.Sent, "no_message_id")]
+    [InlineData("atraso", 201, EmailSendStatus.Sent, "no_message_id")]
+    [InlineData("vazio", 202, EmailSendStatus.Sent, "no_message_id")]
+    [InlineData("lista", 201, EmailSendStatus.Sent, "no_message_id")]
+    [InlineData("grande", 500, EmailSendStatus.TransientFailure, "http_500")]
+    [InlineData("queda", 400, EmailSendStatus.PermanentFailure, "http_400")]
+    [InlineData("atraso", 429, EmailSendStatus.TransientFailure, "http_429")]
+    [InlineData("vazio", 302, EmailSendStatus.PermanentFailure, "http_302")]
+    public async Task Corpo_ilegivel_nao_muda_o_que_o_status_ja_disse(string body, int status, EmailSendStatus expected, string expectedCode)
+    {
+        HttpContent content = body switch
+        {
+            "grande" => new StringContent($$"""{"messageId":"<1@relay.example.org>","code":"invalid_parameter","pad":"{{new string('a', 17 * 1024)}}"}"""),
+            "queda" => new BrokenContent(_ => throw new IOException("a conexão caiu")),
+            "atraso" => new BrokenContent(token => Task.Delay(System.Threading.Timeout.Infinite, token)),
+            "lista" => new StringContent("[]"),
+            _ => new StringContent(""),
+        };
+
+        var (result, handler, _) = await SendAsync(
+            _ => Task.FromResult(new HttpResponseMessage((HttpStatusCode)status) { Content = content }),
+            Ct,
+            body == "atraso" ? TimeSpan.FromMilliseconds(300) : null);
+
+        Assert.Equal(new EmailSendResult(expected, ErrorCode: expectedCode), result);
+        Assert.Equal(1, handler.Calls);
+    }
+
+    [Fact]
+    public async Task Cancelamento_do_chamador_depois_de_aceito_continua_enviado()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var content = new BrokenContent(async token =>
+        {
+            await cancellation.CancelAsync();
+            await Task.Delay(System.Threading.Timeout.Infinite, token);
+        });
+
+        var (result, _, _) = await SendAsync(
+            _ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Created) { Content = content }), cancellation.Token);
+
+        Assert.Equal(new EmailSendResult(EmailSendStatus.Sent, ErrorCode: "no_message_id"), result);
+    }
+
+    [Fact]
+    public async Task Chave_que_nao_cabe_num_cabecalho_suspende_sem_lancar_e_sem_chamar_a_Brevo()
+    {
+        var (result, handler, logs) = await SendAsync(Respond(HttpStatusCode.Created, "{}"), Ct, apiKey: "chave\r\ninjetada: valor");
+
+        Assert.Equal(new EmailSendResult(EmailSendStatus.ProviderSuspended, ErrorCode: "invalid_api_key"), result);
+        Assert.Equal(0, handler.Calls);
+        Assert.DoesNotContain("injetada", string.Join('\n', logs.Lines), StringComparison.Ordinal);
     }
 
     [Fact]

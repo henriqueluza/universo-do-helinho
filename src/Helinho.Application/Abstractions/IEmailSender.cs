@@ -31,8 +31,9 @@ public enum EmailSendStatus
 
 /// <summary>
 /// <paramref name="MessageId"/> é o id no provedor. <paramref name="ErrorCode"/> é um código curto de vocabulário fechado,
-/// nunca texto do provedor; com <see cref="EmailSendStatus.Sent"/> e sem id, diz que o provedor já tinha aceitado a mesma
-/// chave de idempotência. <paramref name="RetryAfter"/> é a espera mínima pedida pelo provedor.
+/// nunca texto do provedor. Com <see cref="EmailSendStatus.Sent"/> ele só aparece quando não há id e diz por quê: o
+/// provedor já tinha aceitado a mesma chave de idempotência, ou aceitou e a resposta não trouxe id legível.
+/// <paramref name="RetryAfter"/> é a espera mínima pedida pelo provedor.
 /// </summary>
 public sealed record EmailSendResult(
     EmailSendStatus Status, string? MessageId = null, string? ErrorCode = null, TimeSpan? RetryAfter = null);
