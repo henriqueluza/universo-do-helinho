@@ -1,4 +1,5 @@
-Copyright 2014 The DM Sans Project Authors (https://github.com/googlefonts/dm-fonts)
+Fontes autohospedadas do painel: Nunito e Baloo 2 (tema Recreio). A DM Sans, do tema
+antigo, saiu na Issue #195 junto com os arquivos dela.
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
@@ -91,3 +92,39 @@ INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
 DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
+
+
+=====================================================================
+Nunito e Baloo 2 (tema Recreio)
+=====================================================================
+
+Estas duas famílias são licenciadas sob a SIL Open Font License,
+Versão 1.1, cujo texto integral está acima (o texto é idêntico; só muda a
+linha de copyright de cada família, abaixo).
+
+Nunito
+  Copyright 2014 The Nunito Project Authors (https://github.com/googlefonts/nunito)
+  Licença: OFL 1.1 (https://github.com/google/fonts/blob/main/ofl/nunito/OFL.txt)
+  Arquivo: nunito-latin-wght-normal.woff2 (fonte variável; o tema usa o
+           intervalo de peso 500-900; subconjunto "latin" do Google Fonts,
+           cobre o português do Brasil)
+  Origem:  https://fonts.gstatic.com/s/nunito/v32/XRXV3I6Li01BKofINeaBTMnFcQ.woff2
+           (servido pelo Google Fonts, API css2, família Nunito, v32;
+           repositório de origem: google/fonts, ofl/nunito, último commit
+           na verificação: 8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5)
+  SHA-256: 20fc9b6fc618e7c3c68d3ac750a2a5dfbceb8521675458d2cea580b5693e4798
+
+Baloo 2
+  Copyright 2019 The Baloo 2 Project Authors (https://github.com/EkType/Baloo2)
+  Licença: OFL 1.1 (https://github.com/google/fonts/blob/main/ofl/baloo2/OFL.txt)
+  Arquivo: baloo-2-latin-wght-normal.woff2 (fonte variável; o tema usa os
+           pesos 700 e 800; subconjunto "latin" do Google Fonts)
+  Origem:  https://fonts.gstatic.com/s/baloo2/v23/wXKrE3kTposypRyd51jcAM4olXc.woff2
+           (servido pelo Google Fonts, API css2, família Baloo 2, v23;
+           repositório de origem: google/fonts, ofl/baloo2, último commit
+           na verificação: c13390277dfb1fcc7415d84ef7ef9cfc1e52f8c1)
+  SHA-256: 2e9420db49d01d76a7b8a38ef22ec9c45305d9f15fafa370389b7bf467658fc3
+
+Os arquivos foram baixados de fonts.gstatic.com em 19/11/2026 e não foram
+modificados. Não há referência a CDN no CSS: os arquivos são servidos de
+/fonts/.

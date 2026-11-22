@@ -45,15 +45,6 @@ public sealed class IndexModel(IAppDbContext db, IClock clock) : PageModel
 
     private async Task LoadAsync(CancellationToken ct) => Events = await ListLiveEvents.HandleAsync(db, clock, ct);
 
-    public static string QuizLabel(QuizType t) => t switch
-    {
-        QuizType.Ambiental => "Ambiental",
-        QuizType.Conhecimento => "Conhecimento",
-        QuizType.Cultural => "Cultural",
-        QuizType.Esportivo => "Esportivo",
-        _ => "Diversidade",
-    };
-
     public sealed class EventInput
     {
         [Required(ErrorMessage = "Informe o título.")]

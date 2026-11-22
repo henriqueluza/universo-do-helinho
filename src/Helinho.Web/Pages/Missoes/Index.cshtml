@@ -3,43 +3,60 @@
 @{
     ViewData["Title"] = "Missões";
 }
+<div class="page-head">
+    <p class="sub">Missões diárias que dão XP ao aluno. Edite a meta e a recompensa.</p>
+</div>
 @if (Model.Aviso is not null)
 {
-    <div class="alert alert-success" role="status">@Model.Aviso</div>
+    <div class="note ok" role="status"><svg aria-hidden="true"><use href="#i-ok" /></svg><span>@Model.Aviso</span></div>
 }
 @if (Model.Quests.Count == 0)
 {
-    <div class="card-panel" id="missoes-vazio">
-        <p class="mb-1 fw-semibold">Nenhuma missão cadastrada.</p>
-        <p class="muted mb-0">As missões diárias aparecem aqui quando existirem.</p>
-    </div>
+    <section class="panel panel-pad" id="missoes-vazio" aria-label="Missões diárias">
+        <div class="empty">
+            <img src="~/img/cara-helinho.webp" alt="" width="117" height="120" />
+            <b>Nenhuma missão cadastrada.</b>
+            <p>As missões diárias aparecem aqui quando existirem.</p>
+        </div>
+    </section>
 }
 else
 {
-    <div class="card-panel">
-        <table class="table" id="missoes">
-            <caption class="visually-hidden">Missões diárias</caption>
-            <thead>
-                <tr>
-                    <th scope="col">Título</th>
-                    <th scope="col">Meta</th>
-                    <th scope="col">Recompensa</th>
-                    <th scope="col">Tipo de quiz</th>
-                    <th scope="col"><span class="visually-hidden">Ações</span></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var q in Model.Quests)
-                {
+    <section class="panel panel-pad" aria-label="Missões diárias">
+        <div class="table-wrap">
+            <table class="table" id="missoes">
+                <caption class="visually-hidden">Missões diárias</caption>
+                <thead>
                     <tr>
-                        <th scope="row" class="fw-semibold">@q.Title</th>
-                        <td>@q.Target</td>
-                        <td>@q.RewardXp XP</td>
-                        <td>@IndexModel.TypeLabel(q.QuizType)</td>
-                        <td><a class="btn btn-outline-secondary" asp-page="Editar" asp-route-id="@q.Id">Editar<span class="visually-hidden"> @q.Title</span></a></td>
+                        <th scope="col">Título</th>
+                        <th scope="col" class="num">Meta</th>
+                        <th scope="col" class="num">Recompensa</th>
+                        <th scope="col">Tipo de quiz</th>
+                        <th scope="col" class="actions">Ações</th>
                     </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+                </thead>
+                <tbody>
+                    @foreach (var q in Model.Quests)
+                    {
+                        <tr>
+                            <th scope="row">@q.Title</th>
+                            <td class="num">@q.Target</td>
+                            <td class="num">@q.RewardXp XP</td>
+                            <td>
+                                @if (q.QuizType is { } type)
+                                {
+                                    <partial name="_TemaQuiz" model="type" />
+                                }
+                                else
+                                {
+                                    <span class="tag tag-neutral">@IndexModel.TypeLabel(null)</span>
+                                }
+                            </td>
+                            <td class="actions"><a class="link-btn" asp-page="Editar" asp-route-id="@q.Id" aria-label="Editar @q.Title">Editar</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
 }

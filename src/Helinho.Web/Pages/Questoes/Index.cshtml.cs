@@ -47,15 +47,6 @@ public sealed class IndexModel(IAppDbContext db) : PageModel
 
     public string PageLink(int page) => Url.Page("/Questoes/Index", new { tipo = Tipo, faixa = Faixa, status = Status, pagina = page })!;
 
-    public static string QuizLabel(QuizType t) => t switch
-    {
-        QuizType.Ambiental => "Ambiental",
-        QuizType.Conhecimento => "Conhecimento",
-        QuizType.Cultural => "Cultural",
-        QuizType.Esportivo => "Esportivo",
-        _ => "Diversidade",
-    };
-
     public static string BandLabel(AgeBand band) => band switch
     {
         AgeBand.Age6To7 => "6–7 anos",
