@@ -104,40 +104,108 @@ variable "variaveis_web" {
     Api__Auth__LockoutDuration   = optional(string, "00:15:00")
     Api__Auth__LoginRateLimit    = optional(string, "10")
     Api__Auth__LoginRateWindow   = optional(string, "00:01:00")
-    # Sprints 3 e 4: já declaradas; ficam vazias até lá.
+    # E-mail (ADR-0003 §7 e D7). Com Brevo, remetente e URL pública passam a ser obrigatórios.
     Email__Provider    = optional(string, "Fake")
+    Email__DailyLimit  = optional(string, "300") # teto diário de envios; 0 = sem teto
     Brevo__SenderEmail = optional(string, "")
     Brevo__SenderName  = optional(string, "")
     App__PublicBaseUrl = optional(string, "")
-    Ai__Provider       = optional(string, "Fake")
-    Ai__Model          = optional(string, "")
+    # IA (ADR-0004 §13, §14 e D9). Ai__Provider omitido ou vazio: Fake em homologacao, Off em producao.
+    Ai__Provider           = optional(string)
+    Ai__Model              = optional(string, "")
+    Ai__TimeoutSeconds     = optional(string, "90")
+    Ai__DailyQuotaPerAdmin = optional(string, "60")
+    Ai__DailyGlobalLimit   = optional(string, "300")
   })
   default  = {}
   nullable = false
+
+  validation {
+    condition     = contains(["Fake", "Brevo"], var.variaveis_web.Email__Provider)
+    error_message = "Email__Provider aceita Fake ou Brevo."
+  }
+  validation {
+    condition     = contains(["Off", "Fake", "Anthropic"], coalesce(var.variaveis_web.Ai__Provider, "Off"))
+    error_message = "Ai__Provider aceita Off, Fake ou Anthropic."
+  }
+  # As quatro validações abaixo repetem no `plan` o que a aplicação recusa na subida (EmailOptions e AiOptions).
+  validation {
+    condition = (var.variaveis_web.Brevo__SenderEmail == "" ? var.variaveis_web.Email__Provider != "Brevo" :
+    can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.variaveis_web.Brevo__SenderEmail)))
+    error_message = "Brevo__SenderEmail precisa ser um e-mail válido e é obrigatório com Email__Provider = \"Brevo\"."
+  }
+  validation {
+    condition = length(var.variaveis_web.Brevo__SenderName) <= 70 && (
+    var.variaveis_web.Email__Provider != "Brevo" || trimspace(var.variaveis_web.Brevo__SenderName) != "")
+    error_message = "Brevo__SenderName tem até 70 caracteres e é obrigatório com Email__Provider = \"Brevo\"."
+  }
+  validation {
+    condition = (var.variaveis_web.App__PublicBaseUrl != ""
+      ? can(regex("^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$", var.variaveis_web.App__PublicBaseUrl))
+    : var.variaveis_web.Email__Provider != "Brevo" || alltrue([for a in var.ambientes : a.dominio_proprio != ""]))
+    error_message = "App__PublicBaseUrl precisa ser https://<host em minúsculas>, sem caminho, barra final nem query. Com Email__Provider = \"Brevo\" ela é obrigatória: preencha-a ou defina o dominio_proprio de cada ambiente."
+  }
+  validation {
+    condition = var.variaveis_web.Ai__Provider != "Anthropic" || (
+    can(regex("^[A-Za-z0-9][A-Za-z0-9._-]*$", var.variaveis_web.Ai__Model)) && !endswith(var.variaveis_web.Ai__Model, "latest"))
+    error_message = "Ai__Provider = \"Anthropic\" exige Ai__Model com o identificador exato do modelo, sem apelido \"latest\"."
+  }
+  validation {
+    condition = alltrue([
+      for nome, faixa in {
+        Email__DailyLimit      = [0, 100000]
+        Ai__TimeoutSeconds     = [5, 300]
+        Ai__DailyQuotaPerAdmin = [1, 10000]
+        Ai__DailyGlobalLimit   = [1, 100000]
+      } : var.variaveis_web[nome] == "" || try(tonumber(regex("^[0-9]{1,6}$", var.variaveis_web[nome])) >= faixa[0] && tonumber(var.variaveis_web[nome]) <= faixa[1], false)
+    ])
+    error_message = "Use inteiros sem sinal: Email__DailyLimit de 0 a 100000 (0 = sem teto), Ai__TimeoutSeconds de 5 a 300, Ai__DailyQuotaPerAdmin de 1 a 10000 e Ai__DailyGlobalLimit de 1 a 100000. Vazio = não enviada (vale o padrão da aplicação)."
+  }
 }
 
 variable "brevo_api_key" {
-  description = "Brevo__ApiKey (Sprint 3)."
+  description = "Brevo__ApiKey: chave de API da Brevo (ADR-0003). Obrigatória com Email__Provider = \"Brevo\"."
   type        = string
   sensitive   = true
   default     = ""
   nullable    = false
 
   validation {
-    condition     = contains(["Fake", "Brevo"], var.variaveis_web.Email__Provider) && (var.variaveis_web.Email__Provider == "Fake" || var.brevo_api_key != "")
-    error_message = "Email__Provider aceita Fake ou Brevo, e Brevo exige TF_VAR_brevo_api_key."
+    condition     = var.variaveis_web.Email__Provider != "Brevo" || var.brevo_api_key != ""
+    error_message = "Email__Provider = \"Brevo\" exige TF_VAR_brevo_api_key."
+  }
+  validation {
+    condition     = can(regex("^[!-~]*$", var.brevo_api_key))
+    error_message = "brevo_api_key vai em cabeçalho HTTP: não pode ter espaço, quebra de linha nem caractere fora do ASCII visível."
+  }
+}
+
+variable "brevo_webhook_secret" {
+  description = "Brevo__WebhookSecret: valor do cabeçalho X-Helinho-Webhook-Secret do webhook da Brevo (ADR-0003 §12). Vazio = não enviada, e o webhook fica desligado na aplicação."
+  type        = string
+  sensitive   = true
+  default     = ""
+  nullable    = false
+
+  validation {
+    condition     = var.brevo_webhook_secret == "" || can(regex("^[!-~]{32,}$", var.brevo_webhook_secret))
+    error_message = "brevo_webhook_secret, quando preenchido, precisa de 32 ou mais caracteres ASCII visíveis, sem espaço."
   }
 }
 
 variable "ai_api_key" {
-  description = "Ai__ApiKey (Sprint 4)."
+  description = "Ai__ApiKey: chave de API da Anthropic (ADR-0004). Obrigatória com Ai__Provider = \"Anthropic\"; Off e Fake não usam chave."
   type        = string
   sensitive   = true
   default     = ""
   nullable    = false
 
   validation {
-    condition     = var.variaveis_web.Ai__Provider == "Fake" || var.ai_api_key != ""
-    error_message = "Ai__Provider diferente de Fake exige TF_VAR_ai_api_key."
+    condition     = var.variaveis_web.Ai__Provider != "Anthropic" || var.ai_api_key != ""
+    error_message = "Ai__Provider = \"Anthropic\" exige TF_VAR_ai_api_key."
+  }
+  validation {
+    condition     = can(regex("^[!-~]*$", var.ai_api_key))
+    error_message = "ai_api_key vai em cabeçalho HTTP: não pode ter espaço, quebra de linha nem caractere fora do ASCII visível."
   }
 }
