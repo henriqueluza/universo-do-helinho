@@ -1,13 +1,13 @@
 # ADR-0004 — IA na geração de rascunhos de questões
 
 **Data:** 19/11/2026 · **Status:** aceito em 22/11/2026 (ver seção 16) · **Decisor:** Henrique
-**Issue:** #177 · **Base:** ADR-0001 (stack, portas e fakes, risco R3), ADR-0003 (fila `QueueJobs`, aceito em 22/11/2026, PR #185), PRD (B6 e seção 6), `docs/design/GUIA-DE-EVOLUCAO.md` §3.3 e §3.3.1
-
-**Dependência de merge:** este ADR cita o ADR-0003 por seção, e o arquivo `docs/architecture/ADR-0003-emails-brevo.md` só chega a `main` com o **PR #185**. O #185 é mergeado **antes ou junto** deste PR (#181); enquanto isso, as referências "ADR-0003 §x.y" valem para a versão da branch `issue-176-adr-emails-brevo` lida em 22/11/2026.
-
-**Escopo em relação à Issue #177:** a Issue pedia o adaptador "desenhado, sem implementar". Em 22/11/2026 o Henrique mudou o escopo da sprint: o adaptador é implementado agora, nas Issues 15 e 16 do plano (seção 19). **Este PR continua só de documentação**; a mudança está registrada também em comentário na Issue #177.
+**Issue:** #177 · **Base:** ADR-0001 (stack, portas e fakes, risco R3), ADR-0003 (fila `QueueJobs`, aceito em 22/11/2026, PR #185; ver "Dependências"), PRD (B6 e seção 6), `docs/design/GUIA-DE-EVOLUCAO.md` §3.3 e §3.3.1
 
 **Nível de arquitetura:** `clean` (ADR-0001, seção 3). Este ADR não muda o nível.
+
+**Dependências:** o **ADR-0003** (fila `QueueJobs`, aceito em 22/11/2026) ainda não está em `main`: está no PR #185, branch `issue-176-adr-emails-brevo`. Este ADR cita várias seções dele, sobretudo na seção 10. **Ordem de merge: o PR #185 entra antes do PR #181 (este ADR), ou junto com ele.** Se o #181 entrasse sozinho, as referências "ADR-0003 §x.y" apontariam para um arquivo ausente da `main`.
+
+**Escopo em relação à Issue #177:** a Issue pedia o adaptador "desenhado, sem implementar" e punha código fora de escopo. Em 22/11/2026 o Henrique mudou o escopo da sprint: o adaptador é implementado agora, nas Issues 15 e 16 do plano (seção 19). **Este PR continua só de documentação**; a mudança está registrada na seção 16 e em nota no corpo da Issue #177.
 
 **Regra da casa, registrada aqui:** **a IA sugere, a equipe decide.** Tudo o que a IA gera nasce como sugestão; nada gerado chega ao jogo sem que uma pessoa da equipe aprove; editar devolve a rascunho.
 
@@ -27,7 +27,7 @@ A geração por IA está no PRD como "fora do MVP, dentro do contrato" (PRD, se�
 
 **Três fatos do código que condicionam este ADR:**
 
-1. **Não existe fila nem `BackgroundService` em `main`.** O ADR-0001 diz, em `docs/architecture/ADR-0001-stack.md:23`: "Um PostgreSQL único resolve; não há caso para consistência eventual, cache distribuído ou fila." As Sprints 3 e 4 trazem o caso que não existia: o envio de e-mail e a geração por IA são trabalhos demorados e sujeitos a falha de terceiros. A fila persistente é decidida no **ADR-0003** (Issue #176, PR #185, aceito em 22/11/2026): uma tabela genérica `QueueJobs` no mesmo PostgreSQL, e é ele que revisa essa frase do ADR-0001. Este ADR não cria fila; a seção 10 diz como a IA usa a `QueueJobs` e confere os requisitos da IA contra o ADR-0003 aceito.
+1. **Não existe fila nem `BackgroundService` em `main`.** O ADR-0001 diz, em `docs/architecture/ADR-0001-stack.md:23`: "Um PostgreSQL único resolve; não há caso para consistência eventual, cache distribuído ou fila." As Sprints 3 e 4 trazem o caso que não existia: o envio de e-mail e a geração por IA são trabalhos demorados e sujeitos a falha de terceiros. A fila persistente é decidida no **ADR-0003** (Issue #176, PR #185): uma tabela genérica `QueueJobs` no mesmo PostgreSQL. Este ADR não cria fila; a seção 10 descreve como a IA usa a fila do ADR-0003, já com os ajustes que este ADR pediu e que o ADR-0003 aceitou (§6.8 dele).
 2. **Não existe tabela de auditoria.** O PRD deixa "auditoria completa" fora do escopo. "Quem gerou, quem aprovou e quem descartou" fica nas próprias tabelas da IA (seção 9), sem módulo de auditoria novo.
 3. **`Question` não tem data de criação nem autor.** A proveniência entra por migração (seção 9).
 
@@ -59,7 +59,7 @@ A geração por IA está no PRD como "fora do MVP, dentro do contrato" (PRD, se�
 | F22 | `https://genai.owasp.org/llm-top-10/` | OWASP Top 10 para aplicações com LLM (edição 2025, a publicada na data) |
 | F23 | skill `claude-api` do Claude Code (tabela de modelos em cache de 03/11/2026) e guia de C# da mesma skill | conferência cruzada de modelo, preço e forma do SDK |
 | F24 | skill `owasp-security` do repositório (`.claude/skills/owasp-security/SKILL.md`) | lista de riscos de LLM usada pela revisão da casa |
-| F25 | ADR-0003, lido em `origin/issue-176-adr-emails-brevo:docs/architecture/ADR-0003-emails-brevo.md` (PR #185). Lido em 19/11/2026 como proposta e de novo em 22/11/2026, já aceito e com a seção 6.8 | fila `QueueJobs`, trabalhador, contrato do tratador e o que ele define para a Sprint 4 |
+| F25 | ADR-0003, lido em `origin/issue-176-adr-emails-brevo:docs/architecture/ADR-0003-emails-brevo.md` (PR #185). Lido como proposta em 19/11/2026 e de novo em 22/11/2026, já aceito, no commit `589d9ff` | fila `QueueJobs`, trabalhador, contrato do tratador e o que ele prevê para a Sprint 4 |
 
 **Como ler estas fontes.** F1, F2, F4, F6, F7, F8, F10 e F11 foram lidas no texto integral da página. F3 e F13 foram lidas no texto integral, por busca nos trechos relevantes. F5 e F9 foram lidas em duas partes (a primeira parte resumida pela ferramenta de leitura, a segunda integral). **F12 e F14 a F22 chegaram como resumo feito pela ferramenta de leitura**, não como texto integral: os números vindos delas (preços da OpenAI e do Google, prazos de retenção, datas) precisam ser conferidos por uma pessoa na página antes de irem à contratante. A seção 18 lista o que não foi possível confirmar.
 
@@ -74,7 +74,7 @@ A geração por IA está no PRD como "fora do MVP, dentro do contrato" (PRD, se�
 | Saída do modelo | Dado não confiável: análise estrita, validação e deduplicação em `Application`, iguais para qualquer provedor; nunca `Html.Raw` (seção 8). |
 | Onde vivem os rascunhos | **Tabela de sugestões ligada ao job.** A sugestão só vira `Question` quando alguém aprova ou edita e salva (seção 9). |
 | Proveniência | `Question.Origin` (`Team` \| `Ai`), `AiJobId`, `PromptVersion`, `GeneratedAt`, por migração em Issue própria. Origem IA nunca volta a `Team` (seção 9). |
-| Fila | Usar a `QueueJobs` do ADR-0003, com o tipo `ai.question-drafts` e um tratador, sem migração de fila nesta sprint. Política do tratador da IA: 2 tentativas, lote 1, posse de 150 s, `ExpiresAt` de 10 min (seção 10.2). Os sete ajustes pedidos ao ADR-0003 foram aceitos por ele (seção 10.4). |
+| Fila | Usar a `QueueJobs` do ADR-0003, com o tipo `ai.question-drafts` e um tratador, sem migração de fila nesta sprint. Os sete ajustes que este ADR pediu foram aceitos no ADR-0003 (§6.8 dele); a seção 10 descreve o estado final. |
 | Privacidade | Nenhum dado de aluno, administrador ou unidade vai ao provedor. Invariante com teste (seção 11). |
 | Ameaças | Injeção de prompt e demais riscos de LLM tratados na seção 12; pior caso = rascunho ruim que a pessoa descarta. |
 | Custos | Cota por administrador, teto global, máximo de 20 por pedido, registro de uso por job, limite de gasto no console do provedor (seção 13). |
@@ -150,7 +150,7 @@ Em `src/Helinho.Infrastructure/Fakes/`, como os fakes de e-mail e push.
 | Item | Fato | Fonte |
 |---|---|---|
 | Endpoint | `POST https://api.anthropic.com/v1/messages` | F4, F5 |
-| Autenticação | `Authorization: Bearer <chave>` é o cabeçalho documentado como principal. `x-api-key: <chave>` continua aceito e aparece como "legacy fallback". Com o SDK (D4), quem monta o cabeçalho é o SDK; reconferir na página antes da Issue 16, porque exemplos da própria documentação ainda usam `x-api-key`. | F4 |
+| Autenticação | `Authorization: Bearer <chave>` é o cabeçalho documentado como principal. `x-api-key: <chave>` continua aceito e aparece como "legacy fallback". | F4 |
 | Versão | `anthropic-version` é obrigatório. Versões existentes: `2026-10-21` (a mais recente), `2023-06-01` e `2023-01-01`. Na `2026-10-21`, enviar `temperature`, `top_p` ou `top_k` devolve 400. | F4, F6 |
 | Outros cabeçalhos | `content-type: application/json`. A resposta traz `request-id`. | F4, F7 |
 | Corpo mínimo | `model`, `max_tokens`, `messages`; `system` opcional; `output_config.format` e `output_config.effort` opcionais. | F5 |
@@ -187,8 +187,6 @@ Em `src/Helinho.Infrastructure/Fakes/`, como os fakes de e-mail e push.
 6. **Tentativas: só 429 e 5xx (incluindo 529)**, no máximo duas repetições, com espera exponencial e `retry-after` quando vier, sempre dentro do prazo total. **Não repete:** 400, 401, 402, 403, 404, 413; o 429 de teto de gasto (`enforced_spend_limit_reached`, que não tem `retry-after`); o 400 de limite de gasto próprio; e recusa.
 7. Mapeia a resposta: `stop_reason = "end_turn"` → analisa o JSON com o analisador comum (seção 8); `"max_tokens"` → `InvalidOutput`; `"refusal"` → `Refused`; 401/403/404 → `Misconfigured`; 429 → `RateLimited`; 5xx, 529 e limite de gasto → `ProviderUnavailable`; cancelamento pelo prazo → `Timeout`.
 8. Preenche `AiUsage` com `model` e `usage` da resposta, a duração medida e o `request-id` do cabeçalho de resposta.
-9. **Endereço do provedor não é configuração.** `AiOptions` não tem endereço base: o adaptador usa o do SDK (`https://api.anthropic.com`). Não existe variável `Ai__BaseUrl`, e a variável de ambiente `ANTHROPIC_BASE_URL`, que o SDK lê por conta própria (F11), não pode valer: o adaptador passa o endereço e a chave de forma explícita ao construir o cliente. Nos testes, o cliente ou o handler falso entra por construção, nunca por variável de ambiente. Assim a chave não tem como ser enviada a outro destino por configuração.
-10. **Log do adaptador:** só o código do motivo (`QuestionDraftFailure`), o código HTTP e o `request-id`. A mensagem da exceção do SDK ou do `HttpClient` não é registrada, porque pode repetir trecho da requisição. O registro de depuração do SDK (`ANTHROPIC_LOG`) não é ligado em nenhum ambiente.
 
 ### 6.3 Esquema de saída
 
@@ -211,7 +209,7 @@ A Issue deixava a decisão para o PR do adaptador; o Henrique aceitou a recomend
 | Regra "só 429 e 5xx" | exata | o SDK também repete erro de conexão, 408 e 409; para a regra exata, `MaxRetries = 0` e laço próprio |
 | Versão da API | fixada por nós no cabeçalho | atrelada à versão maior do pacote |
 | Manutenção | nossa, a cada mudança de versão da API | da Anthropic; pacote com lançamentos frequentes |
-| Teste sem rede | `HttpMessageHandler` falso | cliente ou handler falso entregue na construção do adaptador; se o SDK aceita `HttpClient` injetado não foi confirmado (seção 18), e a alternativa é o endereço base passado só na construção, dentro do teste |
+| Teste sem rede | `HttpMessageHandler` falso | `BaseUrl` apontando para servidor de teste local; injeção de `HttpClient` não confirmada (seção 18) |
 | Tamanho estimado do PR | 400 a 500 linhas com testes, provavelmente em dois PRs | 250 a 350 linhas com testes |
 
 **Decisão (D4, aceita em 22/11/2026, como recomendada): SDK oficial**, com Issue de dependência e auditoria antes do adaptador (seção 19), por ser o caminho que a própria Anthropic indica quando há SDK para a linguagem (F4, F23) e por tirar do nosso código a parte que mais envelhece (formato da API e política de tentativas). **Caminho de volta:** se a auditoria de dependências reprovar o pacote ou a contratante não quiser dependência nova, `HttpClient` tipado, com dois PRs. Em qualquer caso, `Program.cs` não é editado (registro em `Web/Composition/`) e os testes não tocam a rede.
@@ -233,8 +231,10 @@ Com o adaptador já entregue na sprint, ligar o Haiku exige só as variáveis `A
 |---|---|---|---|---|
 | **Anthropic — Claude Haiku 5.5** (`claude-haiku-5-5`) | US$ 0,10 / US$ 0,50 (F2, F3) | **≈ US$ 0,51** (faixa de US$ 0,30 a US$ 0,80 variando raciocínio e tamanho do lote) | Não treina com dados da API por padrão (F15); apaga em até 30 dias, salvo conteúdo sinalizado (F14); ZDR por acordo (F13) | a avaliar com amostra revisada pela equipe pedagógica |
 | Anthropic — Claude Haiku 4.5 (`claude-haiku-4-5`) | US$ 1 / US$ 5 (F1, F3) | ≈ US$ 5 (sem descontar os ~30% a menos de tokens do tokenizador antigo) | a mesma da Anthropic | a avaliar |
-| OpenAI — `gpt-6-luna` **(linha não confirmada em texto integral: F18 e F19 vieram como resumo)** | US$ 0,10 / US$ 0,50 (F18) | ≈ US$ 0,51 | Não treina com dados da API por padrão; registros de abuso por até 30 dias; ZDR sujeito a aprovação (F19) | a avaliar |
-| Google — Gemini 3.5 Flash-Lite (`gemini-3.5-flash-lite`) **(linha não confirmada em texto integral: F20 e F21 vieram como resumo)** | US$ 0,30 / US$ 2,50 (F20) | ≈ US$ 2,40 | No nível pago, não usa prompts e respostas para melhorar produtos; no nível gratuito usa, com revisão humana (F21). **Os termos exigem 18 anos e vedam uso em cliente "directed towards or … likely to be accessed by individuals under the age of 18"** (F21) | a avaliar |
+| OpenAI — `gpt-6-luna` (*não confirmado em texto integral*) | US$ 0,10 / US$ 0,50 (F18) | ≈ US$ 0,51 | Não treina com dados da API por padrão; registros de abuso por até 30 dias; ZDR sujeito a aprovação (F19) | a avaliar |
+| Google — Gemini 3.5 Flash-Lite (`gemini-3.5-flash-lite`) (*não confirmado em texto integral*) | US$ 0,30 / US$ 2,50 (F20) | ≈ US$ 2,40 | No nível pago, não usa prompts e respostas para melhorar produtos; no nível gratuito usa, com revisão humana (F21). **Os termos exigem 18 anos e vedam uso em cliente "directed towards or … likely to be accessed by individuals under the age of 18"** (F21) | a avaliar |
+
+As linhas da OpenAI e do Google vêm de F18 a F21, que chegaram como resumo da ferramenta de leitura: **preço e política de dados não foram confirmados em texto integral** (seção 2; seção 18, item 7).
 
 **Leitura.** O custo de tokens é irrelevante para a decisão: no pior caso das cotas propostas (seção 13) o gasto mensal fica em poucos dólares em qualquer dos três. O que decide é política de dados, termos de uso em produto ligado a menores, qualidade em português e a regra da contratante sobre fornecedores (C14, sem orientação registrada). Nenhuma página consultada publica medida de qualidade em português do Brasil para esses modelos; por isso a coluna diz "a avaliar". A avaliação proposta é uma amostra de 100 questões (5 tipos × 4 faixas × 5), revisada pela equipe pedagógica com a mesma tela de revisão, antes de ligar o provedor em produção; ela custa centavos, mas exige conta e chave, que este ADR não cria.
 
@@ -282,7 +282,7 @@ A saída do modelo é **dado não confiável**, com qualquer provedor e também 
 2. há exatamente quatro alternativas e exatamente uma correta (índice de 0 a 3);
 3. as quatro alternativas são distintas depois de normalizadas;
 4. os tamanhos respeitam `SaveQuestion.StatementMax`, `ExplanationMax` e `OptionMax` (`ManageQuestions.cs:45-47`); texto acima do limite é **rejeitado, não cortado**;
-5. nenhum campo contém caractere de controle, caractere invisível ou de direção de texto (U+200B–U+200F, U+202A–U+202E, U+2066–U+2069), marcação (`<` seguido de letra, `/` ou `!`) ou endereço de site (`http://`, `https://`, `www.`);
+5. nenhum campo contém caractere de controle, caractere invisível ou de direção de texto (U+200B–U+200F, U+202A–U+202E, U+2066–U+2069), marcação (`<` seguido de letra, `/` ou `!`) ou endereço e esquema de link (`http://`, `https://`, `www.`, `javascript:`, `data:`);
 6. o enunciado não é duplicata.
 
 Rascunho rejeitado **não é gravado**: o texto é descartado e o job conta o motivo (`InvalidCount`, `DuplicateCount`). Nada do texto rejeitado vai para o log.
@@ -346,91 +346,94 @@ Uma questão de origem IA continua "IA" depois de editada. Para o selo distingui
 
 ## 10. Fila: a `QueueJobs` do ADR-0003
 
-A fila é decidida no **ADR-0003** (`docs/architecture/ADR-0003-emails-brevo.md`, seções 5 e 6), aceito pelo Henrique em 22/11/2026 e lido de novo nessa data na branch `issue-176-adr-emails-brevo` (PR #185). Este ADR não cria fila: usa a dele. As referências "§" abaixo são às seções do ADR-0003, na versão aceita.
+A fila é decidida no **ADR-0003** (`docs/architecture/ADR-0003-emails-brevo.md`, seções 5 e 6), aceito pelo Henrique em 22/11/2026 (D1 a D18) e lido em `origin/issue-176-adr-emails-brevo`, no commit `589d9ff`. Este ADR não cria fila: usa a dele. As referências "§" abaixo são às seções do ADR-0003. **O ADR-0003 ainda não está em `main`** (PR #185): a ordem de merge está no cabeçalho, em "Dependências".
 
-**Ordem de merge.** O arquivo do ADR-0003 só existe em `main` depois do PR #185. Este ADR depende dele (cabeçalho, "Dependência de merge").
+O texto abaixo descreve a fila **como o ADR-0003 aceito a decide**, já com os sete ajustes que este ADR pediu e que ele aceitou no §6.8 (D16 dele). O que foi pedido, e o que mudou de forma, fica como histórico na seção 10.4.
 
-### 10.1 O que o ADR-0003 define
+### 10.1 O que o ADR-0003 decide
 
-- **Tabela genérica `QueueJobs`** (§5.1): `Id`, `Type`, `SubjectId`, `Payload` (jsonb, com versão), `Status` (`Pending`, `Processing`, `Succeeded`, `Failed`, `Cancelled`), `Attempts`, `NextAttemptAt`, `ExpiresAt`, `LastError` (código de vocabulário fechado), `IdempotencyKey` (única), `ExternalId`, `Feedback`, `FeedbackAt`, `CreatedAt`, `FinishedAt`. O `Payload` não leva dado cadastral nem texto livre digitado por alguém: quando o trabalho tem dados próprios, leva só o id do registro que os guarda.
-- **Portas:** `IJobQueue.Enqueue(...)`, que acrescenta a linha ao contexto **sem salvar** (§5.5); `IJobProcessor`, chamado por um `BackgroundService` pequeno em `Web` (§6.1); um tratador `IJobHandler` por tipo.
-- **Política por tipo, sem teto global** (§6.2): teto de tentativas, espera, lote, tempo máximo por item e prazo de posse são do tratador, declarados em código (`JobPolicy`, §6.6). `ExpiresAt` também é por tipo.
-- **Captura, lote e laço por tratador** (§6.1, §6.4): `FOR UPDATE SKIP LOCKED` filtrando pelos tipos do tratador; `NextAttemptAt` faz o papel de prazo de posse; a aplicação confere na subida que `lote × tempo máximo por item ≤ posse`. E-mails e trabalhos de IA nunca dividem um lote nem um laço.
-- **Contrato do tratador** (§6.6): `HandleAsync(JobContext, CancellationToken)`, com `Attempts` já contando a tentativa em curso, escopo de injeção de dependência próprio por item, e resultado `Succeeded`, `Retry`, `Fail` ou `Suspend`.
-- **Resultado e conclusão na mesma gravação, com guarda de posse** (§6.6): o tratador não salva o resultado final; o que ele deixar no contexto é salvo pelo processador no mesmo `SaveChanges` que muda o `Status`, e só se a linha ainda estiver em `Processing` com o mesmo `Attempts`. Posse perdida, nada é gravado.
-- **Gancho de encerramento** (§6.7): quando a fila encerra um trabalho por `expired` ou `max_attempts` sem o tratador decidir, chama `IAbandonedJobHandler.OnAbandonedAsync`, se o tratador o implementar.
-- **Suspensão** (§6.3) é um resultado só do tratador de e-mail.
-- Linhas em estado final são apagadas 30 dias depois de `FinishedAt` (§5.6).
-- **Para a Sprint 4** (§6.5): tipo `ai.question-drafts` e um tratador, **sem migração nova para o mecanismo**.
+- **Tabela genérica `QueueJobs`** (§5.1): `Id`, `Type`, `SubjectId`, `Payload` (jsonb, com versão), `Status` (`Pending`, `Processing`, `Succeeded`, `Failed`, `Cancelled`), `Attempts`, `NextAttemptAt`, `ExpiresAt`, `LastError` (código de vocabulário fechado), `IdempotencyKey` (única), `ExternalId`, `Feedback`, `FeedbackAt`, `CreatedAt`, `FinishedAt`. O `Payload` não leva destinatário, corpo, token, dado cadastral nem texto livre digitado por alguém; quando o trabalho tem dados próprios, leva só o id do registro que os guarda.
+- **Portas** (§5.5, §6.1): `IJobQueue.Enqueue(...)`, que acrescenta a linha ao contexto **sem salvar**, e `IJobQueue.CancelPending(...)`; `IJobProcessor`, em `Infrastructure`, chamado por um `BackgroundService` pequeno em `Web`.
+- **Contrato do tratador** (§6.6): `IJobHandler` declara os tipos que atende (`Types`) e a própria política (`JobPolicy`), e recebe em `HandleAsync` um `JobContext` (`Id`, `Type`, `SubjectId`, `Payload`, `Attempts`, `CreatedAt`, `ExpiresAt`) e o `CancellationToken`. `Attempts` já conta a tentativa em curso. O resultado é sucesso, repetir, falhar ou suspender. Cada item roda num escopo de injeção de dependência próprio. Os nomes são ilustrativos; a Issue 1 do ADR-0003 os fixa.
+- **Política por tipo, sem teto global** (§6.2): teto de tentativas, espera, lote, tempo máximo por item, prazo de posse e `ExpiresAt` são do tratador. No e-mail: 8 tentativas, espera de 1 a 60 minutos, lote de 10, 10 s por item, posse de 2 minutos.
+- **Captura, lote e laço por tratador** (§6.1, §6.4): um comando de captura com `FOR UPDATE SKIP LOCKED` para cada tratador, com os tipos, o lote e a posse dele; `NextAttemptAt` faz também o papel de prazo de posse; a tentativa é contada ao capturar. E-mail e IA nunca dividem lote nem laço. Na subida, a aplicação confere que `lote × tempo máximo por item ≤ posse`. Com a fila de um tipo vazia, nova consulta a cada 5 s.
+- **Gravação única com guarda de posse** (§6.6): o que o tratador deixa no contexto é salvo pelo processador no mesmo `SaveChanges` que muda o `Status` do trabalho, com a condição `Status = 'Processing'` e `Attempts` igual ao recebido. Se a posse foi perdida, nada é gravado. Gravação intermediária é permitida e precisa suportar ser executada de novo. Exceção não tratada: nada é salvo, o processador registra `handler_exception` e trata como "repetir", dentro da política.
+- **Suspensão** (§6.3) para 401, 402 e 403: só o tratador de e-mail a usa. Ela devolve o trabalho a `Pending` sem gastar tentativa e pausa o laço daquele tratador.
+- **Gancho opcional de encerramento** (§6.7): quando a fila encerra um trabalho por conta própria (`expired` ou `max_attempts`), o processador chama `IAbandonedJobHandler.OnAbandonedAsync(...)`, se o tratador do tipo a implementa, e grava o que ela deixar no contexto junto com o `Failed`. Se o gancho lançar exceção, o `Failed` é gravado do mesmo jeito. `Cancelled` não passa pelo gancho.
+- **Retenção** (§5.6): linhas em estado final são apagadas 30 dias depois de `FinishedAt`.
+- **Para a Sprint 4** (§6.2, §6.5, §18): tipo `ai.question-drafts` e um tratador, **sem migração nova para o mecanismo**. Do plano do ADR-0003, a IA só precisa das Issues 1 (fila e contratos) e 8a (worker genérico).
 
 ### 10.2 Como a IA usa a `QueueJobs`
 
-| Peça | Valor para `ai.question-drafts` | Onde no ADR-0003 |
-|---|---|---|
-| `Type` | `ai.question-drafts` | §5.1, §6.5 |
-| `SubjectId` | o identificador de quem pediu | §6.5 |
-| `Payload` | `{"v":1,"aiJobId":"<id do AiGenerationJob>"}` e mais nada | §5.1, §6.5 |
-| `IdempotencyKey` | `ai.question-drafts:<quem pediu>:<tipo>-<faixa>-<quantidade>-<resumo do assunto>:<janela de 2 min>`, no formato do §5.4. O clique duplo cai na mesma chave; o índice único recusa a segunda linha e a tela leva ao pedido já criado. Pedidos diferentes da mesma pessoa têm chaves diferentes. | §5.4 |
-| Teto de tentativas | **2**; a segunda só existe para recuperar processo que morreu no meio | §6.2 |
-| Lote | **1** | §6.2 |
-| Tempo máximo por item | `Ai__TimeoutSeconds` (90 s no padrão) | §6.2 |
-| Prazo de posse | tempo máximo por item + 60 s (150 s no padrão) | §6.2 |
-| `ExpiresAt` | criação + **10 minutos** | §6.2 |
-| Espera entre tentativas | não se aplica: o tratador da IA nunca devolve `Retry` | §6.2 |
-| `ExternalId` | o `request-id` devolvido pelo provedor, quando houver (`AiUsage.ProviderRequestId`) | §5.1 |
-| `LastError` | códigos próprios: `ai_timeout`, `ai_unavailable`, `ai_rate_limited`, `ai_refused`, `ai_invalid_output`, `ai_misconfigured`, `ai_disabled`, além de `expired` e `max_attempts`, que são da fila | §5.1, §6.7 |
-| `Feedback`, `FeedbackAt`, estado `Cancelled`, resultado `Suspend` | não usados pela IA | §6.3 |
+| Peça | Valor para `ai.question-drafts` |
+|---|---|
+| `Type` | `ai.question-drafts` |
+| `SubjectId` | o identificador de quem pediu (§6.5) |
+| `Payload` | `{"v":1,"aiJobId":"<id do AiGenerationJob>"}` e mais nada (§5.1, §6.5). Tipo de quiz, faixa, quantidade e assunto ficam no `AiGenerationJob` |
+| `IdempotencyKey` | `ai.question-drafts:<quem pediu>:<tipo>-<faixa>-<quantidade>-<resumo do assunto>:<janela de 2 min>`, no formato do §5.4. O clique duplo cai na mesma chave; o índice único recusa a segunda linha e a tela leva ao pedido já criado. Pedidos diferentes da mesma pessoa têm chaves diferentes. |
+| Política (`JobPolicy`, §6.2) | teto de **2 tentativas**; lote de **1**; tempo máximo por item = `Ai__TimeoutSeconds` (90 s no padrão proposto); posse = tempo máximo por item + 60 s (**150 s**), maior que o prazo da chamada, para que um tratador lento mas vivo não seja capturado de novo. A espera entre tentativas só entra em jogo depois de exceção inesperada, porque o tratador nunca devolve "repetir" |
+| `ExpiresAt` | criação + **10 minutos** |
+| `ExternalId` | o `request-id` devolvido pelo provedor, quando houver (`AiUsage.ProviderRequestId`) |
+| `LastError` | códigos próprios: `ai_timeout`, `ai_unavailable`, `ai_rate_limited`, `ai_refused`, `ai_invalid_output`, `ai_misconfigured`, `ai_disabled`, além dos da fila (`expired`, `max_attempts`, `handler_exception`) |
+| `Feedback`, `FeedbackAt`, estado `Cancelled` | não usados pela IA |
 
 **Enfileirar.** `RequestAiDrafts` acrescenta o `AiGenerationJob` e chama `IJobQueue.Enqueue` no mesmo contexto; uma gravação só cria os dois, ou nenhum (§5.5).
 
-**Processar.** O tratador `ProcessAiDraftJob` lê o `AiGenerationJob` pelo id do `Payload`, marca-o `Processing` (gravação intermediária, que o §6.6 permite e que pode ser repetida sem dano), chama o gerador com o `CancellationToken` recebido, fora de transação, valida, deixa no contexto as sugestões, os contadores e o estado final do pedido, e devolve `Succeeded` ou `Fail`. O processador grava tudo junto com a conclusão do trabalho.
+**Processar.** O tratador `ProcessAiDraftJob`:
 
-**O tratador da IA só devolve `Succeeded` ou `Fail`.** Não devolve `Retry` nem `Suspend`:
+1. lê o `AiGenerationJob` pelo `aiJobId`; se ele já estiver em estado final, devolve sucesso sem chamar o gerador, para que um trabalho capturado de novo não pague outra chamada;
+2. marca o pedido como `Processing`, numa gravação intermediária que o §6.6 permite e que pode ser repetida sem efeito;
+3. chama o gerador com o `CancellationToken` recebido, que o processador cancela no tempo máximo por item; a chamada acontece fora de transação (§6.6);
+4. valida a saída (seção 8), deixa no contexto as sugestões, os contadores e o uso, e devolve sucesso. Na falha, deixa no contexto o `AiGenerationJob` em `Failed` com o código e devolve falha.
+
+O processador grava o que o tratador deixou junto com a conclusão do trabalho, numa gravação só e com a guarda de posse (§6.6): um trabalho capturado duas vezes não grava dois lotes de sugestões.
+
+**O tratador da IA só devolve sucesso ou falha.** Não devolve "repetir" nem "suspender":
 
 - 429 e 5xx já são repetidos **dentro do adaptador**, no máximo duas vezes, dentro do prazo (seção 6.2). Repetir de novo pela fila deixaria a tela em "gerando" e poderia cobrar tokens a cada tentativa.
 - `InvalidOutput`, `Refused` e `Timeout` não melhoram repetindo a mesma requisição.
 - `Misconfigured` (401, 403) e limite de gasto não são suspensos: com uma pessoa esperando, o certo é falhar com a mensagem e deixar que ela peça de novo depois.
 
-**A segunda tentativa.** Acontece em dois casos, os dois de defeito: o processo morreu no meio (a posse vence e a linha reaparece) ou o tratador deixou escapar uma exceção, que o processador registra como `handler_exception` e trata como repetir, dentro da política (§6.6). Por isso o tratador captura toda `QuestionDraftGenerationException` e devolve `Fail`. Quem protege contra resultado em dobro é a guarda de posse do §6.6: a gravação de uma execução que perdeu a posse é recusada inteira, com as sugestões dela.
+A fila só repete o trabalho em dois casos, os dois limitados pelo teto de 2 tentativas e pelo `ExpiresAt` de 10 minutos: **processo que morreu no meio** (a posse vence, a linha reaparece e o trabalho é capturado outra vez) e **exceção inesperada no tratador** (`handler_exception`, §6.6).
 
-**Encerramento pela fila.** O tratador da IA implementa `IAbandonedJobHandler`: em `expired` ou `max_attempts`, marca o `AiGenerationJob` como `Failed` com o mesmo motivo, na mesma gravação do `Failed` da fila (§6.7). Como o gancho pode falhar, a leitura do estado mantém a conferência que o próprio §6.7 recomenda: pedido não concluído há mais de 10 minutos é tratado como `Failed` (`expired`) e essa transição é gravada.
-
-**Fonte da verdade para a tela.** O que a tela consulta é `AiGenerationJobs`, não `QueueJobs`. Três motivos: as linhas da fila são apagadas 30 dias depois de terminadas, e `Question.AiJobId`, o registro de uso e a auditoria precisam durar mais; a fila não tem colunas para tokens, modelo e contadores; a cota é uma soma de `RequestedCount`. Por isso `Question.AiJobId` aponta para `AiGenerationJobs.Id`, nunca para `QueueJobs.Id`. O §6.5 registra o mesmo.
+**Fonte da verdade para a tela.** O que a tela consulta é `AiGenerationJobs`, não `QueueJobs`. Três motivos: as linhas da fila são apagadas 30 dias depois de terminadas, e `Question.AiJobId`, o registro de uso e a auditoria precisam durar mais; a fila não tem colunas para tokens, modelo e contadores; a cota é uma soma de `RequestedCount`. Por isso `Question.AiJobId` aponta para `AiGenerationJobs.Id`, nunca para `QueueJobs.Id`.
 
 **Progresso.** A `QueueJobs` não tem coluna de progresso e a IA não precisa de uma: há uma chamada por pedido, sem resultado parcial. O "progresso" da tela são os estados do `AiGenerationJob`: na fila (`Pending`), gerando (`Processing`), pronto ou falhou.
+
+**Encerramento pela fila.** Quando a fila encerra o trabalho sem passar pelo tratador (`expired` ou `max_attempts`, §6.7), `ProcessAiDraftJob` responde pelo gancho `IAbandonedJobHandler`: marca o `AiGenerationJob` como `Failed`, com o motivo, gravado junto com o `Failed` da fila. Como o §6.7 pede a quem depende do aviso, há também uma conferência na leitura: a leitura do estado trata como `Failed` (`expired`) todo pedido não concluído há mais de 10 minutos e grava essa transição. Ela cobre o caso de o gancho falhar.
 
 ### 10.3 Os requisitos da IA, um a um
 
 | # | Requisito da IA | `QueueJobs` (ADR-0003 aceito) | Situação |
 |---|---|---|---|
-| Q1 | Tabela genérica com tipo e parâmetros; um tratador por tipo | `Type`, `Payload` com versão, `IJobHandler` por tipo (§5.1, §6.6) | **Atendido** |
-| Q2 | Um trabalho por pedido, localizável por quem pediu | `Enqueue` na mesma gravação do pedido (§5.5); a tela usa o `Id` do `AiGenerationJob` | **Atendido** |
-| Q3 | Estados, tentativas e espera por tipo; para a IA, no máximo 2 tentativas | Política por tratador, sem teto global; IA com teto 2 (§6.2) | **Atendido** |
-| Q4 | `SKIP LOCKED` e prazo de posse por tipo; posse vencida devolve o trabalho | Captura, lote e laço por tratador; posse da IA de 150 s com lote 1; conferência na subida (§6.1, §6.2, §6.4) | **Atendido** |
-| Q5 | O tratador recebe `CancellationToken` e roda em escopo próprio | Contrato escrito, com `Attempts` e escopo por item (§6.6) | **Atendido** |
-| Q6 | Resultado e conclusão na mesma transação | Gravação única pelo processador, com guarda de posse (§6.6) | **Atendido** |
-| Q7 | Falha com código curto, nunca corpo ou texto gerado | `LastError varchar(100)`, vocabulário fechado (§5.1) | **Atendido** |
-| Q8 | `Payload` da IA só com o identificador do pedido | Regra geral da coluna e linha da IA em §5.1 e §6.5 | **Atendido** |
-| Q9 | Varredura de poucos segundos; um trabalhador basta | Um laço por tratador, consulta a cada 5 s com a fila do tipo vazia (§6.4) | **Atendido** |
+| Q1 | Tabela genérica com tipo e parâmetros; um tratador por tipo | `Type`, `Payload` com versão, `IJobHandler` por tipo, que declara os tipos que atende (§5.1, §6.6) | **Atendido** |
+| Q2 | Um trabalho por pedido, localizável por quem pediu | `Id` próprio; `Enqueue` na mesma gravação do pedido (§5.5). A tela usa o `Id` do `AiGenerationJob`, então não depende do `Id` da fila | **Atendido** |
+| Q3 | Estados, tentativas e espera **por tipo**; para a IA, no máximo 2 tentativas | `JobPolicy` de cada tratador, sem teto global; a IA declara 2 tentativas (§6.2) | **Atendido** |
+| Q4 | `SKIP LOCKED` e prazo de posse; posse vencida devolve o trabalho | `SKIP LOCKED`; `NextAttemptAt` como posse; captura, lote e posse por tratador, com a conferência `lote × tempo por item ≤ posse` na subida (§6.1, §6.4) | **Atendido** |
+| Q5 | O tratador recebe `CancellationToken` e roda em escopo próprio | `HandleAsync(JobContext, CancellationToken)`, com `Attempts` no `JobContext`; escopo de injeção de dependência por item (§6.6) | **Atendido** |
+| Q6 | Resultado e conclusão na mesma transação | Gravação única pelo processador, com a guarda de posse (§6.6) | **Atendido** |
+| Q7 | Falha com código curto, nunca corpo ou texto gerado | `LastError varchar(100)`, vocabulário fechado, "nunca mensagem livre" (§5.1) | **Atendido** |
+| Q8 | `Payload` da IA só com o identificador do pedido | Regra geral do `Payload` sem texto livre nem dado cadastral; a IA leva só o `aiJobId` (§5.1, §6.5) | **Atendido** |
+| Q9 | Varredura de poucos segundos; um trabalhador basta | Laço por tratador; nova consulta a cada 5 s com a fila do tipo vazia (§6.4) | **Atendido** |
 | Q10 | Sem dependência nova | Hangfire e Quartz descartados; sem pacote (§5.2) | **Atendido** |
 
-Os dez estão atendidos. A `QueueJobs` serve à Sprint 4 sem migração para o mecanismo.
+Os dez requisitos estão atendidos: a `QueueJobs` serve à Sprint 4 sem migração para o mecanismo, como o ADR-0003 afirma. O aviso de encerramento sem o tratador, que não estava entre os requisitos, virou o gancho opcional do §6.7, e a IA o usa (seção 10.2).
 
-### 10.4 Histórico: os sete ajustes pedidos ao ADR-0003
+### 10.4 Histórico: os ajustes pedidos ao ADR-0003 e a decisão dele
 
-A primeira versão do ADR-0003 tinha teto global de 8 tentativas, um lote de 10 comum a todos os tipos e um prazo de posse único, e não escrevia o contrato do tratador. Em 19/11/2026 este ADR pediu sete ajustes. **Todos foram aceitos** (ADR-0003 §6.8, decisão D16 dele), dois com mudança de forma. A tabela fica como registro; o que vale é o texto das seções 10.1 a 10.3.
+Na primeira versão deste ADR (19/11/2026), o ADR-0003 ainda era proposta: a `QueueJobs` atendia cinco requisitos sem ressalva e cinco com ressalva, e este ADR pediu sete ajustes. O ADR-0003 aceitou os sete em 22/11/2026 (§6.8, D16 dele). Esta seção é só registro; o desenho em vigor é o das seções 10.1 a 10.3. Este PR não editou o ADR-0003 nem a branch dele.
 
-| # | O que foi pedido | Decisão no ADR-0003 | Onde ficou |
+| # | Pedido | Decisão no ADR-0003 (§6.8) | Onde ficou |
 |---|---|---|---|
-| A1 | Tentativas e espera por tipo de trabalho | Aceito; o teto global deixou de existir | §6.2 |
-| A2 | Contrato de `IJobHandler` escrito, com `Attempts` e `CancellationToken` | Aceito | §6.6 |
-| A3 | Resultado e conclusão na mesma transação, com mecanismo | Aceito, com um acréscimo: a guarda de posse na mesma gravação | §6.6 |
-| A4 | Prazo de posse por tipo e por item | Aceito com mudança: em vez de renovar a posse a cada item, cada tratador tem captura, lote e laço próprios, e a subida confere que a posse cobre o lote | §6.1, §6.2, §6.4 |
-| A5 | Corrigir o `Payload` e as classes de erro da IA na tabela de reaproveitamento | Aceito; a regra geral do `Payload` passou a proibir texto livre | §5.1, §6.5 |
-| A6 | Aviso quando a fila encerra sem o tratador decidir | Aceito com mudança: gancho opcional para `expired` e `max_attempts`; `Cancelled` fica de fora | §6.7 |
-| A7 | Corrigir a citação do ADR-0001 e declarar a revisão | Aceito | §5.0, §16 (D15) |
+| A1 | Tentativas e espera por tipo de trabalho; para a IA, no máximo 2 | **Aceito.** A política é do tratador; o teto global (`Fila__MaxAttempts`) deixou de existir | §6.2 |
+| A2 | Contrato de `IJobHandler` escrito, com `Attempts` e `CancellationToken`, em escopo próprio | **Aceito** | §6.6 |
+| A3 | Resultado e conclusão na mesma gravação, com mecanismo | **Aceito**, com a guarda de posse na mesma gravação | §6.6 |
+| A4 | Prazo de posse por tipo e por item, para que uma chamada de IA não vença a posse dos e-mails capturados no mesmo lote | **Aceito com mudança:** captura, lote e laço por tratador, com a conferência na subida, em vez de renovar a posse a cada item | §6.1, §6.2, §6.4 |
+| A5 | `Payload` da IA só com o id do pedido; o tratador da IA não repete nem suspende | **Aceito**; a regra geral do `Payload` passou a proibir texto livre | §5.1, §6.5 |
+| A6 | Aviso quando a fila encerra um trabalho sem chamar o tratador | **Aceito com mudança:** gancho opcional para `expired` e `max_attempts`; `Cancelled` fica de fora, porque quem cancela é sempre o próprio caso de uso | §6.7 |
+| A7 | Corrigir a citação do ADR-0001 e declarar a revisão da frase dele sobre fila | **Aceito** | §5.0, §16 (D15), §19 |
 
-Os contornos que este ADR previa para o caso de recusa (o tratador recusar pelo `Attempts`, capturar em lote de um por conta própria) deixaram de ser necessários. O que continua do lado da IA é só a conferência na leitura do estado (seção 10.2), que o ADR-0003 recomenda manter.
+Os contornos que a primeira versão previa para o caso de recusa (o tratador recusar `Attempts` acima de 2; depender só da conferência na leitura) deixaram de ser necessários. Ficou a conferência na leitura, como complemento do gancho, porque o §6.7 a pede a quem depende do aviso.
 
 ### 10.5 O que o ADR-0001 diz sobre fila
 
@@ -438,9 +441,13 @@ O ADR-0001 usa a palavra "fila" **uma única vez**, em `docs/architecture/ADR-00
 
 > "Um PostgreSQL único resolve; não há caso para consistência eventual, cache distribuído ou fila."
 
-Ele não contém a frase "`BackgroundService` + fila persistente no PostgreSQL, sem Redis"; ela vem do roteiro das sprints. O que o ADR-0001 decide para e-mail, push e IA é: "E-mail, push e IA atrás de portas em `Application`, com implementação fake em `Infrastructure`" (`ADR-0001-stack.md:44`).
+Ele não contém a frase "`BackgroundService` + fila persistente no PostgreSQL, sem Redis". Essa frase vem do roteiro das sprints, que a atribui ao ADR-0001; a primeira versão do ADR-0003 a repetiu, e a versão aceita corrigiu a citação (§5.0). O que o ADR-0001 decide de fato para e-mail, push e IA é outra coisa: "E-mail, push e IA atrás de portas em `Application`, com implementação fake em `Infrastructure`" (`ADR-0001-stack.md:44`).
 
-**Quem revisa a frase da linha 23 é o ADR-0003** (§5.0, decisão D15 dele, aceita em 22/11/2026): agora há caso para fila, e ela é uma tabela no mesmo PostgreSQL, sem Redis e sem serviço de mensageria. O "um PostgreSQL único resolve" continua valendo. O ADR-0004 não revisa o ADR-0001; só consome a fila.
+As duas leituras não brigam no conteúdo: quando o ADR-0001 foi escrito, e-mail, push e IA eram fakes e não havia trabalho demorado nem dependente de terceiro. As Sprints 3 e 4 trazem esse caso, e a resposta do ADR-0003 (fila no próprio PostgreSQL, sem Redis e sem serviço de mensageria) mantém o "um PostgreSQL único resolve" do ADR-0001. **Quem revisa a frase da linha 23 é o ADR-0003** (§5.0, D15 dele), ao decidir a fila; o ADR-0004 só a consome.
+
+### 10.6 Se o ADR-0003 mudar
+
+O ADR-0003 foi aceito com a tabela genérica (D1 dele), então a Sprint 4 não tem fila própria nem migração de fila. Se o ADR-0003 mudar antes do merge do PR #185, ou for revisto depois, esta seção precisa ser conferida de novo contra as seções 5 e 6 dele. Em nenhum caso `AiGenerationJobs` vira a própria fila: seriam dois mecanismos de captura e repetição no mesmo banco.
 
 ## 11. Privacidade
 
@@ -453,7 +460,7 @@ Como é garantida:
 3. **Pelos testes** (seção 17): um teste de forma fixa a lista de propriedades de `QuestionDraftRequest`; um teste de integração roda o fluxo com o seed sintético e verifica que o envelope montado não contém nome, e-mail, matrícula, CPF, RG, endereço nem nome de unidade de nenhuma linha do banco.
 4. **Pelo adaptador.** Não envia identificador de usuário final nem metadado de requisição. Log sem corpo, sem assunto, sem texto gerado e sem chave.
 
-**Risco residual: o campo "assunto" é texto livre.** Um administrador pode digitar um nome ("aniversário da turma da professora …"). Tratamento: o texto de ajuda do campo pede para não escrever nomes de pessoas; o saneamento rejeita `@` e sequências de seis ou mais dígitos (e-mail, telefone, documento); o limite é de 120 caracteres. Nome próprio não é detectável por regra; o risco fica registrado e entra no runbook. O assunto também fica guardado em `AiGenerationJobs.Subject`, hoje sem prazo de apagamento: o prazo entra na pendência IA-2, junto com o das sugestões descartadas.
+**Risco residual: o campo "assunto" é texto livre.** Um administrador pode digitar um nome ("aniversário da turma da professora …"). Tratamento: o texto de ajuda do campo pede para não escrever nomes de pessoas; o saneamento rejeita `@` e sequências de seis ou mais dígitos (e-mail, telefone, documento); o limite é de 120 caracteres. Nome próprio não é detectável por regra; o risco fica registrado e entra no runbook. O assunto também fica guardado em `AiGenerationJobs.Subject`, hoje sem prazo de apagamento; o prazo é pergunta da pendência IA-2, junto com o das sugestões descartadas.
 
 **Transferência internacional.** Os provedores comparados processam fora do Brasil. O conteúdo enviado não é dado pessoal por desenho, mas a contratante precisa saber e concordar (seção 16, D8; C14 segue sem orientação).
 
@@ -477,6 +484,8 @@ A lista oficial publicada pela OWASP na data é a edição **2025** (F22). A ski
 | **Unbounded Consumption** (LLM10 · LLM06) | Administrador ou conta comprometida gerando sem parar; laço de tentativas. | Seção 13: máximo por pedido, cota por administrador, teto global, prazo, tentativas limitadas, `max_tokens` proporcional, limite de gasto no console. |
 
 Também valem as regras do painel: as rotas de IA ficam sob a política `Panel` (Master e Admin, `src/Helinho.Web/Composition/Panel.cs:43,56`), todo POST tem antiforgery, e o identificador de job é um GUID.
+
+**Endereço e log do adaptador.** Este ADR não cria variável de endereço base (`Ai__BaseUrl`): o adaptador usa o endereço padrão do SDK, em HTTPS, e nenhuma configuração de produção aponta a chave para outro destino. Isso inclui a variável de ambiente `ANTHROPIC_BASE_URL`, que o SDK lê por conta própria (F11): o adaptador passa o endereço e a chave de forma explícita ao construir o cliente, para que ela não valha. Se a Issue 16 precisar trocar o endereço nos testes, isso fica restrito à fábrica de testes. Falha do provedor vai para o log só com o código de motivo (`Reason`) e o `request-id`, nunca com a mensagem da exceção do SDK ou do `HttpClient`, que pode trazer cabeçalho ou corpo. Se o SDK segue redirecionamento levando o cabeçalho da chave é conferido na Issue 16 (seção 18, item 8).
 
 ## 13. Custos, cotas e registro de uso
 
@@ -510,26 +519,19 @@ Regras:
 | `Anthropic` (adaptador desta sprint) | Ligada com o provedor real. Exige `Ai__ApiKey` e `Ai__Model` não vazios: a validação na subida falha sem eles e a aplicação **não sobe**. Nenhum ambiente usa este valor antes da chave e da D8. |
 | qualquer outro valor | A aplicação não sobe, com erro que cita a variável e não o valor da chave. |
 
-- **O padrão do código é desligada.** Quem liga é a configuração de cada ambiente. O valor de `Ai__Provider` é lido sem diferenciar maiúsculas.
-- Padrões no código: `Ai__TimeoutSeconds` 90, `Ai__DailyQuotaPerAdmin` 60, `Ai__DailyGlobalLimit` 300. Cotas e prazo fora de faixa (zero, negativo, prazo fora de 5 a 300 s, ou valor que não é número) também impedem a subida. Toda mensagem de erro de configuração começa pelo nome da variável e nunca traz o valor.
+- **O padrão do código é desligada.** Quem liga é a configuração de cada ambiente.
+- **Condição para pôr `Anthropic` em qualquer ambiente:** D8 respondida (aval da contratante, contrato de tratamento de dados e confirmação de que os dados da API não são usados para treino), limite de gasto configurado no console do provedor antes da primeira chamada e o runbook (Issue 7) seguido. Antes disso, nenhuma chave real é cadastrada.
+- O valor de `Ai__Provider` é lido sem diferenciar maiúsculas. Padrões no código: `Ai__TimeoutSeconds` 90, `Ai__DailyQuotaPerAdmin` 60, `Ai__DailyGlobalLimit` 300. Cotas e prazo fora de faixa (zero, negativo, prazo fora de 5 a 300 s, ou valor que não é número) também impedem a subida. Toda mensagem de erro de configuração começa pelo nome da variável e nunca traz o valor.
 - **Em `Development` o provedor efetivo nunca é o real:** `Anthropic` vira `Fake`, com aviso em log. Máquina de desenvolvedor e teste de integração não chamam a API mesmo com uma chave no ambiente.
 - Defesa em três camadas: a borda (filtro de página que devolve 404), os casos de uso, que recusam quando a IA está desligada, e a porta, que com `Off` resolve um gerador desligado: ele recusa toda chamada com o motivo `Disabled`, sem montar requisição nem tocar a rede.
-
-**Condições para usar `Anthropic` em qualquer ambiente** (todas, nesta ordem; é a D8 e a D9 em forma de lista de conferência, e vai para o runbook):
-
-1. a contratante respondeu às perguntas da D8 e aprovou o provedor;
-2. quem contrata a conta aceitou os termos comerciais e de dados do provedor, com o uso para treinamento desligado (é o padrão da API, F15; conferir na conta);
-3. o **limite de gasto mensal está configurado no console do provedor antes de a chave ser gravada** em qualquer ambiente;
-4. a chave existe só como variável sensível do ambiente (Terraform, seção 14), nunca em arquivo, log ou conversa;
-5. para produção, além disso: a amostra pedagógica (seção 6.5), gerada em homologação, foi revisada.
 - Registro em `src/Helinho.Web/Composition/Areas/`; `Program.cs` não é editado.
 
 **Dois ajustes para a Issue de Terraform**, encontrados em `origin/issue-99-terraform-esqueleto:infra/railway/variables.tf`:
 
-1. A validação da variável `ai_api_key` exige chave sempre que `Ai__Provider` for diferente de `Fake`. Com isso, `Ai__Provider = "Off"` sem chave é recusado pelo Terraform. A condição precisa aceitar vazio, `Off` e `Fake` sem chave (Issue #182).
-2. O padrão de `Ai__Provider`, no objeto `variaveis_web`, é `Fake` para todos os ambientes. Recomendação: `Fake` em homologação, `Off` em produção até a contratante aprovar um provedor (D9).
+1. A validação da variável `ai_api_key` (`condition = var.variaveis_web.Ai__Provider == "Fake" || var.ai_api_key != ""`) exige chave sempre que `Ai__Provider` for diferente de `Fake`. Com isso, `Ai__Provider = "Off"` sem chave é recusado pelo Terraform. A condição precisa aceitar vazio, `Off` e `Fake` sem chave.
+2. O padrão de `Ai__Provider` em `variaveis_web` é `Fake` (`optional(string, "Fake")`) para todos os ambientes. Recomendação: `Fake` em homologação, `Off` em produção até a contratante aprovar um provedor (D9).
 
-Faltam declarar `Ai__DailyQuotaPerAdmin`, `Ai__DailyGlobalLimit` e `Ai__TimeoutSeconds` (Issue #229). As variáveis são citadas pelo nome, não pela linha: o arquivo dessa branch muda a cada PR de infraestrutura.
+Faltam declarar `Ai__DailyQuotaPerAdmin`, `Ai__DailyGlobalLimit` e `Ai__TimeoutSeconds`.
 
 ## 15. Telas e fluxos
 
@@ -557,11 +559,7 @@ O desenho é o da entrega Recreio (`telas.html:271-296`, guia §3.3 e §3.3.1); 
 
 **Mensagens por código de falha** (texto final na Issue de UI): `Timeout` → "A IA demorou demais. Tente de novo."; `ProviderUnavailable` e `RateLimited` → "A IA está indisponível agora."; `Refused` → "A IA não gerou sugestões para este assunto. Tente outro assunto."; `InvalidOutput` → "As sugestões vieram com problema e foram descartadas."; `Misconfigured` → "A IA não está configurada. Avise o responsável técnico."
 
-## 16. Decisões
-
-### Decisões que esperam o Henrique
-
-Era este o nome da seção enquanto o ADR estava proposto. **Nenhuma decisão espera mais o Henrique:** as nove estão aceitas (tabela abaixo). O que continua aberto é a D8, que depende da contratante.
+## 16. Decisões que esperam o Henrique
 
 **O Henrique aprovou todas as decisões, D1 a D9, como recomendadas, em 22/11/2026, com uma mudança de escopo:** o adaptador real do Claude Haiku é desenvolvido agora, nesta sprint, e não em um PR futuro. Fica tudo pronto, exceto a chave de API, que vem depois.
 
@@ -579,7 +577,7 @@ O que a mudança de escopo fixa:
 |---|---|---|---|
 | D1 | Provedor a propor à contratante | Claude Haiku pela API da Anthropic, em conta da contratante | `gpt-6-luna` (mesmo preço listado); Gemini Flash-Lite tem a restrição de idade nos termos |
 | D2 | Onde vivem os rascunhos | Tabela de sugestões (seção 9.1, opção A) | `Question` em rascunho desde a geração |
-| D3 | Fila | Usar a `QueueJobs` do ADR-0003 (tipo `ai.question-drafts`, sem migração de fila), **com os sete ajustes aceitos no ADR-0003 §6.8** (D16 dele); a política da IA está na seção 10.2 | Fila própria da IA, que só faria sentido se o ADR-0003 tivesse escolhido `email_outbox` + tabela irmã; ele escolheu a `QueueJobs` genérica (D1 dele) |
+| D3 | Fila | Usar a `QueueJobs` do ADR-0003 (tipo `ai.question-drafts`, sem migração de fila), **com os ajustes aceitos no ADR-0003 §6.8** (D16 dele): política, captura e laço por tratador, contrato do tratador, gravação única com guarda de posse e gancho de encerramento (seção 10) | Aceitar a `QueueJobs` sem os ajustes, com os contornos que a primeira versão deste ADR previa (seção 10.4); fila própria da IA, que só faria sentido se a D1 do ADR-0003 tivesse ido para `email_outbox` + tabela irmã (seção 10.6) |
 | D4 | `HttpClient` ou SDK no adaptador | SDK oficial `Anthropic`, com Issue de dependência e auditoria; o adaptador entra nesta sprint (Issues 15 e 16) | `HttpClient` tipado, sem pacote, em dois PRs |
 | D5 | Quinta coluna `AiEditedAt` na migração | Incluir, mesmo antes de a contratante aprovar o selo | Só as quatro colunas; o selo "Editada a partir da IA" fica sem dado se for aprovado depois |
 | D6 | Cotas e prazo | 60 por pessoa, 300 no total, janela de 24 h, prazo de 90 s | Outros valores (pendência IA-1) |
@@ -627,9 +625,9 @@ Enquanto não houver resposta, o sistema roda com `Fake` ou `Off`, e nada disso 
 5. **Se as diretrizes da Anthropic para organizações que atendem menores se aplicam** quando só adultos da equipe usam o modelo e a criança vê o conteúdo depois de revisão humana. F17 fala em interação direta de menores; a página não trata deste caso.
 6. **Limites da camada Evaluation** da Anthropic, onde uma organização nova pode começar.
 7. **Preços e políticas da OpenAI e do Google**, e os prazos de F14: vieram como resumo da ferramenta de leitura (seção 2). Saída estruturada nesses dois provedores não foi verificada.
-8. **Se o SDK `Anthropic` para C# aceita um `HttpClient` ou `HttpMessageHandler` injetado**, o que define como o adaptador é testado sem rede. A Issue do adaptador resolve isso; em qualquer caso, os testes usam handler ou cliente falso. A mesma Issue confere **se o SDK segue redirecionamento levando a chave**; se seguir, o redirecionamento é desligado no cliente.
+8. **Se o SDK `Anthropic` para C# aceita um `HttpClient` ou `HttpMessageHandler` injetado**, o que define como o adaptador é testado sem rede. A Issue do adaptador resolve isso; em qualquer caso, os testes usam handler ou cliente falso. Na mesma Issue, conferir qual cabeçalho de autenticação o SDK envia (a seção 6.1 registra `Authorization: Bearer` como principal e `x-api-key` como legado) e se ele segue redirecionamento levando a chave.
 9. **A numeração "2026" do OWASP Top 10 para LLM** usada pela skill da casa: a página oficial mostrava a edição 2025 na data.
-10. **O ADR-0003 ainda não está em `main`.** Foi aceito pelo Henrique em 22/11/2026 e a seção 10 foi conferida contra a versão dessa data da branch `issue-176-adr-emails-brevo`, mas o PR #185 seguia em revisão. Se as seções 5 ou 6 dele mudarem até o merge, a seção 10 precisa ser conferida de novo. Os nomes do contrato do tratador (`JobContext`, `JobPolicy`, `JobResult`) são dados lá como ilustrativos; quem os fixa é a Issue da fila (#223).
+10. **O ADR-0003 ainda não está em `main`** (PR #185). Foi lido em `origin/issue-176-adr-emails-brevo`, no commit `589d9ff`, já aceito e com o contrato do tratador (§6.6) e o gancho de encerramento (§6.7) escritos. Os nomes dos tipos são ilustrativos e a Issue 1 do ADR-0003 os fixa. Se o ADR-0003 mudar antes do merge, a seção 10 precisa ser conferida de novo (seção 10.6).
 11. **Câmbio e impostos** sobre o gasto em dólar.
 
 ## 19. Plano de Issues da sprint
@@ -645,17 +643,17 @@ Enquanto não houver resposta, o sistema roda com `Fake` ou `Off`, e nada disso 
 | 5 | UI estática de `/questoes/ia` (pedir e revisar) com dados do fake, sem trabalhador | 1 | 2, 3; telas de Questões da Sprint 2 | m |
 | 6 | Terraform: três variáveis novas e os dois ajustes da seção 14 (abertas: #229, junto com as variáveis de e-mail, e #182) | 1 | Issue #99 em `main` | xs |
 | 7 | `docs/operations/ia-runbook.md`: ligar o provedor, limite de gasto, desligar em emergência | 1 | este ADR | docs |
-| 8 | `RequestAiDrafts` (cota, pedido e `IJobQueue.Enqueue`) + `ProcessAiDraftJob` (tratador `IJobHandler` do tipo `ai.question-drafts`, com a política da seção 10.2 e o gancho `IAbandonedJobHandler`) + conferência de pedido vencido na leitura | 2 | 1, 3, 4; **ADR-0003, Issue 1 (`QueueJob`, `IJobQueue` e os contratos do tratador; aberta: #223) e Issue 8a (trabalhador genérico e `IJobProcessor`; aberta: #228)**. Não depende da 8b, que é o tratador de e-mail | m |
+| 8 | `RequestAiDrafts` (cota, pedido e `IJobQueue.Enqueue`) + `ProcessAiDraftJob` (tratador `IJobHandler` do tipo `ai.question-drafts`, com o gancho `IAbandonedJobHandler`) + conferência de pedido vencido na leitura | 2 | 1, 3, 4; **ADR-0003, Issue 1 (`QueueJob`, `IJobQueue` e os contratos das seções 6.6 e 6.7; aberta: #223) e Issue 8a (worker genérico e `IJobProcessor`; aberta: #228)** | m |
 | 9 | `ApproveAiDraft`, `DiscardAiDraft` e edição a partir de sugestão (`SaveQuestion` com proveniência) | 2 | 1, 4 | m |
 | 10 | Ligar a UI do lote aos casos de uso: estados, *polling*, sem JavaScript | 2 | 5, 8, 9 | m |
 | 11 | `SuggestSingleDraft` + `.ai-help` no criador | 2 | 1, 3, 4 | m |
 | 12 | Lista: selo `.tag-ai`, filtro Origem, aviso de pendentes, botão "Gerar com IA" | 2 | 1, 2 | s |
 | 13 | Purga das sugestões descartadas | 2 | 1; D7 | s |
 | 14 | Teste de ponta a ponta com o fake + `scripts/demo.sh` | 3 | 8 a 12 | s |
-| 15 | **Dependência:** pacote `Anthropic` (SDK oficial, D4) em `Directory.Packages.props`, com a versão confirmada no Context7 e auditada com `supply-chain-risk-auditor`. Só o pacote; se o build com avisos como erro reclamar de versão declarada sem uso, a referência no projeto `Infrastructure` entra junto, ainda sem código que a use | 1 | este ADR aceito; D4 | xs |
+| 15 | **Dependência:** pacote `Anthropic` (SDK oficial, D4) em `Directory.Packages.props`, com a versão confirmada no Context7 e auditada com `supply-chain-risk-auditor`. Só o pacote | 1 | este ADR aceito; D4 | xs |
 | 16 | **Adaptador `AnthropicQuestionDraftGenerator`** (seção 6), atrás de `Ai__Provider=Anthropic`: registro condicional, validação na subida que falha com esse provedor e chave vazia, modelo sempre de `Ai__Model`, mapeamento de erros e `AiUsage`. **Nenhum teste chama a API real** (handler ou cliente falso) | 2 | 2, 3, 4, 15 | m (250 a 350 linhas com SDK) |
 
-**Só a Issue 1 gera migração.** A "fila genérica desta sprint" que constava de uma versão anterior deste plano deixou de existir: a `QueueJobs` da Sprint 3 atende os dez requisitos (seção 10.3). O teste de ponta a ponta (Issue 14) segue o padrão do ADR-0003: trabalhador desligado na fábrica de testes e chamada direta a `IJobProcessor`. Só a Issue 15 adiciona pacote (o SDK `Anthropic`, D4), e é esse o único propósito dela. Nenhuma muda rota ou DTO da API do jogo. **As Issues 15 e 16 entraram no plano em 22/11/2026**, por decisão do Henrique: antes, o adaptador ficava para depois da sprint. Elas não dependem da D8 nem da chave; ligar o provedor em algum ambiente, sim. Cada PR passa por `review-pr`, com `security-reviewer` olhando os riscos da seção 12 e `ui-reviewer` comparando com a preview.
+**Só a Issue 1 gera migração.** A "fila genérica desta sprint" que constava de uma versão anterior deste plano deixou de existir: a `QueueJobs` da Sprint 3 atende (seção 10.3), e o ADR-0003 foi aceito com ela (D1 dele). Só voltaria, como Issue e migração próprias, se o ADR-0003 mudasse (seção 10.6). O teste de ponta a ponta (Issue 14) segue o padrão do ADR-0003: trabalhador desligado na fábrica de testes e chamada direta a `IJobProcessor`. Só a Issue 15 adiciona pacote (o SDK `Anthropic`, D4), e é esse o único propósito dela. Nenhuma muda rota ou DTO da API do jogo. **As Issues 15 e 16 entraram no plano em 22/11/2026**, por decisão do Henrique: antes, o adaptador ficava para depois da sprint. Elas não dependem da D8 nem da chave; ligar o provedor em algum ambiente, sim. Cada PR passa por `review-pr`, com `security-reviewer` olhando os riscos da seção 12 e `ui-reviewer` comparando com a preview.
 
 ## 20. Alternativas descartadas (resumo)
 
@@ -668,7 +666,7 @@ Enquanto não houver resposta, o sistema roda com `Fake` ou `Off`, e nada disso 
 | WebSocket, SSE ou SignalR para o andamento | Infraestrutura nova para um estado que muda uma vez; *polling* resolve e funciona sem JavaScript |
 | Batch API do provedor (50% mais barata) | Assíncrona, com prazo de horas; o custo já é de centavos |
 | Cache de prompt | Economia desprezível neste volume; complexidade a mais no adaptador |
-| Fila própria da IA, ou `AiGenerationJobs` como fila | O ADR-0003 já define a `QueueJobs`; seriam dois mecanismos de captura e repetição no mesmo banco (seção 10) |
+| Fila própria da IA, ou `AiGenerationJobs` como fila | O ADR-0003 já decide a `QueueJobs`; dois mecanismos de captura e repetição no mesmo banco (seção 10) |
 | Guardar tipo, faixa, quantidade e assunto no `Payload` da fila e dispensar `AiGenerationJobs` | A fila é apagada 30 dias depois; proveniência, uso e cota precisam durar e ter colunas (seção 10.2) |
 | Repetição e suspensão pela fila para erros do provedor de IA | Seção 10.2: o adaptador já repete dentro do prazo; há uma pessoa esperando |
 | Tabela de uso separada | O job já é o registro de uso |
@@ -689,8 +687,7 @@ Enquanto não houver resposta, o sistema roda com `Fake` ou `Off`, e nada disso 
 **Negativas e riscos**
 
 - Duas tabelas novas e um tipo a mais na fila: mais superfície para manter em um projeto de um mantenedor.
-- A Onda 2 depende da fila e do trabalhador genérico da Sprint 3 (ADR-0003, Issues 1 e 8a) já em `main`. Os ajustes que a IA pediu à fila foram aceitos (ADR-0003 §6.8); não há contorno do lado da IA.
-- Este ADR cita o ADR-0003 por seção: o PR #185 precisa entrar antes ou junto deste, e uma mudança de numeração lá pede conferência da seção 10 daqui.
+- A Onda 2 depende da fila e do worker genérico da Sprint 3 (ADR-0003, Issues 1 e 8a), que já trazem os ajustes aceitos no §6.8 dele. Se essas duas Issues atrasarem, a Onda 2 da IA espera; ela não depende das Issues de e-mail.
 - O estado do pedido vive em dois lugares (`AiGenerationJobs` e `QueueJobs`); o gancho de encerramento e a conferência na leitura (seção 10.2) existem por causa disso.
 - O adaptador entra sem nunca ter falado com a API real: os testes usam cliente falso, e a primeira chamada de verdade só acontece com a chave. Esforço, prazo e custo ficam para ser medidos nesse momento.
 - O fake prova o fluxo, não a qualidade. A qualidade em português só será conhecida com um provedor real e a amostra pedagógica.
