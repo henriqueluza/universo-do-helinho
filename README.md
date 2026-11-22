@@ -2,7 +2,7 @@
 
 Painel administrativo (Razor Pages + Bootstrap) e API do jogo Unity (Minimal APIs sob `/api`) num único host ASP.NET Core, em C# / .NET 10.
 
-> **Aviso:** todos os dados (seed, testes, exemplos) são **sintéticos**; não há dado pessoal real. O **deploy é da fase final** do projeto: este repositório roda apenas localmente.
+> **Aviso:** todos os dados (seed, testes, exemplos) são **sintéticos**; não há dado pessoal real. O único ambiente hospedado é a **homologação**, publicada só pelo Henrique (seção [Deploy](#deploy)); produção está desligada.
 
 ## Pré-requisitos
 
@@ -17,7 +17,35 @@ cp .env.example .env     # defina POSTGRES_PASSWORD; nunca commite o .env
 bash scripts/demo.sh     # sobe o banco, aplica a migração, roda o seed e inicia o sistema
 ```
 
-Painel em `http://localhost:5018`; API em `/api`. Passo a passo da apresentação, logins do seed e chamadas à API: [`docs/demo/roteiro-apresentacao.md`](docs/demo/roteiro-apresentacao.md).
+Painel em `http://localhost:5018`; API em `/api`. Saúde: `GET /health` (o processo está vivo; não consulta o banco) e `GET /health/ready` (200 se o banco responde, 503 se não; teto de 3 s), ambas anônimas. Passo a passo da apresentação, logins do seed e chamadas à API: [`docs/demo/roteiro-apresentacao.md`](docs/demo/roteiro-apresentacao.md).
+
+Logs: fora de `Development` o console sai em JSON, uma linha por evento, com timestamp em UTC e sem escopos (`Logging:Console` em `appsettings.json`); em `Development` continua o formato legível. SQL do EF Core e requisições do ASP.NET Core só aparecem a partir de `Warning`.
+
+## Imagem Docker
+
+O `Dockerfile` da raiz gera a imagem que a hospedagem constrói (multi-stage, usuário sem privilégios, sem SDK). O processo escuta em `0.0.0.0:$PORT` (8080 se `PORT` não existir) e repassa argumentos ao binário (`seed`).
+
+```bash
+docker build -t helinho-web .
+docker compose up -d --wait db     # banco local publicado em 127.0.0.1:5432
+docker run --rm -p 8080:8080 \
+  -e ConnectionStrings__Default="Host=host.docker.internal;Port=5432;Database=helinho;Username=helinho;Password=$POSTGRES_PASSWORD" \
+  helinho-web                      # acrescente `migrate` ao final para aplicar as migrações
+curl http://localhost:8080/health
+```
+
+`host.docker.internal` vale no Docker Desktop. Segredos entram só por variável de ambiente em tempo de execução; nada vai para a imagem.
+
+## Configuração do banco: `migrate`, `seed` e `Seed__Enabled`
+
+Aplicar migração e gravar dados sintéticos são passos separados. Os dois comandos encerram o processo ao terminar, sem subir o servidor:
+
+| Comando | O que faz | Código de saída |
+|---|---|---|
+| `dotnet run --project src/Helinho.Web -- migrate` | Aplica as migrações. Com `Seed__Enabled=true`, roda o seed em seguida; sem a flag, não toca em dados | `0` |
+| `dotnet run --project src/Helinho.Web -- seed` | Uso local: aplica as migrações e roda o seed, mas só com `Seed__Enabled=true`; sem a flag, recusa e não grava nada | `0`, ou `1` quando recusado |
+
+`Seed__Enabled` (chave `Seed:Enabled`) vem **desligada por padrão**: um ambiente que só define a string de conexão nunca recebe dados sintéticos. Ela é ligada em `appsettings.Development.json` e pelo `scripts/demo.sh`, então o fluxo local não muda. O seed é idempotente (rodar de novo não duplica dados) e exige `HELINHO_SEED_PASSWORD`. No deploy, `migrate` é o comando de pré-deploy.
 
 ## Configuração do login da API
 
@@ -30,6 +58,37 @@ Painel em `http://localhost:5018`; API em `/api`. Passo a passo da apresentaçã
 | `LockoutDuration` | `00:15:00` | Duração do bloqueio |
 | `LoginRateLimit` | `10` | Requisições a `/api/login` por IP por janela |
 | `LoginRateWindow` | `00:01:00` | Janela do limite de taxa |
+
+## Atrás do proxy (Railway): HTTPS, HSTS e IP do cliente
+
+A Railway termina o TLS e entrega a requisição em HTTP ao contêiner. Fora de `Development` (`ASPNETCORE_ENVIRONMENT` diferente de `Development`) a aplicação sempre:
+
+- redireciona HTTP para HTTPS (307), **menos** as rotas sob `/health`, que o healthcheck da plataforma chama em HTTP puro;
+- envia `Strict-Transport-Security: max-age=31536000` nas respostas HTTPS;
+- marca todo cookie como `Secure` (painel, antiforgery, TempData).
+
+Para ela enxergar o esquema e o IP reais, ligue a seção `Proxy` (variável de ambiente com `__`):
+
+| Chave | Variável de ambiente | Padrão | Efeito |
+|---|---|---|---|
+| `Proxy:TrustForwardedHeaders` | `Proxy__TrustForwardedHeaders` | `false` | Confia em `X-Forwarded-Proto` (esquema) e no cabeçalho de IP abaixo. **Ligue (`true`) na Railway**; nunca onde a aplicação é alcançável sem passar pelo proxy |
+| `Proxy:ClientIpHeader` | `Proxy__ClientIpHeader` | `X-Real-IP` | Cabeçalho de onde sai o IP do cliente (limite de taxa do login). Só o último valor é usado |
+
+- Fora de `Development` com `Proxy:TrustForwardedHeaders` desligado, toda requisição parece HTTP e entra em laço de redirecionamento: é o sinal de que a chave faltou.
+- Não use `ASPNETCORE_FORWARDEDHEADERS_ENABLED`: ela liga o middleware do framework lendo `X-Forwarded-For`, que a Railway não documenta.
+- A porta do redirecionamento é 443; `ASPNETCORE_HTTPS_PORT` a substitui.
+- `AllowedHosts` (chave do ASP.NET Core, hoje `*`) pode restringir os hosts aceitos; se for definida, inclua `healthcheck.railway.app`, o host do healthcheck.
+- O serviço não deve ter TCP Proxy público, e os demais serviços do mesmo projeto Railway alcançam o contêiner pela rede privada sem passar pela borda: eles são confiáveis por definição.
+
+## Deploy
+
+A homologação roda na Railway e é descrita pelo Terraform de `infra/railway/`. **Só o Henrique** cria token, roda `terraform plan` e `apply` e publica; agentes e o CI não fazem deploy.
+
+- Passo a passo (token, `apply`, primeiro deploy, rollback, backup, rotação e destruição): [`docs/operations/railway-runbook.md`](docs/operations/railway-runbook.md)
+- O que está no ar, URLs e usuários sintéticos de teste (sem senha): [`docs/operations/ambientes.md`](docs/operations/ambientes.md)
+- Decisão de hospedagem e custos: `docs/architecture/ADR-0002-hospedagem-railway.md` e `docs/operations/custos.md`
+
+Publicar uma versão: merge na `main` e, no painel da Railway, serviço `helinho-web` → `Cmd+K` → **Deploy Latest Commit**. Push na `main` não publica sozinho. Produção está desligada.
 
 ## Como testar
 
@@ -50,7 +109,7 @@ dotnet list package --vulnerable --include-transitive
 | `src/Helinho.Infrastructure` | EF Core/Npgsql, Identity, adaptadores |
 | `src/Helinho.Web` | Host: Razor Pages do painel e Minimal APIs em `/api` |
 | `tests/Helinho.UnitTests`, `IntegrationTests`, `ArchitectureTests` | Testes (NetArchTest.Rules valida as camadas) |
-| `docs/` | Arquitetura, contexto, produto, design, demo e handoffs |
+| `docs/` | Arquitetura, contexto, produto, design, demo, operações e handoffs |
 | `scripts/` | Scripts de apoio (demo, tamanho de PR) |
 | `compose.yaml` | PostgreSQL local |
 

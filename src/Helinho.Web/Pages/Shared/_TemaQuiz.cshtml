@@ -1,0 +1,6 @@
+@using Helinho.Domain
+@model QuizType
+@{
+    var tema = Helinho.Web.Painel.TemaQuiz.Of(Model);
+}
+<span class="tag tag-type @tema.Css"><img src="~/img/@tema.Imagem" width="@tema.Largura" height="@tema.Altura" alt="@tema.Personagem" />@tema.Nome</span>
