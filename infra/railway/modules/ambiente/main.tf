@@ -5,7 +5,12 @@ locals {
   # Referências `${{Serviço.VAR}}`, resolvidas pela Railway no deploy: a senha do banco não é escrita aqui.
   pg = { for v in ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD"] : v => "$${{${railway_service.postgres.name}.${v}}}" }
 
+  # Com domínio próprio, App__PublicBaseUrl vale https://<domínio>, salvo valor explícito em variaveis_web.
+  url_dominio  = var.dominio_proprio == "" ? "" : "https://${var.dominio_proprio}"
+  url_base_app = var.variaveis_web.App__PublicBaseUrl != "" ? var.variaveis_web.App__PublicBaseUrl : local.url_dominio
+
   valores_web = merge(var.variaveis_web, var.segredos_web, {
+    App__PublicBaseUrl           = local.url_base_app
     ASPNETCORE_ENVIRONMENT       = var.aspnetcore_environment
     PORT                         = tostring(local.porta)
     Proxy__TrustForwardedHeaders = "true"
@@ -93,6 +98,15 @@ resource "railway_service_domain" "web" {
   environment_id = railway_project.this.default_environment.id
   service_id     = railway_service.web.id
   subdomain      = var.subdominio
+  target_port    = local.porta
+}
+
+# Só existe com `dominio_proprio` preenchido. Mudar o domínio recria o recurso (e os registros DNS mudam).
+resource "railway_custom_domain" "web" {
+  count          = var.dominio_proprio == "" ? 0 : 1
+  environment_id = railway_project.this.default_environment.id
+  service_id     = railway_service.web.id
+  domain         = var.dominio_proprio
   target_port    = local.porta
 }
 

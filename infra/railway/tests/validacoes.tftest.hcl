@@ -1,5 +1,17 @@
 # `terraform test`: providers simulados, só `plan` em memória. Não usa token nem fala com a Railway.
-mock_provider "railway" {}
+mock_provider "railway" {
+  # Valores sintéticos no lugar do que a Railway devolveria, já no `plan`, para conferir as saídas de DNS.
+  mock_resource "railway_custom_domain" {
+    override_during = plan
+    defaults = {
+      host_label                = "painel"
+      zone                      = "example.org"
+      dns_record_value          = "abc123.up.railway.app"
+      verification_host_label   = "_railway-verify.painel"
+      verification_record_value = "railway-verify=sintetico"
+    }
+  }
+}
 mock_provider "random" {}
 
 variables {
@@ -22,6 +34,68 @@ run "padrao_cria_so_homologacao" {
     ])
     error_message = "Variável vazia não pode ser enviada, e as obrigatórias não podem faltar."
   }
+  assert {
+    condition     = output.dns_dominio_proprio == { homologacao = [] }
+    error_message = "Sem dominio_proprio não pode existir railway_custom_domain nem registro DNS a cadastrar."
+  }
+}
+
+run "dominio_proprio_cria_o_recurso_e_as_saidas" {
+  command = plan
+
+  variables {
+    ambientes = { homologacao = { seed_enabled = true, dominio_proprio = "painel.example.org" } }
+  }
+
+  assert {
+    condition = output.dns_dominio_proprio["homologacao"] == [
+      { tipo = "CNAME", nome = "painel", zona = "example.org", valor = "abc123.up.railway.app" },
+      { tipo = "TXT", nome = "_railway-verify.painel", zona = "example.org", valor = "railway-verify=sintetico" },
+    ]
+    error_message = "Com dominio_proprio, a saída traz o CNAME e o TXT de verificação que a Railway devolve."
+  }
+  assert {
+    condition     = output.ambientes["homologacao"].url_base_app == "https://painel.example.org"
+    error_message = "Com dominio_proprio, App__PublicBaseUrl vale https://<domínio> por padrão."
+  }
+  assert {
+    condition     = contains(output.ambientes["homologacao"].variaveis_web, "App__PublicBaseUrl")
+    error_message = "App__PublicBaseUrl precisa ser enviada ao serviço web quando há domínio próprio."
+  }
+}
+
+run "url_base_explicita_vence_o_dominio_proprio" {
+  command = plan
+
+  variables {
+    ambientes     = { homologacao = { seed_enabled = true, dominio_proprio = "painel.example.org" } }
+    variaveis_web = { App__PublicBaseUrl = "https://outro.example.org" }
+  }
+
+  assert {
+    condition     = output.ambientes["homologacao"].url_base_app == "https://outro.example.org"
+    error_message = "Valor explícito de App__PublicBaseUrl em variaveis_web vence o domínio próprio."
+  }
+}
+
+run "recusa_dominio_com_esquema" {
+  command = plan
+
+  variables {
+    ambientes = { homologacao = { seed_enabled = true, dominio_proprio = "https://painel.example.org" } }
+  }
+
+  expect_failures = [var.ambientes]
+}
+
+run "recusa_dominio_com_barra" {
+  command = plan
+
+  variables {
+    ambientes = { homologacao = { seed_enabled = true, dominio_proprio = "painel.example.org/" } }
+  }
+
+  expect_failures = [var.ambientes]
 }
 
 run "producao_ligada_sem_seed" {
