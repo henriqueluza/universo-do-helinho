@@ -38,12 +38,8 @@ public sealed class EmailTemplateRenderer(EmailTemplateSettings settings)
         _ => throw new ArgumentOutOfRangeException(nameof(model), "Tipo de e-mail sem modelo."),
     };
 
-    private RenderedEmail Compose(string template, Dictionary<string, string> values)
+    private RenderedEmail Compose(string template, Dictionary<string, string> model)
     {
-        values["painel"] = settings.BaseUrl.Origin;
-        values["organizacao"] = settings.Organization;
-        values["contato"] = settings.Contact;
-
         // Formato do .txt: assunto na 1ª linha, pré-cabeçalho na 2ª, uma linha em branco e o corpo.
         var parts = Read($"{template}.txt").Split('\n', 4);
         if (parts.Length < 4 || parts[2].Length > 0)
@@ -51,15 +47,25 @@ public sealed class EmailTemplateRenderer(EmailTemplateSettings settings)
             throw new InvalidOperationException($"Modelo {template}.txt fora do formato: assunto, pré-cabeçalho, linha em branco, corpo.");
         }
 
-        // Os encaixes [[...]] juntam arquivos do repositório antes da substituição; nenhum valor passa por eles.
-        var subject = EmailTemplateText.FillText(parts[0], values, allowUnused: true);
-        var text = EmailTemplateText.FillText(Read("Layout.txt").Replace("[[conteudo]]", parts[3]), values);
-        values["logo"] = settings.BaseUrl.Link("/img/fundhas.png").AbsoluteUri;
-        var html = EmailTemplateText.FillHtml(
-            Read("Layout.html").Replace("[[assunto]]", parts[0]).Replace("[[pre_cabecalho]]", parts[1]).Replace("[[conteudo]]", Read($"{template}.html")),
-            values);
+        // Dois conjuntos, sem alterar o recebido: o comum (assunto e texto puro) e o do HTML, com a logo e o assunto já cortado.
+        var common = new Dictionary<string, string>(model)
+        {
+            ["painel"] = settings.BaseUrl.Origin,
+            ["organizacao"] = settings.Organization,
+            ["contato"] = settings.Contact,
+        };
+        var subject = Truncate(EmailTemplateText.FillText(parts[0], common, allowUnused: true));
+        var html = new Dictionary<string, string>(common)
+        {
+            ["assunto"] = subject,
+            ["logo"] = settings.BaseUrl.Link("/img/fundhas.png").AbsoluteUri,
+        };
 
-        return new RenderedEmail(Truncate(subject), html, text);
+        // Os encaixes [[...]] juntam arquivos do repositório antes da substituição; nenhum valor passa por eles.
+        return new RenderedEmail(
+            subject,
+            EmailTemplateText.FillHtml(Read("Layout.html").Replace("[[pre_cabecalho]]", parts[1]).Replace("[[conteudo]]", Read($"{template}.html")), html),
+            EmailTemplateText.FillText(Read("Layout.txt").Replace("[[conteudo]]", parts[3]), common));
     }
 
     private static string Truncate(string subject)
