@@ -1,6 +1,7 @@
 using Helinho.Application.Abstractions;
 using Helinho.Application.Painel;
 using Helinho.Domain;
+using Helinho.Web.Painel;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -16,13 +17,5 @@ public sealed class IndexModel(IAppDbContext db) : PageModel
     public async Task OnGetAsync(CancellationToken cancellationToken) =>
         Quests = await ManageDailyQuests.ListAsync(db, cancellationToken);
 
-    public static string TypeLabel(QuizType? type) => type switch
-    {
-        null => "Genérica",
-        QuizType.Ambiental => "Ambiental",
-        QuizType.Conhecimento => "Conhecimento",
-        QuizType.Esportivo => "Esportivo",
-        QuizType.Cultural => "Cultural",
-        _ => "Diversidade",
-    };
+    public static string TypeLabel(QuizType? type) => type is { } t ? TemaQuiz.Of(t).Nome : "Genérica";
 }

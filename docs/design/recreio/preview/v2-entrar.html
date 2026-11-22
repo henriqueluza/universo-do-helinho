@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entrar · Universo do Helinho — v2 Recreio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito:wght@500..900&display=swap" rel="stylesheet">
+<link rel="icon" href="img/helinho-rosto.webp" type="image/webp">
+<link rel="stylesheet" href="recreio.css">
+<script>try { const t = localStorage.getItem('tema'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<style>
+  /* Barra da preview (não faz parte do sistema): recolhida por padrão */
+  .pv { position: fixed; z-index: 50; right: 12px; bottom: 12px; font: 800 13px var(--font); }
+  .pv summary { list-style: none; cursor: pointer; padding: 8px 12px; border-radius: 12px; background: var(--ink); color: var(--stage); box-shadow: var(--shadow-float); opacity: .55; transition: opacity .2s; }
+  .pv summary:hover, .pv[open] summary, .pv summary:focus-visible { opacity: 1; }
+  .pv summary::-webkit-details-marker { display: none; }
+  .pv nav { position: absolute; bottom: calc(100% + 6px); right: 0; display: flex; flex-wrap: wrap; width: max-content; max-width: calc(100vw - 24px); gap: 4px; padding: 5px; border-radius: 14px; background: var(--stage); border: 2px solid var(--rule); box-shadow: var(--shadow-float); }
+  .pv a, .pv button { font: inherit; color: var(--ink-2); background: none; border: 0; padding: 8px 10px; border-radius: 10px; text-decoration: none; cursor: pointer; }
+  .pv a:hover, .pv button:hover { background: var(--canvas); color: var(--ink); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs><symbol id="i-lock" viewBox="0 0 16 16"><path d="M4 7h8v7H4zM5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></symbol><symbol id="i-alert" viewBox="0 0 16 16"><path d="M8 5v4M8 11.5v.5M8 1.5l6.5 12h-13z"/></symbol><symbol id="i-star" viewBox="0 0 24 24"><path fill="currentColor" d="M12 1.8l3.1 6.6 7.2.9-5.3 5 1.4 7.1L12 17.9l-6.4 3.5 1.4-7.1-5.3-5 7.2-.9z"/></symbol></defs>
+</svg>
+
+<div class="auth">
+  <section class="auth-scene" aria-label="Universo do Helinho">
+    <div class="auth-sky" aria-hidden="true">
+      <b class="shoot"></b><b class="shoot s2"></b>
+      <em class="sobe" style="--x:22%;--d:0s"></em><em class="sobe" style="--x:31%;--d:1.6s"></em><em class="sobe" style="--x:40%;--d:3.1s"></em><em class="sobe" style="--x:27%;--d:4.4s"></em><em class="sobe" style="--x:36%;--d:5.7s"></em>
+      <i style="--x:58%;--y:9%;--s:9px;--t:3.2s;--d:0s"></i>
+      <i style="--x:86%;--y:22%;--s:12px;--t:4.1s;--d:-1.2s"></i>
+      <i style="--x:93%;--y:52%;--s:8px;--t:3.6s;--d:-2.4s"></i>
+      <i style="--x:70%;--y:40%;--s:6px;--t:2.9s;--d:-0.8s"></i>
+      <i style="--x:8%;--y:30%;--s:7px;--t:3.8s;--d:-1.9s"></i>
+      <i style="--x:47%;--y:30%;--s:5px;--t:3.1s;--d:-2.8s"></i>
+      <i style="--x:80%;--y:80%;--s:10px;--t:4.4s;--d:-0.4s"></i>
+      <i style="--x:38%;--y:92%;--s:6px;--t:3.4s;--d:-1.5s"></i>
+    </div>
+    <div class="auth-logos">
+      <img class="jogo" src="img/logo-jogo.webp" width="480" height="162" alt="Universo do Helinho">
+      <img class="org" src="img/fundhas-invertido.webp" width="480" height="127" alt="FUNDHAS">
+    </div>
+    <div class="auth-pitch">
+      <p class="auth-say"><span class="w"><span style="--w:0">Cada</span></span> <span class="w"><span style="--w:1">resposta</span></span> <span class="w"><span style="--w:2">vira</span></span> <span class="w"><span style="--w:3">uma</span></span> <span class="w"><em style="--w:4">estrela<svg class="star" aria-hidden="true"><use href="#i-star"/></svg></em></span> <span class="w"><span style="--w:5">no</span></span> <span class="w"><span style="--w:6">mapa</span></span> <span class="w"><span style="--w:7">da</span></span> <span class="w"><span style="--w:8">turma.</span></span></p>
+      <p class="auth-note">Acompanhe o progresso dos alunos em cada tema do jogo, por unidade e faixa etária.</p>
+      <ul class="faces" aria-label="Personagens do jogo">
+        <li class="face f-lia"><img src="img/cara-lia.webp" width="320" height="320" alt="Lia, tema diversidade"></li>
+        <li class="face f-byte"><img src="img/cara-byte.webp" width="320" height="314" alt="Byte, tema conhecimento"></li>
+        <li class="face f-luna"><img src="img/cara-luna.webp" width="313" height="320" alt="Luna, tema cultural"></li>
+        <li class="face f-flora"><img src="img/cara-flora.webp" width="320" height="316" alt="Flora, tema ambiental"></li>
+        <li class="face f-max"><img src="img/cara-max.webp" width="296" height="320" alt="Max, tema esportivo"></li>
+        <li class="face lead"><img src="img/cara-helinho.webp" width="312" height="320" alt="Helinho"></li>
+      </ul>
+    </div>
+    <p class="auth-foot"><svg aria-hidden="true"><use href="#i-lock"/></svg>Acesso restrito a educadores e coordenadores da FUNDHAS.</p>
+  </section>
+
+  <main id="conteudo" class="auth-form" tabindex="-1">
+    <div class="auth-card">
+      <span class="auth-badge"><svg class="star" aria-hidden="true"><use href="#i-star"/></svg>Painel do educador</span>
+      <h1 class="page-title">Entrar no painel</h1>
+      <p class="lede">Acompanhe como seus alunos estão jogando, aprendendo e ganhando estrelas.</p>
+      <div class="alert" id="resumo-erros" tabindex="-1" role="alert" hidden><svg aria-hidden="true"><use href="#i-alert"/></svg><span>Usuário ou senha inválidos.</span></div>
+      <form action="v2.html" novalidate>
+        <div class="field">
+          <label for="Input_UserName">Usuário ou e-mail</label>
+          <input class="input" id="Input_UserName" name="Input.UserName" autocomplete="username" value="marina.duarte">
+        </div>
+        <div class="field">
+          <label for="Input_Password">Senha</label>
+          <input class="input" id="Input_Password" name="Input.Password" type="password" autocomplete="current-password">
+          <small id="senha-dica">Use a senha que a coordenação enviou.</small>
+        </div>
+        <button class="btn btn-primary btn-lg" type="submit"><span class="btn-label">Entrar</span></button>
+      </form>
+      <a class="link" href="telas.html#recuperar-senha">Esqueci minha senha</a>
+    </div>
+    <p class="auth-help">Problemas para entrar? Fale com a coordenação da sua unidade.</p>
+  </main>
+</div>
+
+<details class="pv"><summary>Preview</summary><nav aria-label="Telas da preview"><a href="v2-entrar.html">Entrar</a><a href="v2-entrar.html?estado=erro">Erro</a><a href="v2.html">Painel</a><a href="v2.html?estado=vazio">Vazio</a><a href="v2.html?estado=carregando">Carregando</a><button type="button" data-tema>Tema</button><a href="index.html">v1</a></nav></details>
+<script src="v2.js" defer></script>
+</body>
+</html>
