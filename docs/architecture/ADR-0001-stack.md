@@ -149,6 +149,8 @@ A abertura é fatiada em uma Issue serial e três paralelas. Depois delas, cada 
 
 Deploy planejado para a fase final.
 
+> A partir de 18/11/2026 a hospedagem é decidida no [ADR-0002](ADR-0002-hospedagem-railway.md).
+
 ## 7. Segurança
 
 **Ativos:** dados cadastrais de menores (nome, RG, CPF, endereço, nascimento, responsável); credenciais e sessões; banco de questões; integridade de XP e progresso.
