@@ -778,7 +778,7 @@ Resposta 4xx (menos 429) ou 5xx do sistema faz a Brevo **descartar o evento, sem
 
 ## Passo 7 — Teste de fumaça de ponta a ponta
 
-**Só depois que os fluxos existirem** (fila e worker, tokens e página `/conta/definir-senha`, convite de administrador e redefinição de senha; todas Issues ainda por criar). Os nomes de tela e de situação abaixo vêm do ADR-0003 §11 e podem mudar nessas Issues.
+**Só depois que os fluxos existirem** (fila e worker, Issues #223 e #228; tratador de e-mail, tokens e página `/conta/definir-senha`, convite de administrador e redefinição de senha, Issues ainda por criar). Os nomes de tela e de situação abaixo vêm do ADR-0003 §11 e podem mudar nessas Issues.
 
 Use **um e-mail seu**, de uma caixa que você abre. É o único dado real em homologação: não o escreva no repositório, em Issue nem em PR.
 
@@ -996,7 +996,7 @@ Guarde a resposta fora do repositório e leve os fatos para o ADR em PR `docs`, 
 | 9 | Mensagens de erro da aplicação na subida com configuração incompleta | Issues #204 e #209 | [5.4](#54-conferir-o-deploy) |
 | 10 | Se a Brevo envia o cabeçalho próprio em toda chamada do webhook, inclusive no teste e nas novas tentativas; rótulos dos eventos no painel; em qual cabeçalho vai o token da opção **Token** (que por isso não é usada) | ADR-0003 §17, item 5 | [Passo 6](#passo-6--webhook-transacional-opcional); pergunta 7 ao suporte |
 | 11 | Nomes finais no Terraform (`brevo_webhook_secret`, `Email__DailyLimit`) e o texto das validações novas | Issue #229 (sem PR em 22/11/2026) | [5.1](#51-editar-o-terraformtfvars), [5.3](#53-plan-e-apply), [Passo 6](#passo-6--webhook-transacional-opcional) |
-| 12 | Nomes de tela, de situação, de tabela e de coluna dos fluxos e da fila | Issues a criar | [Passo 7](#passo-7--teste-de-fumaça-de-ponta-a-ponta) |
+| 12 | Nomes de tela, de situação, de tabela e de coluna dos fluxos e da fila | Issues #223 e #228 (fila e worker); as dos fluxos, a criar | [Passo 7](#passo-7--teste-de-fumaça-de-ponta-a-ponta) |
 | 13 | Se `htmlContent` e `textContent` saem juntos; onde o selo "Sent with Brevo" aparece em e-mail enviado pela API | ADR-0003 §17, itens 2 e 8 | [Passo 4b](#passo-4b--envio-de-medição-do-link), itens 4 e 6; [Passo 7](#passo-7--teste-de-fumaça-de-ponta-a-ponta), item 3 |
 | 14 | O que acontece com a fila pendente ao trocar para `Fake` | Issues #223 e #228 | [Desligar o envio em emergência](#desligar-o-envio-em-emergência) |
 | 15 | O que a API responde com a chave desativada por falta de uso ou vencida (supõe-se erro de autenticação) | ADR-0003 §17, item 13 | [4.2](#42-criar-a-chave) |
@@ -1013,7 +1013,7 @@ Encontradas ao escrever a primeira versão deste runbook. O ADR-0003 foi alinhad
 |---|---|---|---|
 | 1 | O ADR pedia "rastreamento desligado" como passo deste runbook; esse controle não existe fora do plano Enterprise | **Decidido:** ADR-0003 §8.4, decisão D17 aceita (manter o link, com cinco condições; plano B: código digitado) | [1.3](#13-rastreamento-de-cliques-e-de-abertura), [Passo 4b](#passo-4b--envio-de-medição-do-link), [perguntas ao suporte](#perguntas-para-o-suporte-da-brevo) |
 | 2 | `Email__DailyLimit` e `Brevo__WebhookSecret` não existem em `infra/railway/variables.tf` (PR #100) | **Em andamento:** Issue #229 (sem PR em 22/11/2026); precisa estar aplicada antes de qualquer envio em volume | Tabela de variáveis; [1.2](#12-plano-e-limite-diário); [5.1](#51-editar-o-terraformtfvars) |
-| 3 | `App__PublicBaseUrl` era preenchida à mão | **Resolvido no Terraform:** vem de `dominio_proprio` (Issue #220, PR #221, na branch do PR #100); o valor explícito em `variaveis_web` vence | [5.1](#51-editar-o-terraformtfvars) |
+| 3 | `App__PublicBaseUrl` era preenchida à mão | **Resolvido no Terraform:** vem de `dominio_proprio` (Issue #220, PR #221, na branch do PR #100); o valor explícito em `variaveis_web` vence. Derivá-la do domínio `*.up.railway.app` ficou fora do escopo da Issue #229 | [5.1](#51-editar-o-terraformtfvars) |
 | 4 | O Terraform valida só a chave; remetente ou URL pública faltando passam no `plan` e derrubam o deploy | **Em andamento:** validações da Issue #229 | [5.3](#53-plan-e-apply), [5.4](#54-conferir-o-deploy) |
 | 5 | O bloqueio de IP se liga sozinho depois de 30 dias sem IP novo; a chave é desativada depois de 90 dias sem uso | **Decidido:** ADR-0003 §13.1 e ameaça T19 | [4.2](#42-criar-a-chave), [4.3](#43-bloqueio-por-ip), [O que vigiar](#o-que-vigiar) |
 | 6 | A fila de 1.000 da Brevo não substitui o teto do nosso lado: a redefinição (1 h) venceria parada nela | **Decidido:** ADR-0003 §15 e D7 | [1.2](#12-plano-e-limite-diário) |
