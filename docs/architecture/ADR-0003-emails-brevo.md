@@ -1,13 +1,13 @@
 # ADR-0003 — E-mails de acesso com Brevo e fila persistente
 
-**Data:** 19/11/2026 · **Status:** proposto (aguarda o Henrique; ver seção 16) · **Decisor:** Henrique
+**Data:** 19/11/2026 · **Status:** aceito em 22/11/2026 (ver seção 16) · **Decisor:** Henrique
 **Base:** ADR-0001 (§2, provedores externos atrás de portas; §7, ameaças; e o parágrafo "Dados" da §1, que este ADR revisa), ADR-0002 (§9 Data Protection, §10 variáveis), Issue #176, skills `engineering-standards`, `owasp-security`, `site-compliance` e `devops-standards`, respostas da contratante C05, C13, C14, C15 e C20.
 
 Os códigos C04, C05, C09, C13, C14, C15, C20 e A01 são itens do Q&A com a contratante, "Perguntas e Respostas — Universo do Hélinho", mantido pelo Henrique fora do repositório. O ADR-0002 ainda não está na `main`: foi lido em `origin/issue-93-adr-hospedagem` (PR #101).
 
 Este ADR não muda código. Ele fecha as decisões da Sprint 3 para que as Issues de código possam ser abertas.
 
-**Este ADR revisa um ponto do ADR-0001** (aceito): o parágrafo "Dados" diz que "não há caso para consistência eventual, cache distribuído ou fila" (`docs/architecture/ADR-0001-stack.md:23`). Agora há caso para fila. A revisão está na seção 5 e espera o Henrique (seção 16, D15).
+**Este ADR revisa um ponto do ADR-0001** (aceito): o parágrafo "Dados" diz que "não há caso para consistência eventual, cache distribuído ou fila" (`docs/architecture/ADR-0001-stack.md:23`). Agora há caso para fila. A revisão está na seção 5 e foi aceita pelo Henrique em 22/11/2026 (seção 16, D15).
 
 ---
 
@@ -108,7 +108,7 @@ O que não foi possível confirmar está na seção 17. As páginas HTML da cent
 | Webhook | `POST /webhooks/brevo`, desligado sem segredo, segredo em cabeçalho próprio comparado em tempo constante, quatro eventos | 12 |
 | Terraform | Faltam `Brevo__WebhookSecret`, `Email__DailyLimit` e as validações de remetente e de URL pública; `App__PublicBaseUrl` hoje é manual | 13 |
 
-As linhas de relação com o ADR-0001, fila, gravação, retenção, tokens, links no e-mail, e-mail do responsável e senha do aluno são **recomendações** que esperam o Henrique (seção 16).
+As linhas de relação com o ADR-0001, fila, gravação, retenção, tokens, links no e-mail, e-mail do responsável e senha do aluno eram recomendações e foram **aceitas pelo Henrique em 22/11/2026** (seção 16).
 
 ## 4. Integração com a Brevo
 
@@ -192,7 +192,7 @@ O que ele decide para os provedores externos é outra coisa: "E-mail, push e IA 
 - **Sprint 3:** enviar e-mail depende da Brevo, que pode demorar, recusar por limite de taxa ou estar fora do ar. Sem fila, a página ficaria presa ao tempo da Brevo, não haveria nova tentativa e o tempo de resposta da recuperação de senha denunciaria a conta (seção 11.1).
 - **Sprint 4:** gerar rascunhos de questões por IA é uma chamada de dezenas de segundos, com uma pessoa esperando na tela.
 
-O que **continua valendo** do ADR-0001: "um PostgreSQL único resolve". **Sem Redis e sem broker: a fila é uma tabela no PostgreSQL.** Consistência eventual e cache distribuído continuam sem caso. A revisão é só da palavra "fila", e é decisão do Henrique (seção 16, D15). O ADR-0001 ganha uma nota de uma linha apontando para cá; a seção dele não é reescrita.
+O que **continua valendo** do ADR-0001: "um PostgreSQL único resolve". **Sem Redis e sem broker: a fila é uma tabela no PostgreSQL.** Consistência eventual e cache distribuído continuam sem caso. A revisão é só da palavra "fila", e foi aceita pelo Henrique em 22/11/2026 (seção 16, D15). O ADR-0001 ganha uma nota de uma linha apontando para cá; a seção dele não é reescrita.
 
 ### 5.1 Uma tabela genérica
 
@@ -528,7 +528,7 @@ A primeira versão deste ADR exigia "rastreamento desligado" como passo do runbo
 | D. Subdomínio de marca | o redirecionador passa a usar um subdomínio institucional; continua passando pela Brevo | mais registros no DNS da FUNDHAS, cujo administrador ainda não foi identificado (C15) | não muda o efeito 1 | resolve o efeito 2, **se** valer para transacional (não confirmado) |
 | E. Outro provedor | — | ADR e Issue próprios; a Brevo é a escolha em curso (C20) | depende do provedor | — |
 
-**Recomendação (D17): A, com cinco condições.**
+**Decisão (D17, aceita pelo Henrique em 22/11/2026): A, com cinco condições, que continuam valendo.**
 
 1. **Medir antes de construir a Issue 5.** Com a conta criada, um envio de teste pela API, com um link fictício que tenha query string, mostra no código-fonte da mensagem recebida se o link foi reescrito no HTML e na parte de texto, e para qual domínio. É um comando do runbook, não depende dos fluxos.
 2. **Rastreamento anônimo ligado, prévias desligadas e retenção de 1 mês** na conta, antes do primeiro envio (seção 5.6).
@@ -536,7 +536,7 @@ A primeira versão deste ADR exigia "rastreamento desligado" como passo do runbo
 4. **As perguntas ao suporte da Brevo** (lista abaixo) respondidas antes de dado real.
 5. **O teste de fumaça percorre o fluxo inteiro a partir do e-mail recebido** (clicar, definir a senha, entrar), para provar que o redirecionamento não quebra o link.
 
-Por que A e não C agora: a diferença de confidencialidade é pequena (nos dois casos o segredo passa pela Brevo), o token do Identity é o que a Issue e o roteiro da sprint pedem, e C troca um risco baixo por código de segurança escrito por nós. **C fica desenhado como plano B** e entra se uma destas coisas acontecer: a medição ou o teste de fumaça mostrarem que o redirecionamento corta ou altera o link; o suporte disser que o destino dos links fica guardado ou visível além do aceitável; a entrega piorar por causa do domínio de rastreamento; ou o Henrique preferir não aceitar a exceção D13. D pode somar-se a A quando houver quem mexa no DNS.
+Por que A e não C agora: a diferença de confidencialidade é pequena (nos dois casos o segredo passa pela Brevo), o token do Identity é o que a Issue e o roteiro da sprint pedem, e C troca um risco baixo por código de segurança escrito por nós. **C fica desenhado como plano B** e entra se uma destas coisas acontecer: a medição ou o teste de fumaça mostrarem que o redirecionamento corta ou altera o link; o suporte disser que o destino dos links fica guardado ou visível além do aceitável; a entrega piorar por causa do domínio de rastreamento; ou o Henrique rever o aceite da exceção D13, dado em 22/11/2026. D pode somar-se a A quando houver quem mexa no DNS.
 
 Esboço de C, para não começar do zero: link `…/conta/definir-senha?usuario=<id>`, sem segredo; código de 10 caracteres sem letras ambíguas, mostrado em dois grupos de cinco; no banco só um resumo com chave do servidor, com validade e uso único (a tabela `AspNetUserTokens` do Identity já existe e talvez dispense migração; a confirmar); limite de tentativas por conta e por IP; mesmas validades da D4.
 
@@ -601,7 +601,7 @@ Definir a senha passa por `UpdatePasswordHash`, que troca o carimbo de seguranç
 - **O `GET` não consome o token.** Filtros de e-mail abrem os links antes da pessoa; só o `POST` com a senha nova usa o token. A página põe o token em campo oculto, responde com `Referrer-Policy: no-referrer` e não carrega recurso de terceiros.
 - Token inválido ou vencido leva a uma saída clara ("pedir novo link"), com a mesma mensagem para qualquer causa.
 
-**Token na query string é exceção registrada.** A ASVS 5.0 (14.2.1, citada na skill `owasp-security`) pede que dado sensível não vá em URL. O guia de recuperação de senha da OWASP (F20) descreve justamente o token na query string, com uso único, validade curta, `no-referrer` e sem depender do cabeçalho `Host`, e é assim que o Identity trabalha. Mitigações adotadas: as desta seção, mais um script pequeno que tira o token da barra de endereço depois de carregar a página (`history.replaceState`), para ele não ficar no histórico do navegador. A aplicação não registra a URL das requisições (`Microsoft.AspNetCore` em `Warning`, `appsettings.json:5`); o registro de acesso da Railway é o item 11 da seção 17. Alternativa descartada: token no fragmento (`#`), que nunca chega ao servidor mas exige JavaScript para funcionar e depende de cada cliente e filtro de e-mail preservar o fragmento, com um público de responsáveis que não tem a quem recorrer se o link quebrar. Aceitar a exceção é decisão do Henrique (D13).
+**Token na query string é exceção registrada.** A ASVS 5.0 (14.2.1, citada na skill `owasp-security`) pede que dado sensível não vá em URL. O guia de recuperação de senha da OWASP (F20) descreve justamente o token na query string, com uso único, validade curta, `no-referrer` e sem depender do cabeçalho `Host`, e é assim que o Identity trabalha. Mitigações adotadas: as desta seção, mais um script pequeno que tira o token da barra de endereço depois de carregar a página (`history.replaceState`), para ele não ficar no histórico do navegador. A aplicação não registra a URL das requisições (`Microsoft.AspNetCore` em `Warning`, `appsettings.json:5`); o registro de acesso da Railway é o item 11 da seção 17. Alternativa descartada: token no fragmento (`#`), que nunca chega ao servidor mas exige JavaScript para funcionar e depende de cada cliente e filtro de e-mail preservar o fragmento, com um público de responsáveis que não tem a quem recorrer se o link quebrar. O Henrique aceitou a exceção em 22/11/2026 (D13).
 
 **A exceção ficou maior do que a primeira versão descrevia.** Como a Brevo reescreve os links (seção 8.4), a URL com o token é entregue a um redirecionador de terceiro e guardada por ele; não é mais só o histórico do navegador e o registro de acesso. A recomendação continua sendo aceitar, agora junto com a D17 e com as condições dela. A alternativa de verdade deixou de ser o fragmento, que também seria guardado pelo redirecionador: é o código digitado (seção 8.4, opção C), que tira o segredo da URL e faz a exceção desaparecer.
 
@@ -802,9 +802,11 @@ Se a conta da Brevo for usada também para outros envios da contratante, eles co
 
 **Recomendação de plano (D7):** gratuito na homologação e no teste de fumaça, **com `Email__DailyLimit=300` do nosso lado**; Starter ou créditos pré-pagos antes da primeira carga de alunos reais. O que o plano pago compra: o fim do limite diário e, com o complemento, o fim do selo. **Não compra o fim da reescrita dos links.** O gasto é decisão da contratante (C04; pergunta M14).
 
-## 16. Decisões que esperam o Henrique
+## 16. Decisões
 
-| # | Decisão | Recomendação | Alternativa principal |
+**O Henrique aprovou e aceitou todas as decisões, D1 a D18, como recomendadas, em 22/11/2026.** Isso inclui as duas aceitações de risco de segurança: a D13 (token do link na query string, exceção à ASVS 14.2.1) e a D17 (links reescritos pelo redirecionador da Brevo). **As cinco condições da seção 8.4 continuam valendo**, e a medição com envio de teste continua sendo pré-requisito da Issue dos tokens e da página de definir senha (Issue 5).
+
+| # | Decisão | Decisão aceita (a recomendada) | Alternativa principal, não adotada |
 |---|---|---|---|
 | D1 | Formato da fila | **Uma tabela genérica `QueueJobs`** (5.1) | `email_outbox` + tabela irmã para IA (5.2) |
 | D2 | O que fica gravado | **Só referências; token gerado no envio** (5.3) | corpo renderizado com o link em repouso |
@@ -825,9 +827,9 @@ Se a conta da Brevo for usada também para outros envios da contratante, eles co
 | D17 | Links reescritos pela Brevo: o token passa pelo redirecionador dela e o endereço visível não é o institucional | **Manter o link com token e aceitar o redirecionamento como risco documentado, com cinco condições** (8.4): medir antes da Issue 5, rastreamento anônimo e prévias desligadas, texto do e-mail conforme 8.4, perguntas ao suporte respondidas antes de dado real, teste de fumaça a partir do e-mail recebido. Plano B já esboçado: código digitado | código digitado desde já; plano Enterprise; subdomínio de marca |
 | D18 | Webhook: eventos e autenticação | **Quatro eventos** (`hard_bounce`, `invalid_email`, `blocked`, `spam`) **e segredo em cabeçalho próprio** (12) | os três eventos do roteiro, sem `invalid_email`; a opção "Token" do painel, cujo cabeçalho a documentação não descreve |
 
-D4, D5, D6, D7, D9, D12, D14 e D17 dependem também do Marcos; as perguntas estão em `docs/context/pendencias.md`. O código nasce com a recomendação marcada `PROPOSTA`, e trocar qualquer uma delas não pede migração (D5 inclusive: a coluna é anulável). A exceção possível é a D17: se o plano B (código digitado) for o escolhido, pode ser que peça migração, o que a seção 8.4 deixa a confirmar.
+D4, D5, D6, D7, D9, D12, D14 e D17 **dependem ainda do Marcos**; as perguntas estão em `docs/context/pendencias.md`. O aceite do Henrique vale para a recomendação; nessas oito o código nasce com ela marcada `PROPOSTA`, até a resposta do Marcos, e trocar qualquer uma delas não pede migração (D5 inclusive: a coluna é anulável). A exceção possível é a D17: se o plano B (código digitado) for o escolhido, pode ser que peça migração, o que a seção 8.4 deixa a confirmar.
 
-**O que não depende destas decisões e pode andar em paralelo:** adaptador HTTP com as opções e a validação na subida, renderizador e layout, variáveis do Terraform e runbook. **Os provedores de token e a página `/conta/definir-senha` (Issue 5) passaram a depender da D17**, e o texto dos modelos depende das regras da seção 8.4.
+**O que continua condicionado depois do aceite:** os provedores de token e a página `/conta/definir-senha` (Issue 5) dependem da medição com envio de teste (condição 1 da D17, seção 8.4), e o texto dos modelos segue as regras da seção 8.4. O restante do plano da seção 18 não espera mais decisão.
 
 ## 17. O que não foi possível confirmar em fonte
 
@@ -874,7 +876,7 @@ Ondas: **1** em paralelo — Issues 1, 3, 4, 5, 6, 7 e 13 (a 2 e a 8a entram log
 
 A antiga Issue 8 foi dividida em duas. O worker genérico (8a) cresceu com os ajustes do ADR-0004 e não depende de nada de e-mail; o tratador de e-mail (8b) é o que depende do adaptador, dos modelos e dos tokens. **A Sprint 4 só precisa das Issues 1 e 8a**: pode começar o tratador de IA sem esperar os e-mails.
 
-A Issue 13 (#184) é defeito que já existe na `main` e independe da sprint; está aqui porque a Issue 10 esbarra nele. As Issues 3, 4 e 7 já foram abertas pelo coordenador, com os números indicados na tabela; as demais esperam o aceite deste ADR.
+A Issue 13 (#184) é defeito que já existe na `main` e independe da sprint; está aqui porque a Issue 10 esbarra nele. As Issues 3, 4 e 7 já foram abertas pelo coordenador, com os números indicados na tabela; as demais esperavam o aceite deste ADR, dado em 22/11/2026.
 
 ## 19. Alternativas descartadas
 
@@ -915,7 +917,7 @@ A Issue 13 (#184) é defeito que já existe na `main` e independe da sprint; est
 
 **Negativas e riscos**
 
-- Revisa um ponto de um ADR já aceito (ADR-0001, "não há caso para […] fila"); a revisão precisa do aceite do Henrique (D15).
+- Revisa um ponto de um ADR já aceito (ADR-0001, "não há caso para […] fila"); a revisão foi aceita pelo Henrique em 22/11/2026 (D15).
 - Duas migrações em uma sprint, em sequência obrigatória, e dependência do PR #120.
 - O worker fica mais complexo que um repassador: um laço e uma política por tratador, quatro classes de resultado, gravação única com guarda de posse, gancho de encerramento e teto diário. Por isso virou duas Issues (8a e 8b).
 - O banco não registra para qual endereço cada mensagem foi; essa resposta está no painel da Brevo.

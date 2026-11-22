@@ -1,6 +1,6 @@
 # Pendências de negócio
 
-Perguntas que o Henrique leva ao Marcos (contratante). Enquanto não houver resposta, o sistema segue a coluna **Proposta em uso**, marcada `PROPOSTA` no código e no ADR. Nenhuma delas trava o desenvolvimento: todas são configuração, validação ou texto.
+Perguntas que o Henrique leva ao Marcos (contratante). Enquanto não houver resposta, o sistema segue a coluna **Proposta em uso**, marcada `PROPOSTA` no código e no ADR. Nenhuma delas trava o desenvolvimento: todas são configuração, validação ou texto. O Henrique aceitou o ADR-0003 em 22/11/2026 com essas propostas; elas continuam `PROPOSTA` até a resposta do Marcos.
 
 **Regras deste arquivo:** nenhum dado pessoal, e-mail real, domínio real ou segredo. Os códigos C04, C05, C09, C13, C14, C15, C20 e A01 são itens do Q&A com a contratante, mantido pelo Henrique fora do repositório. Quando uma pergunta for respondida, registre a resposta e a data na última coluna em vez de apagar a linha.
 
