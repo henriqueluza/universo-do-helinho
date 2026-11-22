@@ -33,7 +33,7 @@ Use uma janela anônima por perfil para alternar sem sair.
 3. **Unidades** (só master): listar e criar.
 4. **Administradores** (só master): listar e criar, um por unidade.
 5. **Alunos**: filtros por unidade, turma e faixa etária; abrir o cadastro e a edição; status de aprovação do responsável.
-6. **Desempenho do aluno**: XP, nível, acertos por tipo de quiz, conquistas; filtro por faixa etária.
+6. **Desempenho do aluno**: lista com XP, nível e taxa de acerto (barra); ficha com acertos por tipo de quiz e conquistas; filtro por faixa etária.
 7. **Questões**: por tipo de quiz e faixa etária; criar com 4 alternativas e explicação; rascunho × aprovada (só aprovada chega ao jogo).
 8. **Eventos**: listar e criar (título, subtítulo, tipo de quiz, término).
 9. **Missões diárias**: editar título, meta, recompensa e tipo de quiz.
