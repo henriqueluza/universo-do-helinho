@@ -78,6 +78,9 @@ Toda criação de conteúdo do jogo usa o mesmo molde, para ser fácil e previs�
 3. Tema = `.theme-pick` (personagens como botões de rádio). Opções curtas = `.pill-pick`. Nada de `select` para escolhas com até ~6 opções.
 4. IA dentro do passo de escrita: `.ai-help` com "Sugerir"; o que a IA preenche pisca em lilás (`.ai-filled`) e mostra `.ai-flag`. Nunca salva sozinha.
 5. Prévia ligada por atributos: campo `data-bind="x"` → elemento `data-show="x"` (com `data-empty` para o texto-guia). Checklist `.ready` com `data-check`; a `.maker-bar` (fixa embaixo) diz quantos itens faltam.
+   - Ganchos: `data-maker` no `.maker`, `data-preview` na `.phone`. Rádios de tema levam `data-k` (classe do tema); `data-group` marca o grupo de pílulas. Nas alternativas, o texto fica num `span` com `data-alt` (índice da alternativa) e o ✓ é `data-tick`; a carinha é `data-face`. `data-max` corta o texto da prévia (explicação: 160 + "…", como o servidor).
+   - Checklist: `data-check` (item) e `data-check-text` ("(feito)" ou "(falta)"). Contador `.count-hint` com `data-count-for` (id do campo; lê o `maxlength`), `hidden` até o JS revelar; conta a quebra de linha como 2 (`\r\n`), como o servidor valida e corta. A dica da barra é `data-ready-hint`; o `aria-live` dela só entra depois da primeira passada, para não anunciar ao carregar.
+   - Vazio some por CSS (`:empty`), nunca por JS: o servidor sempre emite o elemento e o script só troca o texto (`textContent`). Sem JS, a tela fica igual à do servidor.
 6. No repo: os rádios mantêm os `name` do modelo (`Input.Type`, `Input.AgeBand`, `Input.Correct`). **Atenção:** trocar `select` por rádio muda o HTML que os testes conferem; ajustar os testes junto.
 
 ### 3.4 …um item no menu

@@ -3,35 +3,36 @@
 @{
     ViewData["Title"] = "Novo administrador";
     bool Erro(string campo) => ModelState[campo]?.Errors.Count > 0;
-    string Invalid(string campo) => Erro(campo) ? "is-invalid" : "";
     string? Aria(string campo) => Erro(campo) ? "true" : null;
     string? Desc(string campo) => Erro(campo) ? campo.Replace('.', '_') + "-erro" : null;
 }
-<div class="card-panel" style="max-width: 480px">
-    @if (Model.Units.Count == 0)
-    {
+@if (Model.Units.Count == 0)
+{
+    <section class="panel panel-pad">
         <p>Cadastre uma unidade antes de criar administradores.</p>
-        <a class="btn btn-primary" href="/Unidades/Nova">Nova unidade</a>
-    }
-    else
-    {
-        <form method="post" novalidate>
-            <partial name="_ResumoErros" view-data="ViewData" />
-            <div class="mb-3">
-                <label class="form-label" asp-for="Input.UserName">Nome de usuário <span class="muted">(obrigatório)</span></label>
-                <input class="form-control @Invalid("Input.UserName")" asp-for="Input.UserName" maxlength="60" autocomplete="off" autofocus="@(ModelState.IsValid ? "autofocus" : null)"
+        <div class="page-actions"><a class="btn btn-primary" href="/Unidades/Nova"><svg aria-hidden="true"><use href="#i-plus" /></svg>Nova unidade</a></div>
+    </section>
+}
+else
+{
+    <form class="panel panel-pad form" method="post" novalidate>
+        <partial name="_ResumoErros" view-data="ViewData" />
+        <div class="form-grid">
+            <div class="field">
+                <label asp-for="Input.UserName">Nome de usuário <span class="req">(obrigatório)</span></label>
+                <input class="input" asp-for="Input.UserName" maxlength="60" autocomplete="off" autofocus="@(ModelState.IsValid ? "autofocus" : null)"
                        aria-invalid="@Aria("Input.UserName")" aria-describedby="@Desc("Input.UserName")" />
-                <span id="Input_UserName-erro" class="form-text text-negative" asp-validation-for="Input.UserName"></span>
+                <span id="Input_UserName-erro" class="field-error" asp-validation-for="Input.UserName"></span>
             </div>
-            <div class="mb-3">
-                <label class="form-label" asp-for="Input.Email">E-mail <span class="muted">(obrigatório)</span></label>
-                <input class="form-control @Invalid("Input.Email")" asp-for="Input.Email" type="email" maxlength="200" autocomplete="off"
+            <div class="field">
+                <label asp-for="Input.Email">E-mail <span class="req">(obrigatório)</span></label>
+                <input class="input" asp-for="Input.Email" type="email" maxlength="200" autocomplete="off"
                        aria-invalid="@Aria("Input.Email")" aria-describedby="@Desc("Input.Email")" />
-                <span id="Input_Email-erro" class="form-text text-negative" asp-validation-for="Input.Email"></span>
+                <span id="Input_Email-erro" class="field-error" asp-validation-for="Input.Email"></span>
             </div>
-            <div class="mb-3">
-                <label class="form-label" asp-for="Input.UnitId">Unidade <span class="muted">(obrigatório)</span></label>
-                <select class="form-select @Invalid("Input.UnitId")" asp-for="Input.UnitId"
+            <div class="field">
+                <label asp-for="Input.UnitId">Unidade <span class="req">(obrigatório)</span></label>
+                <select class="select select-lg" asp-for="Input.UnitId"
                         aria-invalid="@Aria("Input.UnitId")" aria-describedby="@Desc("Input.UnitId")">
                     <option value="">Selecione a unidade</option>
                     @foreach (var u in Model.Units)
@@ -39,19 +40,19 @@
                         <option value="@u.Id" selected="@(Model.Input.UnitId == u.Id)">@u.Name</option>
                     }
                 </select>
-                <span id="Input_UnitId-erro" class="form-text text-negative" asp-validation-for="Input.UnitId"></span>
+                <span id="Input_UnitId-erro" class="field-error" asp-validation-for="Input.UnitId"></span>
             </div>
-            <div class="mb-3">
-                <label class="form-label" asp-for="Input.Password">Senha inicial <span class="muted">(obrigatório)</span></label>
-                <input class="form-control @Invalid("Input.Password")" asp-for="Input.Password" type="password" value="" autocomplete="new-password"
+            <div class="field">
+                <label asp-for="Input.Password">Senha inicial <span class="req">(obrigatório)</span></label>
+                <input class="input" asp-for="Input.Password" type="password" value="" autocomplete="new-password"
                        aria-invalid="@Aria("Input.Password")" aria-describedby="Input_Password-ajuda @Desc("Input.Password")" />
-                <div id="Input_Password-ajuda" class="form-text muted">Mínimo de 6 caracteres, com maiúscula, minúscula, número e um símbolo. Ela não será exibida de novo.</div>
-                <span id="Input_Password-erro" class="form-text text-negative" asp-validation-for="Input.Password"></span>
+                <small id="Input_Password-ajuda">Mínimo de 6 caracteres, com maiúscula, minúscula, número e um símbolo. Ela não será exibida de novo.</small>
+                <span id="Input_Password-erro" class="field-error" asp-validation-for="Input.Password"></span>
             </div>
-            <div class="d-flex gap-2">
-                <button class="btn btn-primary" type="submit">Criar administrador</button>
-                <a class="btn btn-outline-secondary" href="/Administradores">Cancelar</a>
-            </div>
-        </form>
-    }
-</div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primary" type="submit">Criar administrador</button>
+            <a class="btn" href="/Administradores">Cancelar</a>
+        </div>
+    </form>
+}
