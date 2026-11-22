@@ -1,6 +1,6 @@
 # ADR-0002 — Hospedagem na Railway, gerenciada por Terraform
 
-**Data:** 18/11/2026 · **Status:** proposto (aguarda o Henrique; ver seção 12) · **Decisor:** Henrique
+**Data:** 18/11/2026 · **Status:** aceito em 22/11/2026, com a D1 em revisão (ver seção 12) · **Decisor:** Henrique
 **Base:** ADR-0001 §6 (hospedagem ficou para ADR próprio), Issue #93, skill `devops-standards`, respostas da contratante C04, C13, C14, C15 e C19.
 
 Os códigos C04, C13, C14, C15 e C19 são itens do Q&A com a contratante, "Perguntas e Respostas — Universo do Hélinho", mantido pelo Henrique fora do repositório.
@@ -17,7 +17,7 @@ Restrições que moldam a decisão:
 
 - **Custo mínimo** (C04): a conta Railway já tem pagamento configurado; não há teto numérico aprovado; "gasto mínimo" não é autorização ilimitada. O contato para o projeto na Railway é o Igor (C19).
 - **Volume desconhecido** (C13): usuários simultâneos e pico não foram informados. As estimativas de `docs/operations/custos.md` usam premissas explícitas, não medição.
-- **Domínio e DNS pendentes** (C15): a homologação usa o domínio `*.up.railway.app`; domínio próprio fica para depois.
+- **Domínio e DNS pendentes** (C15): a homologação nasce no domínio `*.up.railway.app`; o domínio próprio do painel foi definido em 22/11/2026 e está nas pendências da seção 12.
 - **Só dados sintéticos** em homologação. Receber dado real de menor exige ADR próprio (ADR-0001 §7).
 - **Um mantenedor** (Henrique) e código que será entregue à contratante: a infraestrutura precisa ser pequena e legível.
 
@@ -53,14 +53,14 @@ O que não foi possível confirmar em fonte está na seção 16.
 |---|---|---|
 | Provedor | Railway, na conta da contratante (workspace do Igor) | 1 |
 | IaC | Terraform em `infra/railway/`, provider `terraform-community-providers/railway` fixado em `0.6.3`, lockfile commitado | 4 |
-| Topologia | Um projeto, um ambiente (`homologacao`), dois serviços: `helinho-web` e `Postgres`. `producao` existe no código e nasce desligada | 5 |
+| Topologia | Um projeto, um ambiente (`homologacao`), dois serviços: `helinho-web` e `Postgres`. `producao` existe no código e nasce desligada. **Em revisão com o Henrique (D1)** | 5 |
 | Região | `us-east4-eqdc4a` (US East), web e banco na mesma região. A Railway não tem região no Brasil | 5 |
 | PostgreSQL | Serviço com imagem `postgres:17` + volume, declarado no Terraform, sem domínio público nem TCP proxy | 6 |
 | Build | Dockerfile multi-stage na raiz (Issue #94). O builder automático (Railpack) fica descartado | 7.1 |
 | Configuração de build e deploy | Atributos do `railway_service` no Terraform. **`railway.toml` não entra**: a Railway descontinuou o Config as Code | 7.2 |
 | Migração | `migrate` como pre-deploy command; seed só com `Seed__Enabled=true`, nunca em produção (Issue #95) | 7.3 |
 | Saúde | `/health` (vivo) e `/health/ready` (banco); o healthcheck da Railway aponta para `/health/ready` (Issue #96) | 7.4 |
-| Deploy contínuo | `auto_deploy = false` por padrão | 7.5 |
+| Deploy contínuo | Ligado em homologação: `auto_deploy = true` no `terraform.tfvars`, com Wait for CI (D3, opção B). O padrão da variável continua `false` | 7.5 |
 | Proxy e HTTPS | ForwardedHeaders com `X-Real-IP` e `X-Forwarded-Proto`, redirecionamento HTTPS e HSTS fora de `Development` (Issue #97) | 8 |
 | Data Protection | Chaves em tabela no PostgreSQL (pacote novo + migração, Issue própria) | 9 |
 | Segredos | Só em variável da Railway e em `TF_VAR_*`; token do provider por `RAILWAY_TOKEN` | 10 |
@@ -68,7 +68,7 @@ O que não foi possível confirmar em fonte está na seção 16.
 | Logs | JSON no console fora de `Development` (Issue #98); a Railway coleta o stdout | 11 |
 | Rollback e backup | Rollback de deploy pelo painel; backup de volume agendado + `pg_dump` por túnel | 11 |
 
-As linhas de topologia, estado do Terraform, deploy contínuo e Data Protection são **recomendações** que esperam o Henrique (seção 12).
+As linhas de estado do Terraform, deploy contínuo e Data Protection foram decididas pelo Henrique em 22/11/2026; a de topologia segue **em revisão** (seção 12).
 
 ## 4. Provider Terraform
 
@@ -87,7 +87,7 @@ A versão 0.6.3 tem **nove recursos e nenhum data source**:
 | `railway_variable_collection` | Conjunto de variáveis de um serviço em um ambiente, gerenciado como um todo | sim |
 | `railway_shared_variable` | Variável compartilhada do projeto em um ambiente | não |
 | `railway_service_domain` | Domínio `*.up.railway.app` do serviço (`subdomain`, `target_port`) | sim (só no web) |
-| `railway_custom_domain` | Domínio próprio, com os registros DNS de verificação como saída | depois (C15) |
+| `railway_custom_domain` | Domínio próprio, com os registros DNS de verificação como saída | sim, quando `dominio_proprio` é preenchido (PR #221; seção 12) |
 | `railway_tcp_proxy` | Porta TCP pública para um serviço | **nunca** no banco |
 
 Não existem na 0.6.3: recurso de **volume** separado (o volume é um bloco do `railway_service`), recurso de **gatilho de deploy** (`railway_deployment_trigger` foi removido na 0.5.0), recurso de **banco gerenciado ou template** (`railway_plugin` foi removido na 0.3.0) e qualquer data source.
@@ -149,7 +149,7 @@ Cada ambiente vira **um projeto Railway próprio** (`helinho-<ambiente>`), com o
 
 No cenário atual isso continua sendo "um projeto, um ambiente". A escolha só aparece quando a produção for ligada, e está na decisão D1.
 
-Ligar produção exige antes: ADR próprio para dado real (ADR-0001 §7), resposta sobre região e fornecedores (C14), teto de gasto (C04), estado do Terraform separado por ambiente e `Seed__Enabled=false`.
+Ligar produção exige antes: ADR próprio para dado real (ADR-0001 §7), resposta sobre região e fornecedores (C14), teto de gasto (C04), estado do Terraform separado por ambiente e `Seed__Enabled=false`. A lista do que falta hoje está na seção 12, D1.
 
 ## 6. PostgreSQL
 
@@ -207,7 +207,7 @@ Por isso **não haverá `railway.toml`**. As configurações que ele carregaria 
 | Tempo limite do pre-deploy | 300 s (sem limite, um `migrate` travado segura o deploy para sempre) | `predeploy_timeout` |
 | Healthcheck | `/health/ready`, 120 s | `healthcheck_path`, `healthcheck_timeout` |
 | Restart | `ON_FAILURE`, 5 tentativas | `restart_policy_type`, `restart_policy_max_retries` |
-| Auto-deploy | desligado por padrão | `watch_patterns` (7.5) |
+| Auto-deploy | ligado em homologação (D3); o padrão da variável é desligado | `watch_patterns` (7.5) |
 
 A Issue planejada para o `railway.toml` deixa de existir; o conteúdo dela passa para a Issue do Terraform.
 
@@ -226,16 +226,24 @@ A Issue planejada para o `railway.toml` deixa de existir; o conteúdo dela passa
 - O healthcheck da Railway aponta para `/health/ready`. Ele só é consultado **durante o deploy**, até a primeira resposta 2xx; a Railway não monitora a rota depois. Monitoramento contínuo não entra nesta sprint.
 - A requisição do healthcheck chega por HTTP direto ao contêiner, com `Host: healthcheck.railway.app`. Duas exigências para as Issues #96 e #97: as rotas de saúde respondem 2xx **sem redirecionamento para HTTPS**, e `AllowedHosts`, se um dia for restringido, inclui `healthcheck.railway.app`.
 
-### 7.5 Deploy contínuo desligado
+### 7.5 Deploy contínuo
 
-Serviço ligado a repositório faz deploy a cada push na branch conectada. O provider não tem atributo para desligar isso (L2). A variável `auto_deploy` (padrão `false`) é implementada assim:
+**Decisão do Henrique em 22/11/2026 (D3, opção B): `auto_deploy = true` em homologação.** O padrão da variável no Terraform (PR #100) continua `false`; o Henrique liga com `auto_deploy = true` no `terraform.tfvars`.
 
-- `auto_deploy = false` → `watch_patterns` recebe um padrão que nenhum arquivo do repositório casa. Push em `main` vira deploy ignorado. O Henrique publica pelo painel: `Cmd+K` → **Deploy Latest Commit**, que implanta o último commit da branch conectada, ou seja, só código revisado e mergeado.
-- `auto_deploy = true` → `watch_patterns = []`: todo push em `main` implanta. Ao ligar, ative também **Wait for CI** nas configurações do serviço (não existe no provider) para a Railway esperar o `validate.yml`.
+Serviço ligado a repositório faz deploy a cada push na branch conectada. O provider não tem atributo para ligar ou desligar isso (L2). A variável `auto_deploy` é implementada assim:
 
-O contorno depende de um comportamento documentado (deploy ignorado por watch paths; "Deploy Latest Commit" como saída). O runbook deve mandar conferir, no primeiro push depois do `apply`, que o deploy apareceu como ignorado; se não aparecer, o plano B é o botão **Disable** de auto-deploy nas configurações do serviço.
+- `auto_deploy = true` (homologação) → `watch_patterns = []`: todo push em `main` implanta. **Wait for CI** não existe no provider: é um clique nas configurações do serviço, no painel da Railway, e **deve ser ligado** logo depois do primeiro `apply`, para a Railway esperar o `validate.yml`. Enquanto não for ligado, um push em `main` implanta sem esperar o CI.
+- `auto_deploy = false` (padrão da variável) → `watch_patterns` recebe um padrão que nenhum arquivo do repositório casa. Push em `main` vira deploy ignorado e a publicação é manual, pelo painel: `Cmd+K` → **Deploy Latest Commit**, que implanta o último commit da branch conectada.
 
-Dois deploys acontecem mesmo com `auto_deploy = false`: o provider reimplanta o serviço quando uma variável muda (L4), e conectar o repositório no primeiro `apply` pode disparar o deploy inicial.
+O que a escolha implica:
+
+- **Toda migração mergeada roda sozinha em homologação**, pelo pre-deploy (7.3), sem ninguém acompanhar. A regra de migração compatível com a versão anterior (expand/contract) passa a valer a cada merge.
+- **O `apply` deixa de ser o único momento em que o ambiente muda**: cada merge em `main` também muda.
+- **Em produção o padrão continua desligado.** Hoje `auto_deploy` é uma variável única do root, não por ambiente: ao ligar `producao`, ela precisa de `terraform.tfvars` próprio (estado separado, seção 5.2) sem `auto_deploy = true`, ou a variável passa a ser por ambiente. Isso se resolve antes de ligar a produção.
+
+O contorno de `auto_deploy = false` depende de um comportamento documentado (deploy ignorado por watch paths; "Deploy Latest Commit" como saída) e não foi validado em ambiente real; se um dia for usado e o deploy não aparecer como ignorado, o plano B é o botão **Disable** de auto-deploy nas configurações do serviço.
+
+Além dos pushes, o provider reimplanta o serviço quando uma variável muda (L4), e conectar o repositório no primeiro `apply` pode disparar o deploy inicial.
 
 ## 8. Proxy, HTTPS e cabeçalhos (Issue #97)
 
@@ -265,7 +273,7 @@ Sem persistência, cada deploy gera chaves novas: o cookie do painel cai, os tok
 | C. Volume da Railway no serviço web | US$ 0,15/GB/mês (centavos) | o volume é montado como root: imagem não-root precisa de `RAILWAY_RUN_UID=0`, o que desfaz o usuário não-root da Issue #94; serviço com volume fica indisponível a cada redeploy e não aceita réplicas; as chaves ficam fora do backup do banco |
 | D. Não persistir | zero | login do painel cai a cada deploy; inviável quando houver e-mail com link (Sprint 3) |
 
-**Recomendação: A.** É pacote novo e migração, e o contrato está congelado: entra por **Issue própria**, que acrescenta o pacote em `Directory.Packages.props` (versão confirmada no Context7 e auditada com `supply-chain-risk-auditor`), faz `AppDbContext` implementar `IDataProtectionKeyContext`, gera a migração da tabela `DataProtectionKeys` e registra `PersistKeysToDbContext` com `SetApplicationName` fixo. Cifrar as chaves em repouso (`ProtectKeysWith*`) fica para o ADR de produção.
+**Decisão (Henrique, 22/11/2026): A**, implementada no PR #120. É pacote novo e migração, e o contrato está congelado: entra por **Issue própria**, que acrescenta o pacote em `Directory.Packages.props` (versão confirmada no Context7 e auditada com `supply-chain-risk-auditor`), faz `AppDbContext` implementar `IDataProtectionKeyContext`, gera a migração da tabela `DataProtectionKeys` e registra `PersistKeysToDbContext` com `SetApplicationName` fixo. Cifrar as chaves em repouso (`ProtectKeysWith*`) fica para o ADR de produção.
 
 ## 10. Segredos, token e estado
 
@@ -310,7 +318,7 @@ O estado guarda em texto a senha do banco, `HELINHO_SEED_PASSWORD` e, depois, as
 | C. Bucket compatível com S3 (bucket da própria Railway a US$ 0,015/GB/mês, ou outro) | centavos | o backend precisaria existir antes do Terraform que o criaria; credencial extra; configuração de endpoint S3 customizado |
 | D. Estado no git | zero | segredos em texto no repositório; proibido |
 
-**Recomendação: A**, como exceção registrada à regra da casa ("nunca use estado local"), válida enquanto houver um único operador e só homologação. Backup cifrado com `age` ou `gpg` depois de cada `apply`, guardado fora da máquina (o runbook dá o comando). Quando houver produção, segundo operador ou `apply` em CI, o estado vai para backend remoto com lock, em ADR próprio.
+**Decisão (Henrique, 22/11/2026): A**, como exceção à regra da casa ("nunca use estado local") aceita por ele, válida enquanto houver um único operador e só homologação. Backup cifrado com `age` ou `gpg` depois de cada `apply`, guardado fora da máquina (o runbook dá o comando). Quando houver produção, segundo operador ou `apply` em CI, o estado vai para backend remoto com lock, em ADR próprio.
 
 ### 10.4 Risco aberto: uma senha só para todos os usuários do seed
 
@@ -331,9 +339,19 @@ O seed cria master, administradores e alunos com a **mesma** senha, a de `HELINH
 
 O passo a passo de rollback, backup, restore, rotação e destruição está em `docs/operations/railway-runbook.md`; este ADR não o repete.
 
-## 12. Decisões que esperam o Henrique
+## 12. Decisões
 
-### D1. Topologia
+Registradas em 22/11/2026, pelo Henrique.
+
+| | Resultado |
+|---|---|
+| D1 Topologia | **em revisão**: homologação agora; produção ainda em avaliação |
+| D2 Estado do Terraform | **aceita**: local, fora do git, com backup cifrado (exceção à regra da casa) |
+| D3 Deploy contínuo | **opção B**, não a recomendada: `auto_deploy = true` em homologação, com Wait for CI |
+| D4 Data Protection | **aceita**: tabela no PostgreSQL com o pacote oficial (PR #120) |
+| D5 `railway.toml` e IaC nativo | **aceita**: manter o Terraform; `railway.toml` não é criado |
+
+### D1. Topologia (em revisão)
 
 | Opção | Custo mensal (ver `custos.md`) | Risco |
 |---|---|---|
@@ -341,31 +359,50 @@ O passo a passo de rollback, backup, restore, rotação e destruição está em 
 | B. `homologacao` + `producao` como dois ambientes do mesmo projeto | uso de cerca de US$ 16 | o provider só lê serviço e volume do ambiente padrão (L3); sem RBAC por ambiente fora do Enterprise |
 | C. `homologacao` + `producao` em dois projetos, mesmo módulo | uso de cerca de US$ 16 | dois projetos para acompanhar no painel |
 
-**Recomendação: A agora.** O código já nasce no formato de C (um projeto por ambiente), com `producao` desligada.
+**Estado em 22/11/2026: homologação agora; produção ainda em avaliação.** O primeiro deploy, em 22/11/2026, é só `homologacao`. O Henrique perguntou por que não criar `producao` já, para o desenvolvedor Unity testar; a decisão não está fechada. O código já nasce no formato de C (um projeto por ambiente), com `producao` desligada.
 
-### D2. Estado do Terraform
+**O ambiente de teste do desenvolvedor Unity é a homologação**: seed sintético e credenciais de teste.
 
-Opções e riscos na seção 10.3. **Recomendação: local, fora do git, com backup cifrado.** É exceção à regra da casa e precisa do seu aceite.
+#### O que falta para ligar a produção
 
-### D3. Deploy contínuo
+1. **Primeiro master.** Não há como criar o primeiro master sem o seed, e o seed é proibido em produção (7.3). Issue #222.
+2. **Chaves do Data Protection persistidas** (seção 9; PR #120).
+3. **E-mails reais para convite e redefinição de senha** (Sprint 3), ou um caminho manual.
+4. **Pré-requisitos de dado real do ADR-0001 §7**: proteção em repouso de CPF/RG, retenção, consentimento, auditoria e MFA do master.
+5. **Domínio** (ver "Pendências", abaixo).
+
+Somam-se os itens já listados na seção 5.2.
+
+### D2. Estado do Terraform (aceita)
+
+Opções e riscos na seção 10.3. **Aceita: local, fora do git, com backup cifrado.** É exceção à regra da casa, aceita pelo Henrique em 22/11/2026.
+
+### D3. Deploy contínuo (opção B)
 
 | Opção | Custo | Risco |
 |---|---|---|
-| **A. `auto_deploy = false`; você publica com "Deploy Latest Commit"** (recomendada) | um clique por publicação | homologação pode ficar atrás da `main` se você esquecer |
-| B. `auto_deploy = true` com Wait for CI | zero cliques | toda migração mergeada roda sozinha em homologação; o `apply` deixa de ser o único momento em que a infraestrutura muda |
-| C. Sem ligar o repositório; publicar com `railway up` da sua máquina | CLI instalada e logada | publica o que estiver no diretório local, não necessariamente o que foi mergeado |
+| A. `auto_deploy = false`; publicação com "Deploy Latest Commit" (era a recomendada) | um clique por publicação | homologação pode ficar atrás da `main` se a publicação for esquecida |
+| **B. `auto_deploy = true` com Wait for CI** (escolhida) | zero cliques | toda migração mergeada roda sozinha em homologação; o `apply` deixa de ser o único momento em que o ambiente muda |
+| C. Sem ligar o repositório; publicar com `railway up` da máquina do Henrique | CLI instalada e logada | publica o que estiver no diretório local, não necessariamente o que foi mergeado |
 
-**Recomendação: A.** B é o que a política da casa prevê para staging e pode ser ligado depois trocando uma variável.
+**Escolha do Henrique: B**, que é o que a política da casa prevê para staging. Implicações, detalhadas na seção 7.5:
 
-### D4. Data Protection
+- toda migração mergeada roda sozinha em homologação, pelo pre-deploy;
+- "Wait for CI" é um clique no painel da Railway e deve ser ligado;
+- o `apply` deixa de ser o único momento em que o ambiente muda;
+- em produção o padrão continua desligado.
 
-Opções e riscos na seção 9. **Recomendação: tabela no PostgreSQL com o pacote oficial**, em Issue própria (pacote novo + migração).
+O padrão da variável no Terraform (PR #100) continua `false`; o Henrique liga com `auto_deploy = true` no `terraform.tfvars`.
 
-### D5. Fato novo: `railway.toml` descontinuado e IaC nativo da Railway
+### D4. Data Protection (aceita)
 
-Não estava entre as quatro decisões, mas muda o plano da sprint e você precisa saber:
+Opções e riscos na seção 9. **Aceita: tabela no PostgreSQL com o pacote oficial**, em Issue própria (pacote novo + migração), PR #120.
 
-1. **`railway.toml` não será criado** (seção 7.2). A Issue dele deixa de existir e o conteúdo vai para o Terraform.
+### D5. `railway.toml` descontinuado e IaC nativo da Railway (aceita)
+
+Não estava entre as quatro decisões originais, mas mudou o plano da sprint:
+
+1. **`railway.toml` não é criado** (seção 7.2). A Issue dele deixa de existir e o conteúdo vai para o Terraform.
 2. A Railway lançou um **IaC próprio** (`.railway/railway.ts`, aplicado pela CLI com `railway config plan` e `apply`). Comparado ao provider comunitário:
 
 | | Terraform + provider comunitário (mantido) | IaC nativo da Railway |
@@ -378,7 +415,11 @@ Não estava entre as quatro decisões, mas muda o plano da sprint e você precis
 | Validação no CI sem segredo | `validate`, `fmt`, `tflint` | o `plan` precisa de token |
 | Ferramentas no repositório | Terraform | Node, npm e o pacote `railway` em um repositório só de .NET |
 
-**Recomendação: manter o Terraform nesta sprint.** É o objetivo que você definiu, o provider 0.6.3 cobre tudo o que a homologação precisa, e a validação roda no CI sem segredo. O IaC nativo é o caminho de saída se o provider quebrar ou parar de ser mantido, e deve ser reavaliado no ADR de produção.
+**Aceita: manter o Terraform.** É o objetivo que o Henrique definiu, o provider 0.6.3 cobre tudo o que a homologação precisa, e a validação roda no CI sem segredo. O IaC nativo é o caminho de saída se o provider quebrar ou parar de ser mantido, e deve ser reavaliado no ADR de produção.
+
+### Pendências
+
+- **Domínio.** O painel usará `paineladm.<domínio institucional>` (exemplo: `paineladm.example.org`; o domínio real não é escrito neste repositório). A configuração é pelo campo `dominio_proprio` do Terraform, entregue no PR #221 (Issue #220). **O DNS fica para 23/11/2026**; até lá a homologação responde no `*.up.railway.app`.
 
 ### Perguntas para o Igor, antes do primeiro `apply`
 
@@ -394,10 +435,10 @@ Todos os usuários do seed compartilham a senha de `HELINHO_SEED_PASSWORD`: a cr
 | Regra da casa | O que este ADR faz | Por quê |
 |---|---|---|
 | `apply` só no CI | `apply` só pelo Henrique, na máquina dele | um operador, um ambiente; o CI não guarda token da Railway |
-| Nunca usar estado local | estado local com backup cifrado (D2) | seção 10.3 |
+| Nunca usar estado local | estado local com backup cifrado (D2, aceita em 22/11/2026) | seção 10.3 |
 | Autenticação do CI por OIDC | não se aplica: o CI não autentica na Railway | o workflow `infra.yml` só valida |
 | Uma imagem construída no CI e promovida pelo digest | a Railway constrói a imagem a partir do commit | há um único ambiente; não existe promoção |
-| Staging publicado automaticamente após o merge | manual (D3) | controle e custo; reversível por variável |
+| Staging publicado automaticamente após o merge | sem exceção em homologação: `auto_deploy = true` com Wait for CI (D3, opção B). Quem publica é a Railway, não o CI | o padrão da variável é `false`; em produção continua desligado |
 | Diretório por ambiente no Terraform | um root em `infra/railway/` com um módulo por ambiente | só existe homologação; separa-se ao ligar produção |
 
 As Issues #40 (pipeline de staging) e #41 (workflow de produção) foram escritas antes desta decisão e precisam ser revistas ou fechadas pelo Henrique.
@@ -430,13 +471,13 @@ As Issues #40 (pipeline de staging) e #41 (workflow de produção) foram escrita
 | #98 logs JSON | sem mudança |
 | #99 Terraform | provider `= 0.6.3` + `hashicorp/random`; build e deploy no `railway_service`; mapa `ambientes`; `watch_patterns` para `auto_deploy`; `$${{` nas referências; variáveis vazias não enviadas |
 | `railway.toml` | **cancelada** |
-| Nova: Data Protection | pacote + migração (D4) |
-| Runbook | conflito de nome `RAILWAY_TOKEN` com a CLI; agenda de backup e alerta de gasto são cliques no painel; conferência do deploy ignorado |
+| Nova: Data Protection | pacote + migração (D4; PR #120) |
+| Runbook | conflito de nome `RAILWAY_TOKEN` com a CLI; agenda de backup, alerta de gasto e Wait for CI são cliques no painel; com `auto_deploy = false`, conferência do deploy ignorado |
 
 ## 16. O que não foi possível confirmar em fonte
 
 1. **Se conectar o repositório no primeiro `apply` dispara sozinho o deploy inicial**, e se esse deploy respeita o `watch_patterns`. O runbook trata os dois casos.
-2. **Se "Deploy Latest Commit" ignora o `watch_patterns`.** A documentação indica esse comando como saída quando os watch paths bloqueiam um deploy, mas não afirma isso com todas as letras. Plano B: botão Disable.
+2. **Se "Deploy Latest Commit" ignora o `watch_patterns`.** A documentação indica esse comando como saída quando os watch paths bloqueiam um deploy, mas não afirma isso com todas as letras. Plano B: botão Disable. Só importa com `auto_deploy = false`, que não é o caso da homologação (D3).
 3. **Se o pre-deploy command substitui o `ENTRYPOINT` da imagem e roda em forma exec.** A documentação só diz isso do start command. O comando adotado, `tini -- dotnet Helinho.Web.dll migrate`, supõe que sim (seção 7.3); o runbook manda conferir no primeiro deploy.
 4. **Se a requisição de healthcheck traz `X-Forwarded-Proto`.** Por isso as rotas de saúde ficam fora do redirecionamento.
 5. **Como o provider se comporta com um segundo ambiente no mesmo projeto** além do que o código mostra (L3). Não foi executado nenhum `plan`.
@@ -448,7 +489,7 @@ As Issues #40 (pipeline de staging) e #41 (workflow de produção) foram escrita
 ## 17. Consequências
 
 **Positivas**
-- Um `apply` cria projeto, banco, serviço, variáveis e domínio; nenhum passo manual entre a criação do token e o primeiro deploy.
+- Um `apply` cria projeto, banco, serviço, variáveis e domínio; nenhum passo manual entre a criação do token e o primeiro deploy. Depois dele, o único clique obrigatório é ligar Wait for CI (7.5).
 - Banco sem endereço público; segredo nenhum no repositório; senha do banco nunca digitada.
 - Tudo o que define o deploy está em um lugar só (Terraform), revisado em PR e validado no CI sem segredo.
 - Fatura previsível: no plano Pro a homologação cabe no uso já incluído.
@@ -457,5 +498,6 @@ As Issues #40 (pipeline de staging) e #41 (workflow de produção) foram escrita
 - Dependência de um provider comunitário 0.x em uma plataforma que agora investe no próprio IaC.
 - O banco de homologação é operado por nós, não pelo template da Railway.
 - Estado local com segredos em uma única máquina, protegido por disciplina de backup.
-- `auto_deploy = false` usa um contorno que só será validado no primeiro deploy.
+- Com `auto_deploy = true`, toda migração mergeada roda sozinha em homologação, e Wait for CI depende de um clique no painel, fora do Terraform.
+- `auto_deploy = false` (padrão da variável, e o previsto para produção) usa um contorno ainda não validado em ambiente real.
 - Dados hospedados nos Estados Unidos: aceitável para dado sintético, pendente de decisão para dado real.
