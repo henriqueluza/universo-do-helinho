@@ -232,14 +232,18 @@ A Issue planejada para o `railway.toml` deixa de existir; o conteúdo dela passa
 
 Serviço ligado a repositório faz deploy a cada push na branch conectada. O provider não tem atributo para ligar ou desligar isso (L2). A variável `auto_deploy` é implementada assim:
 
-- `auto_deploy = true` (homologação) → `watch_patterns = []`: todo push em `main` implanta. **Wait for CI** não existe no provider: é um clique nas configurações do serviço, no painel da Railway, e **deve ser ligado** logo depois do primeiro `apply`, para a Railway esperar o `validate.yml`. Enquanto não for ligado, um push em `main` implanta sem esperar o CI.
+- `auto_deploy = true` (homologação) → `watch_patterns = []`: todo push em `main` implanta. **Wait for CI** não existe no provider: é um clique nas configurações do serviço, no painel da Railway, e **deve ser ligado** logo depois do primeiro `apply`. O que ele cobre hoje está em "Limite do Wait for CI", abaixo.
 - `auto_deploy = false` (padrão da variável) → `watch_patterns` recebe um padrão que nenhum arquivo do repositório casa. Push em `main` vira deploy ignorado e a publicação é manual, pelo painel: `Cmd+K` → **Deploy Latest Commit**, que implanta o último commit da branch conectada.
 
 O que a escolha implica:
 
-- **Toda migração mergeada roda sozinha em homologação**, pelo pre-deploy (7.3), sem ninguém acompanhar. A regra de migração compatível com a versão anterior (expand/contract) passa a valer a cada merge.
+- **Toda migração mergeada roda sozinha em homologação**, pelo pre-deploy (7.3), sem ninguém acompanhar e, hoje, sem que a Railway espere build e testes do commit publicado. A regra de migração compatível com a versão anterior (expand/contract) passa a valer a cada merge.
 - **O `apply` deixa de ser o único momento em que o ambiente muda**: cada merge em `main` também muda.
 - **Em produção o padrão continua desligado.** Hoje `auto_deploy` é uma variável única do root, não por ambiente: ao ligar `producao`, ela precisa de `terraform.tfvars` próprio (estado separado, seção 5.2) sem `auto_deploy = true`, ou a variável passa a ser por ambiente. Isso se resolve antes de ligar a produção.
+
+**Limite do Wait for CI (achado da revisão do PR #101).** O Wait for CI só pode esperar um workflow que rode no commit publicado, ou seja, disparado por `push` em `main`. Hoje o `validate.yml` (format, build e testes) só dispara em `pull_request`; em push na `main` roda apenas o `security.yml` (gitleaks e semgrep). Portanto, **ligar o clique não faz a Railway esperar build e testes e não protege as migrações mergeadas**. Como a Railway se comporta sem workflow de push, ou só com o `security.yml`, não foi confirmado em fonte (seção 16, item 10).
+
+O controle que vale hoje é a **proteção da `main`**: o ruleset `protect-main` exige PR e os checks `validate`, `semgrep`, `gitleaks` e `pr-size` antes do merge (consultado na API do GitHub em 22/11/2026). O `validate` roda no PR, não no commit que chega à `main`. Quem confirma que essa proteção continua ativa é uma pessoa, antes do primeiro `apply`. Fechar a lacuna, rodando o `validate` também no commit que chega à `main`, é a Issue #225; editar workflow exige autorização do Henrique.
 
 O contorno de `auto_deploy = false` depende de um comportamento documentado (deploy ignorado por watch paths; "Deploy Latest Commit" como saída) e não foi validado em ambiente real; se um dia for usado e o deploy não aparecer como ignorado, o plano B é o botão **Disable** de auto-deploy nas configurações do serviço.
 
@@ -359,7 +363,7 @@ Registradas em 22/11/2026, pelo Henrique.
 | B. `homologacao` + `producao` como dois ambientes do mesmo projeto | uso de cerca de US$ 16 | o provider só lê serviço e volume do ambiente padrão (L3); sem RBAC por ambiente fora do Enterprise |
 | C. `homologacao` + `producao` em dois projetos, mesmo módulo | uso de cerca de US$ 16 | dois projetos para acompanhar no painel |
 
-**Estado em 22/11/2026: homologação agora; produção ainda em avaliação.** O primeiro deploy, em 22/11/2026, é só `homologacao`. O Henrique perguntou por que não criar `producao` já, para o desenvolvedor Unity testar; a decisão não está fechada. O código já nasce no formato de C (um projeto por ambiente), com `producao` desligada.
+**Estado em 22/11/2026: homologação agora; produção ainda em avaliação.** O primeiro deploy, planejado para 22/11/2026, é só `homologacao`. O Henrique perguntou por que não criar `producao` já, para o desenvolvedor Unity testar; a decisão não está fechada. O código já nasce no formato de C (um projeto por ambiente), com `producao` desligada.
 
 **O ambiente de teste do desenvolvedor Unity é a homologação**: seed sintético e credenciais de teste.
 
@@ -370,6 +374,7 @@ Registradas em 22/11/2026, pelo Henrique.
 3. **E-mails reais para convite e redefinição de senha** (Sprint 3), ou um caminho manual.
 4. **Pré-requisitos de dado real do ADR-0001 §7**: proteção em repouso de CPF/RG, retenção, consentimento, auditoria e MFA do master.
 5. **Domínio** (ver "Pendências", abaixo).
+6. **`auto_deploy` por ambiente** (acréscimo da revisão): hoje a variável é única no root; o `true` da homologação não pode valer para a produção (7.5).
 
 Somam-se os itens já listados na seção 5.2.
 
@@ -388,11 +393,13 @@ Opções e riscos na seção 10.3. **Aceita: local, fora do git, com backup cifr
 **Escolha do Henrique: B**, que é o que a política da casa prevê para staging. Implicações, detalhadas na seção 7.5:
 
 - toda migração mergeada roda sozinha em homologação, pelo pre-deploy;
-- "Wait for CI" é um clique no painel da Railway e deve ser ligado;
+- "Wait for CI" é um clique no painel da Railway e deve ser ligado; **hoje ele não espera build nem testes**, porque o `validate.yml` não roda em push na `main` (7.5);
 - o `apply` deixa de ser o único momento em que o ambiente muda;
 - em produção o padrão continua desligado.
 
 O padrão da variável no Terraform (PR #100) continua `false`; o Henrique liga com `auto_deploy = true` no `terraform.tfvars`.
+
+**Risco aberto, ainda não aceito por ninguém:** a escolha da opção B foi registrada com o Wait for CI como proteção, e essa proteção não cobre build e testes enquanto a Issue #225 não for feita. Até lá, o que segura um commit ruim é a proteção da `main` (7.5). Cabe ao Henrique aceitar esse risco para a homologação (dado sintético) ou autorizar a #225 antes do primeiro `apply`.
 
 ### D4. Data Protection (aceita)
 
@@ -438,7 +445,7 @@ Todos os usuários do seed compartilham a senha de `HELINHO_SEED_PASSWORD`: a cr
 | Nunca usar estado local | estado local com backup cifrado (D2, aceita em 22/11/2026) | seção 10.3 |
 | Autenticação do CI por OIDC | não se aplica: o CI não autentica na Railway | o workflow `infra.yml` só valida |
 | Uma imagem construída no CI e promovida pelo digest | a Railway constrói a imagem a partir do commit | há um único ambiente; não existe promoção |
-| Staging publicado automaticamente após o merge | sem exceção em homologação: `auto_deploy = true` com Wait for CI (D3, opção B). Quem publica é a Railway, não o CI | o padrão da variável é `false`; em produção continua desligado |
+| Staging publicado automaticamente após o merge | sem exceção em homologação: `auto_deploy = true` com Wait for CI (D3, opção B; limite do Wait for CI em 7.5). Quem publica é a Railway, não o CI | o padrão da variável é `false`; em produção continua desligado |
 | Diretório por ambiente no Terraform | um root em `infra/railway/` com um módulo por ambiente | só existe homologação; separa-se ao ligar produção |
 
 As Issues #40 (pipeline de staging) e #41 (workflow de produção) foram escritas antes desta decisão e precisam ser revistas ou fechadas pelo Henrique.
@@ -472,7 +479,8 @@ As Issues #40 (pipeline de staging) e #41 (workflow de produção) foram escrita
 | #99 Terraform | provider `= 0.6.3` + `hashicorp/random`; build e deploy no `railway_service`; mapa `ambientes`; `watch_patterns` para `auto_deploy`; `$${{` nas referências; variáveis vazias não enviadas |
 | `railway.toml` | **cancelada** |
 | Nova: Data Protection | pacote + migração (D4; PR #120) |
-| Runbook | conflito de nome `RAILWAY_TOKEN` com a CLI; agenda de backup, alerta de gasto e Wait for CI são cliques no painel; com `auto_deploy = false`, conferência do deploy ignorado |
+| Runbook | conflito de nome `RAILWAY_TOKEN` com a CLI; agenda de backup, alerta de gasto e Wait for CI são cliques no painel; com `auto_deploy = false`, conferência do deploy ignorado. O runbook em `main` ainda descreve a publicação manual: a atualização para a D3 escolhida é a Issue #226 |
+| Nova: #225 `validate` no commit que chega à `main` | sem ela, o Wait for CI não espera build nem testes (7.5); editar workflow exige autorização |
 
 ## 16. O que não foi possível confirmar em fonte
 
@@ -485,6 +493,7 @@ As Issues #40 (pipeline de staging) e #41 (workflow de produção) foram escrita
 7. **Qual plano a conta da contratante tem** (Hobby ou Pro) e o que mais roda no workspace. Pergunta para o Igor; muda a fatura e, se for Hobby, quem cria o token (seção 10.2).
 8. **Qual versão do PostgreSQL o template da Railway entrega hoje.** Irrelevante para a opção escolhida.
 9. **Consumo real de CPU e memória.** As estimativas de custo são premissas, a medir na primeira semana.
+10. **O que o Wait for CI faz quando não há workflow disparado por push na `main`**, ou quando o único é o `security.yml`: se publica na hora, se espera só esse workflow ou se segura o deploy. Hoje o `validate.yml` só roda em `pull_request` (7.5; Issue #225).
 
 ## 17. Consequências
 
@@ -498,6 +507,6 @@ As Issues #40 (pipeline de staging) e #41 (workflow de produção) foram escrita
 - Dependência de um provider comunitário 0.x em uma plataforma que agora investe no próprio IaC.
 - O banco de homologação é operado por nós, não pelo template da Railway.
 - Estado local com segredos em uma única máquina, protegido por disciplina de backup.
-- Com `auto_deploy = true`, toda migração mergeada roda sozinha em homologação, e Wait for CI depende de um clique no painel, fora do Terraform.
+- Com `auto_deploy = true`, toda migração mergeada roda sozinha em homologação. O Wait for CI depende de um clique no painel, fora do Terraform, e hoje não espera build nem testes (7.5; Issue #225): o controle efetivo é a proteção da `main`.
 - `auto_deploy = false` (padrão da variável, e o previsto para produção) usa um contorno ainda não validado em ambiente real.
 - Dados hospedados nos Estados Unidos: aceitável para dado sintético, pendente de decisão para dado real.
