@@ -1,13 +1,13 @@
 # ADR-0004 — IA na geração de rascunhos de questões
 
-**Data:** 19/11/2026 · **Status:** proposto (aguarda o Henrique; ver seção 16) · **Decisor:** Henrique
-**Issue:** #177 · **Base:** ADR-0001 (stack, portas e fakes, risco R3), ADR-0003 (fila `QueueJobs`, ainda proposto, PR #185), PRD (B6 e seção 6), `docs/design/GUIA-DE-EVOLUCAO.md` §3.3 e §3.3.1
+**Data:** 19/11/2026 · **Status:** aceito em 22/11/2026 (ver seção 16) · **Decisor:** Henrique
+**Issue:** #177 · **Base:** ADR-0001 (stack, portas e fakes, risco R3), ADR-0003 (fila `QueueJobs`, aceito em 22/11/2026, PR #185), PRD (B6 e seção 6), `docs/design/GUIA-DE-EVOLUCAO.md` §3.3 e §3.3.1
 
 **Nível de arquitetura:** `clean` (ADR-0001, seção 3). Este ADR não muda o nível.
 
 **Regra da casa, registrada aqui:** **a IA sugere, a equipe decide.** Tudo o que a IA gera nasce como sugestão; nada gerado chega ao jogo sem que uma pessoa da equipe aprove; editar devolve a rascunho.
 
-Este ADR não cria conta, não fecha contrato e não chama modelo nenhum. O provedor de IA não está definido pela contratante (Perguntas e Respostas, item C20). A sprint entrega o fluxo inteiro com um gerador fake; o adaptador do provedor real fica desenhado para ser um PR pequeno depois.
+Este ADR não cria conta, não fecha contrato e não chama modelo nenhum. O provedor de IA não está definido pela contratante (Perguntas e Respostas, item C20). A sprint entrega o fluxo inteiro com um gerador fake e, por decisão do Henrique em 22/11/2026, **também o adaptador real do Claude Haiku**: o adaptador é implementado e testado com cliente falso; nenhuma chamada real acontece sem a chave de API, que vem depois (seções 6 e 16).
 
 ---
 
@@ -65,7 +65,7 @@ A geração por IA está no PRD como "fora do MVP, dentro do contrato" (PRD, se�
 |---|---|
 | Porta | `IQuestionDraftGenerator.GenerateAsync(QuestionDraftRequest, ct) → QuestionDraftBatch`, em `Helinho.Application/Ai`. O domínio não conhece provedor (seção 4). |
 | Gerador padrão | `FakeQuestionDraftGenerator` em `Infrastructure/Fakes`: determinístico, latência configurável, falhas simuladas por configuração (seção 5). |
-| Provedor real | Recomendação a levar à contratante: **Claude Haiku** pela API da Anthropic. Adaptador desenhado, não implementado (seção 6). O modelo vem sempre de `Ai__Model`. |
+| Provedor real | Recomendação a levar à contratante: **Claude Haiku** pela API da Anthropic. Adaptador implementado nesta sprint, atrás de `Ai__Provider=Anthropic`, e testado com cliente falso; nenhuma chamada real acontece sem a chave (seção 6). O modelo vem sempre de `Ai__Model`. |
 | Prompt | Arquivo versionado `gerar-questoes.v1.md`; a versão é gravada em cada job e em cada questão de origem IA (seção 7). |
 | Saída do modelo | Dado não confiável: análise estrita, validação e deduplicação em `Application`, iguais para qualquer provedor; nunca `Html.Raw` (seção 8). |
 | Onde vivem os rascunhos | **Tabela de sugestões ligada ao job.** A sugestão só vira `Question` quando alguém aprova ou edita e salva (seção 9). |
@@ -132,7 +132,14 @@ Em `src/Helinho.Infrastructure/Fakes/`, como os fakes de e-mail e push.
 - **Usa o mesmo montador de prompt do adaptador real** (seção 7), ainda que ignore o texto. Assim o teste de privacidade inspeciona a requisição montada mesmo com o fake, e a versão do prompt gravada é a verdadeira.
 - As chaves `Ai:Fake:*` são de desenvolvimento e teste; não entram no Terraform.
 
-## 6. Adaptador do provedor real (desenhado, não implementado)
+## 6. Adaptador do provedor real (implementado nesta sprint, sem a chave)
+
+**Mudança de escopo, decisão do Henrique em 22/11/2026:** o adaptador do Claude Haiku é desenvolvido agora, nesta sprint, e não em um PR futuro. Fica tudo pronto, exceto a chave de API, que vem depois. O adaptador é implementado e testado com cliente falso; nenhuma chamada real acontece sem a chave.
+
+- Fica atrás de `Ai__Provider=Anthropic`. A validação na subida **falha** se o provedor for esse e `Ai__ApiKey` estiver vazia (seção 14).
+- O modelo vem sempre de `Ai__Model`; o código não tem nome de modelo.
+- **Nenhum teste chama a API real**: os testes usam handler ou cliente falso.
+- Os ambientes não mudam (D9): `Fake` em homologação e `Off` em produção, até a chave e o aval da contratante (D8).
 
 ### 6.1 Fatos da API da Anthropic na data
 
@@ -170,7 +177,7 @@ Em `src/Helinho.Infrastructure/Fakes/`, como os fakes de e-mail e push.
 
 1. Recebe a `QuestionDraftRequest` e pede ao montador (seção 7) o texto de sistema e o texto do pedido. Não consulta banco nem usuário.
 2. Monta **uma** chamada por job: `model` = `Ai__Model` (o código não tem nome de modelo; exemplo datado de valor: `claude-haiku-5-5` em 19/11/2026, a conferir no runbook no dia de ligar), `system` = prompt v1, `messages` = um turno de usuário, `output_config.format` = o esquema da seção 6.3, `max_tokens` proporcional à quantidade (ponto de partida: `1024 + 800 × Count`). **Sem `tools`, sem `temperature`/`top_p`/`top_k`, sem *streaming*.**
-3. Esforço e raciocínio: ponto de partida `output_config.effort = "low"` com raciocínio adaptativo. O ajuste fino (esforço, raciocínio ligado ou desligado) é do PR do adaptador, medido em amostra; ele muda custo e latência, não a porta.
+3. Esforço e raciocínio: ponto de partida `output_config.effort = "low"` com raciocínio adaptativo. O adaptador nasce com esse ponto de partida. O ajuste fino (esforço, raciocínio ligado ou desligado) é medido em amostra e por isso só pode ser feito depois da chave; ele muda custo e latência, não a porta.
 4. Chave em `Ai__ApiKey`, lida por `IOptions<AiOptions>`, enviada só no cabeçalho de autenticação. Nunca em log, exceção, URL ou teste.
 5. Prazo: o token de cancelamento recebido, com teto de `Ai__TimeoutSeconds`.
 6. **Tentativas: só 429 e 5xx (incluindo 529)**, no máximo duas repetições, com espera exponencial e `retry-after` quando vier, sempre dentro do prazo total. **Não repete:** 400, 401, 402, 403, 404, 413; o 429 de teto de gasto (`enforced_spend_limit_reached`, que não tem `retry-after`); o 400 de limite de gasto próprio; e recusa.
@@ -189,7 +196,7 @@ Tamanhos, alternativas distintas e quantidade de itens **não** são garantidos 
 
 ### 6.4 `HttpClient` tipado ou SDK oficial
 
-A Issue deixa a decisão para o PR do adaptador. Os dois caminhos atendem a porta sem mudar mais nada.
+A Issue deixava a decisão para o PR do adaptador; o Henrique aceitou a recomendação em 22/11/2026 (D4). Os dois caminhos atendem a porta sem mudar mais nada.
 
 | Critério | `HttpClient` tipado | SDK oficial (`Anthropic`) |
 |---|---|---|
@@ -201,9 +208,9 @@ A Issue deixa a decisão para o PR do adaptador. Os dois caminhos atendem a port
 | Teste sem rede | `HttpMessageHandler` falso | `BaseUrl` apontando para servidor de teste local; injeção de `HttpClient` não confirmada (seção 18) |
 | Tamanho estimado do PR | 400 a 500 linhas com testes, provavelmente em dois PRs | 250 a 350 linhas com testes |
 
-**Recomendação: SDK oficial**, por ser o caminho que a própria Anthropic indica quando há SDK para a linguagem (F4, F23) e por tirar do nosso código a parte que mais envelhece (formato da API e política de tentativas). **Caminho de volta:** se a auditoria de dependências reprovar o pacote ou a contratante não quiser dependência nova, `HttpClient` tipado, com dois PRs. Em qualquer caso, `Program.cs` não é editado (registro em `Web/Composition/`) e os testes não tocam a rede.
+**Decisão (D4, aceita em 22/11/2026, como recomendada): SDK oficial**, com Issue de dependência e auditoria antes do adaptador (seção 19), por ser o caminho que a própria Anthropic indica quando há SDK para a linguagem (F4, F23) e por tirar do nosso código a parte que mais envelhece (formato da API e política de tentativas). **Caminho de volta:** se a auditoria de dependências reprovar o pacote ou a contratante não quiser dependência nova, `HttpClient` tipado, com dois PRs. Em qualquer caso, `Program.cs` não é editado (registro em `Web/Composition/`) e os testes não tocam a rede.
 
-Trocar para o Haiku exige, portanto: o PR do adaptador e as variáveis `Ai__Provider`, `Ai__ApiKey` e `Ai__Model`. Nenhuma mudança em domínio, casos de uso ou telas.
+Com o adaptador já entregue na sprint, ligar o Haiku exige só as variáveis `Ai__Provider`, `Ai__ApiKey` e `Ai__Model`, depois da chave e do aval da contratante (D8). Nenhuma mudança em domínio, casos de uso ou telas.
 
 ### 6.5 Comparativo de provedores
 
@@ -334,6 +341,8 @@ Uma questão de origem IA continua "IA" depois de editada. Para o selo distingui
 ## 10. Fila: a `QueueJobs` do ADR-0003
 
 A fila é decidida no **ADR-0003** (PR #185, `docs/architecture/ADR-0003-emails-brevo.md`, seções 5 e 6), lido na branch `issue-176-adr-emails-brevo` em 19/11/2026, ainda com status "proposto". Este ADR não cria fila: usa a dele. As referências abaixo são às seções do ADR-0003.
+
+> **Atualização de 22/11/2026:** o Henrique aceitou o ADR-0003 (D1 a D18). Os sete ajustes da seção 10.4 foram aceitos por ele na seção 6.8, A4 e A6 com mudança de forma (D16 do ADR-0003). A D3 deste ADR está resolvida e o caso da seção 10.6 não se aplica. O texto abaixo fica como registro do que foi pedido.
 
 ### 10.1 O que o ADR-0003 propõe
 
@@ -489,7 +498,7 @@ Regras:
 |---|---|
 | ausente, vazio ou `Off` | **Desligada.** Botões e avisos de IA não são renderizados; `/questoes/ia`, seus *handlers* e o *handler* "Sugerir" respondem **404** (não 403: a funcionalidade não é anunciada). Nenhum trabalhador de IA roda. |
 | `Fake` | Ligada com o gerador fake. Aviso discreto nas telas de IA: **"Modo de demonstração: sugestões fictícias."** |
-| `Anthropic` (após o PR do adaptador) | Ligada com o provedor real. Exige `Ai__ApiKey` e `Ai__Model` não vazios; sem eles a aplicação **não sobe**. |
+| `Anthropic` (adaptador desta sprint) | Ligada com o provedor real. Exige `Ai__ApiKey` e `Ai__Model` não vazios: a validação na subida falha sem eles e a aplicação **não sobe**. Nenhum ambiente usa este valor antes da chave e da D8. |
 | qualquer outro valor | A aplicação não sobe, com erro que cita a variável e não o valor da chave. |
 
 - **O padrão do código é desligada.** Quem liga é a configuração de cada ambiente.
@@ -530,19 +539,31 @@ O desenho é o da entrega Recreio (`telas.html:271-296`, guia §3.3 e §3.3.1); 
 
 **Mensagens por código de falha** (texto final na Issue de UI): `Timeout` → "A IA demorou demais. Tente de novo."; `ProviderUnavailable` e `RateLimited` → "A IA está indisponível agora."; `Refused` → "A IA não gerou sugestões para este assunto. Tente outro assunto."; `InvalidOutput` → "As sugestões vieram com problema e foram descartadas."; `Misconfigured` → "A IA não está configurada. Avise o responsável técnico."
 
-## 16. Decisões que esperam o Henrique
+## 16. Decisões
 
-| # | Decisão | Recomendação | Alternativa |
+**O Henrique aprovou todas as decisões, D1 a D9, como recomendadas, em 22/11/2026, com uma mudança de escopo:** o adaptador real do Claude Haiku é desenvolvido agora, nesta sprint, e não em um PR futuro. Fica tudo pronto, exceto a chave de API, que vem depois.
+
+O que a mudança de escopo fixa:
+
+- o adaptador entra no plano de Issues da sprint (seção 19), atrás de `Ai__Provider=Anthropic`;
+- a validação na subida falha se o provedor for `Anthropic` e a chave estiver vazia;
+- o modelo vem sempre de `Ai__Model`;
+- **nenhum teste chama a API real** (handler ou cliente falso);
+- a D4 fica como recomendada: SDK oficial `Anthropic`, com Issue de dependência e auditoria;
+- a D9 continua: `Fake` em homologação e `Off` em produção, até a chave e o aval da contratante (D8);
+- a D8 (as sete perguntas ao Marcos) **segue pendente e não bloqueia o código**.
+
+| # | Decisão | Decisão aceita (a recomendada) | Alternativa, não adotada |
 |---|---|---|---|
 | D1 | Provedor a propor à contratante | Claude Haiku pela API da Anthropic, em conta da contratante | `gpt-6-luna` (mesmo preço listado); Gemini Flash-Lite tem a restrição de idade nos termos |
 | D2 | Onde vivem os rascunhos | Tabela de sugestões (seção 9.1, opção A) | `Question` em rascunho desde a geração |
 | D3 | Fila | Usar a `QueueJobs` do ADR-0003 (tipo `ai.question-drafts`, sem migração de fila), **com os ajustes A1–A7 da seção 10.4**; A1, A2 e A4 antes da Issue do trabalhador da Sprint 3 | Aceitar a `QueueJobs` sem os ajustes e usar os contornos da seção 10.4; fila própria só se a D1 do ADR-0003 for pela opção `email_outbox` + tabela irmã (seção 10.6) |
-| D4 | `HttpClient` ou SDK no adaptador | SDK oficial `Anthropic`, com Issue de dependência e auditoria; decisão formal no PR do adaptador | `HttpClient` tipado, sem pacote, em dois PRs |
+| D4 | `HttpClient` ou SDK no adaptador | SDK oficial `Anthropic`, com Issue de dependência e auditoria; o adaptador entra nesta sprint (Issues 15 e 16) | `HttpClient` tipado, sem pacote, em dois PRs |
 | D5 | Quinta coluna `AiEditedAt` na migração | Incluir, mesmo antes de a contratante aprovar o selo | Só as quatro colunas; o selo "Editada a partir da IA" fica sem dado se for aprovado depois |
 | D6 | Cotas e prazo | 60 por pessoa, 300 no total, janela de 24 h, prazo de 90 s | Outros valores (pendência IA-1) |
 | D7 | Retenção das sugestões descartadas | Texto guardado por 30 dias; depois o texto é apagado e fica a linha com quem, quando e a decisão | Apagar na hora; ou guardar sem prazo (pendência IA-2) |
-| D8 | Aval da contratante | Levar as perguntas abaixo antes de ligar qualquer provedor real | — |
-| D9 | `Ai__Provider` por ambiente | `Fake` em homologação, `Off` em produção até D8 | `Fake` em produção, com o aviso de demonstração |
+| D8 | Aval da contratante | Levar as perguntas abaixo antes de ligar qualquer provedor real. **Pendente**: depende do Marcos e não bloqueia o código | — |
+| D9 | `Ai__Provider` por ambiente | `Fake` em homologação, `Off` em produção até a chave e a D8 | `Fake` em produção, com o aviso de demonstração |
 
 **D8 — o que precisa de aval da contratante (risco R3 do ADR-0001, C14 e C20).** A cláusula de IA do contrato foi tratada no ADR-0001 para o uso de IA no desenvolvimento. Aqui a IA passa a ser **funcionalidade do produto**, o que a cláusula e o Q&A não cobrem. Perguntas para o Henrique levar ao Marcos:
 
@@ -554,7 +575,7 @@ O desenho é o da entrega Recreio (`telas.html:271-296`, guia §3.3 e §3.3.1); 
 6. As questões de origem IA precisam ser identificadas para alguém além da equipe do painel (responsáveis, relatórios)?
 7. O contrato precisa de aditivo ou de registro formal para o uso de IA no produto?
 
-Enquanto não houver resposta, o sistema roda com `Fake` ou `Off`, e nada disso bloqueia a sprint.
+Enquanto não houver resposta, o sistema roda com `Fake` ou `Off`, e nada disso bloqueia a sprint nem o código do adaptador.
 
 **Pendências `PROPOSTA`** (detalhe em `docs/context/pendencias-ia.md`): IA-1 cotas e prazo; IA-2 retenção das descartadas; IA-3 selo "Editada a partir da IA"; IA-4 provedor, conta e teto; IA-5 validação pedagógica do prompt; IA-6 enunciados existentes no prompt; IA-7 IA como funcionalidade do produto no contrato.
 
@@ -572,6 +593,8 @@ Enquanto não houver resposta, o sistema roda com `Fake` ou `Off`, e nada disso 
 | Origem IA não muda | Editar uma questão de origem IA mantém `Origin = Ai`. |
 | Fake determinístico | A mesma requisição gera o mesmo lote em dois processos. |
 | Segredo fora do log | Com o adaptador: a chave não aparece em log nem em exceção. |
+| Nenhum teste chama a API real | O adaptador é exercitado com handler ou cliente falso; a suíte passa sem rede e sem `Ai__ApiKey`. |
+| `Anthropic` sem chave não sobe | Com `Ai__Provider=Anthropic` e `Ai__ApiKey` vazia, a validação na subida falha, com erro que cita a variável e não o valor. |
 
 ## 18. O que não foi possível confirmar em fonte
 
@@ -582,9 +605,9 @@ Enquanto não houver resposta, o sistema roda com `Fake` ou `Off`, e nada disso 
 5. **Se as diretrizes da Anthropic para organizações que atendem menores se aplicam** quando só adultos da equipe usam o modelo e a criança vê o conteúdo depois de revisão humana. F17 fala em interação direta de menores; a página não trata deste caso.
 6. **Limites da camada Evaluation** da Anthropic, onde uma organização nova pode começar.
 7. **Preços e políticas da OpenAI e do Google**, e os prazos de F14: vieram como resumo da ferramenta de leitura (seção 2). Saída estruturada nesses dois provedores não foi verificada.
-8. **Se o SDK `Anthropic` para C# aceita um `HttpClient` ou `HttpMessageHandler` injetado**, o que define como o adaptador é testado sem rede.
+8. **Se o SDK `Anthropic` para C# aceita um `HttpClient` ou `HttpMessageHandler` injetado**, o que define como o adaptador é testado sem rede. A Issue do adaptador resolve isso; em qualquer caso, os testes usam handler ou cliente falso.
 9. **A numeração "2026" do OWASP Top 10 para LLM** usada pela skill da casa: a página oficial mostrava a edição 2025 na data.
-10. **O ADR-0003 foi lido como proposta** (PR #185, ainda sem aceite). Se ele mudar na revisão, a seção 10 precisa ser conferida de novo. A assinatura de `IJobHandler` e o mecanismo de gravar resultado e conclusão juntos não estão escritos nele (ajustes A2 e A3).
+10. **O ADR-0003 foi lido como proposta** (PR #185) e aceito pelo Henrique em 22/11/2026. Se ele mudar na revisão, a seção 10 precisa ser conferida de novo. A assinatura de `IJobHandler` e o mecanismo de gravar resultado e conclusão juntos não estão escritos nele (ajustes A2 e A3).
 11. **Câmbio e impostos** sobre o gasto em dólar.
 
 ## 19. Plano de Issues da sprint
@@ -607,15 +630,16 @@ Enquanto não houver resposta, o sistema roda com `Fake` ou `Off`, e nada disso 
 | 12 | Lista: selo `.tag-ai`, filtro Origem, aviso de pendentes, botão "Gerar com IA" | 2 | 1, 2 | s |
 | 13 | Purga das sugestões descartadas | 2 | 1; D7 | s |
 | 14 | Teste de ponta a ponta com o fake + `scripts/demo.sh` | 3 | 8 a 12 | s |
-| — | **Depois da sprint:** Issue de dependência (se D4 = SDK) e PR do adaptador Anthropic | — | D1, D4, D8 | m (250 a 350 linhas com SDK; 400 a 500 com `HttpClient`, em dois PRs) |
+| 15 | **Dependência:** pacote `Anthropic` (SDK oficial, D4) em `Directory.Packages.props`, com a versão confirmada no Context7 e auditada com `supply-chain-risk-auditor`. Só o pacote | 1 | este ADR aceito; D4 | xs |
+| 16 | **Adaptador `AnthropicQuestionDraftGenerator`** (seção 6), atrás de `Ai__Provider=Anthropic`: registro condicional, validação na subida que falha com esse provedor e chave vazia, modelo sempre de `Ai__Model`, mapeamento de erros e `AiUsage`. **Nenhum teste chama a API real** (handler ou cliente falso) | 2 | 2, 3, 4, 15 | m (250 a 350 linhas com SDK) |
 
-**Só a Issue 1 gera migração.** A "fila genérica desta sprint" que constava de uma versão anterior deste plano deixou de existir: a `QueueJobs` da Sprint 3 atende (seção 10.3). Ela só volta, como Issue e migração próprias, no caso da seção 10.6. O teste de ponta a ponta (Issue 14) segue o padrão do ADR-0003: trabalhador desligado na fábrica de testes e chamada direta a `IJobProcessor`. Nenhuma adiciona pacote. Nenhuma muda rota ou DTO da API do jogo. Cada PR passa por `review-pr`, com `security-reviewer` olhando os riscos da seção 12 e `ui-reviewer` comparando com a preview.
+**Só a Issue 1 gera migração.** A "fila genérica desta sprint" que constava de uma versão anterior deste plano deixou de existir: a `QueueJobs` da Sprint 3 atende (seção 10.3). Ela só volta, como Issue e migração próprias, no caso da seção 10.6. O teste de ponta a ponta (Issue 14) segue o padrão do ADR-0003: trabalhador desligado na fábrica de testes e chamada direta a `IJobProcessor`. Só a Issue 15 adiciona pacote (o SDK `Anthropic`, D4), e é esse o único propósito dela. Nenhuma muda rota ou DTO da API do jogo. **As Issues 15 e 16 entraram no plano em 22/11/2026**, por decisão do Henrique: antes, o adaptador ficava para depois da sprint. Elas não dependem da D8 nem da chave; ligar o provedor em algum ambiente, sim. Cada PR passa por `review-pr`, com `security-reviewer` olhando os riscos da seção 12 e `ui-reviewer` comparando com a preview.
 
 ## 20. Alternativas descartadas (resumo)
 
 | Alternativa | Por que não |
 |---|---|
-| Chamar um modelo real nesta sprint | Provedor não definido (C20); nenhuma conta é criada por agente; o fake prova o fluxo |
+| Chamar um modelo real nesta sprint | Sem chave e sem aval da contratante (C20, D8); nenhuma conta é criada por agente. O adaptador é implementado e testado com cliente falso; nenhuma chamada real acontece sem a chave |
 | Porta genérica de LLM | Seção 4 |
 | `Question` em rascunho como depósito das sugestões | Seção 9.1 |
 | Geração síncrona do lote na requisição HTTP | Vinte questões podem levar dezenas de segundos; prende a requisição e não sobrevive a deploy |
@@ -636,7 +660,7 @@ Enquanto não houver resposta, o sistema roda com `Fake` ou `Off`, e nada disso 
 **Positivas**
 
 - A regra "a IA sugere, a equipe decide" fica no desenho do banco: texto gerado não entra em `Questions` sem um gesto humano.
-- Trocar o fake pelo provedor real é um adaptador e três variáveis.
+- Trocar o fake pelo provedor real são três variáveis: o adaptador já entra nesta sprint.
 - Validação, deduplicação e privacidade são testadas agora, com o fake, e valem para qualquer provedor.
 - O custo tem quatro travas independentes: máximo por pedido, cota por pessoa, teto global e limite no console.
 
@@ -645,6 +669,7 @@ Enquanto não houver resposta, o sistema roda com `Fake` ou `Off`, e nada disso 
 - Duas tabelas novas e um tipo a mais na fila: mais superfície para manter em um projeto de um mantenedor.
 - A Onda 2 depende da fila e do trabalhador da Sprint 3 (ADR-0003, Issues 1 e 8) e de três ajustes pedidos a ele (A1, A2 e A4). Sem os ajustes, valem os contornos da seção 10.4, que deixam mais regra dentro do tratador da IA.
 - O estado do pedido vive em dois lugares (`AiGenerationJobs` e `QueueJobs`); a reconciliação da seção 10.2 existe por causa disso.
+- O adaptador entra sem nunca ter falado com a API real: os testes usam cliente falso, e a primeira chamada de verdade só acontece com a chave. Esforço, prazo e custo ficam para ser medidos nesse momento.
 - O fake prova o fluxo, não a qualidade. A qualidade em português só será conhecida com um provedor real e a amostra pedagógica.
 - As estimativas de custo e de prazo têm premissas não medidas (seção 18, itens 2 e 3).
 - A cota pode ser ultrapassada em um pedido por concorrência; o teto firme é o do console.
