@@ -837,7 +837,7 @@ read -rs TF_VAR_brevo_api_key && export TF_VAR_brevo_api_key
 3. `plan` e `apply`, como no [5.3](#53-plan-e-apply). Esperado: uma mudança, em `railway_variable_collection.web`. O `apply` reimplanta o web.
 4. Prove que a chave nova funciona: um envio real (peça uma redefinição de senha para você) ou a checagem opcional do [5.2](#52-exportar-a-chave).
 5. Na Brevo, nos três pontos ao lado da chave **antiga**: **Delete API key**. É irreversível [F8].
-6. Backup cifrado do estado ([5.7 do runbook da Railway](railway-runbook.md#57-backup-cifrado-do-estado)), atualização da entrada no gerenciador de senhas e uma linha no "Registro de mudanças" de `ambientes.md`, sem o valor.
+6. Backup cifrado do estado ([5.7 do runbook da Railway](railway-runbook.md#57-backup-cifrado-do-estado)), troca do valor na entrada do gerenciador de senhas (o antigo é apagado, não guardado ao lado) e uma linha no "Registro de mudanças" de `ambientes.md`, sem o valor.
 
 **✔ Confira:** a lista da Brevo só tem a chave nova e um e-mail de teste chegou depois da troca.
 
@@ -850,7 +850,7 @@ Vazou se o valor apareceu em tela compartilhada, chat, e-mail, log, histórico d
 **A ordem importa: revogar na Brevo primeiro, trocar na Railway depois.**
 
 1. **Brevo, já:** três pontos ao lado da chave → **Delete API key** [F8]. A partir daí ninguém envia com ela. O sistema também para: a API responde erro de autenticação, o worker suspende e **não perde** os e-mails que ainda estão no prazo (redefinição 30 minutos; convite 24 horas; acesso do aluno 72 horas; ADR-0003 §6.2 e §6.3).
-2. Crie a chave nova, exporte, `plan`, `apply` e backup do estado ([8.1](#81-rotação-de-rotina), itens 1 a 4 e 6).
+2. Crie a chave nova, exporte, `plan`, `apply` e backup do estado ([8.1](#81-rotação-de-rotina), itens 1 a 4 e 6). No gerenciador de senhas, **substitua** o valor antigo pelo novo: a chave revogada não fica guardada em lugar nenhum.
 3. **Veja o que foi feito com a chave antiga.** Em **Transactional → Logs**, procure envios que o sistema não fez: destinatários, assuntos ou horários estranhos [F20]. Em **Settings → Security → Authorized IPs**, procure IPs que não são seus nem da Railway [F12]. A chave restrita do [4.2](#42-criar-a-chave) também **lê** os registros: quem a teve pôde ver os endereços dos destinatários.
 4. **Feche a origem do vazamento:**
 
