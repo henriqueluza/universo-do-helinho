@@ -4,46 +4,45 @@
     bool Active(NavItem i) => current.Equals(i.Path, StringComparison.OrdinalIgnoreCase)
         || current.StartsWith(i.Path + "/", StringComparison.OrdinalIgnoreCase)
         || (i.Path == "/Dashboard" && current == "/");
+    var groupIndex = 0;
 }
-<header class="topbar d-md-none">
-    <span class="brand">Universo do Helinho</span>
-    <button class="btn btn-outline-secondary" type="button" data-bs-toggle="offcanvas"
-            data-bs-target="#menu" aria-controls="menu" aria-expanded="false">Menu</button>
-</header>
-<div class="offcanvas-md offcanvas-start sidebar" tabindex="-1" id="menu" aria-labelledby="menu-titulo">
-    <div class="offcanvas-header d-md-none">
-        <span class="brand" id="menu-titulo">Universo do Helinho</span>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#menu" aria-label="Fechar menu"></button>
-    </div>
-    <div class="offcanvas-body sidebar-body">
-        <div class="sidebar-head d-none d-md-block">
-            <span class="brand">Universo do Helinho</span>
-            <span class="muted small">@Model.Unit</span>
-        </div>
-        <nav aria-label="Seções do painel">
-            <ul class="nav-list">
-                @foreach (var item in Model.Items)
+<aside class="rail offcanvas-md offcanvas-start" id="menu" tabindex="-1" aria-label="Menu do painel">
+    <button class="rail-close" type="button" data-bs-dismiss="offcanvas" data-bs-target="#menu" aria-label="Fechar menu"><svg class="icon" aria-hidden="true"><use href="#i-x" /></svg></button>
+    <a class="rail-logo" href="/Dashboard"><img src="~/img/logo-jogo.webp" width="480" height="162" alt="Universo do Helinho" /></a>
+    <nav aria-label="Seções do painel">
+        @foreach (var group in Model.Groups)
+        {
+            groupIndex++;
+            var labelId = "menu-grupo-" + groupIndex;
+            if (group.Key is not null)
+            {
+                <p class="nav-label" id="@labelId">@group.Key</p>
+            }
+            <ul class="nav" aria-labelledby="@(group.Key is null ? null : labelId)">
+                @foreach (var item in group)
                 {
                     <li>
-                        <a class="nav-item-link @(Active(item) ? "active" : "")" href="@item.Path"
-                           aria-current="@(Active(item) ? "page" : null)">
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
-                                 stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="@item.IconPath" />
-                            </svg>
-                            @item.Label
+                        <a href="@item.Path" aria-current="@(Active(item) ? "page" : null)">
+                            <span class="tile" style="--t:var(--tile-@item.Tile)"><svg aria-hidden="true"><use href="#@item.Icon" /></svg></span>@item.Label
                         </a>
                     </li>
                 }
             </ul>
-        </nav>
-        <div class="user-block">
-            <p class="user-name">@Model.Name</p>
-            <p class="muted small">@Model.Role</p>
-            <p class="muted small">@Model.Unit</p>
+        }
+    </nav>
+    <div class="rail-foot">
+        <button class="tema-btn" type="button" data-tema aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-moon" /></svg>Tema escuro</button>
+        <div class="me user-block">
+            <span class="av" aria-hidden="true">@Model.Initials</span>
+            <b>@Model.Name</b>
+            <small><span>@Model.Role</span><span>@Model.Unit</span></small>
             <form method="post" asp-page="/Conta/Sair">
-                <button class="btn btn-outline-secondary w-100" type="submit">Sair</button>
+                <button type="submit">Sair</button>
             </form>
         </div>
+        <div class="org">
+            <img class="only-light" src="~/img/fundhas.webp" width="480" height="127" alt="FUNDHAS" />
+            <img class="only-dark" src="~/img/fundhas-invertido.webp" width="480" height="127" alt="FUNDHAS" />
+        </div>
     </div>
-</div>
+</aside>

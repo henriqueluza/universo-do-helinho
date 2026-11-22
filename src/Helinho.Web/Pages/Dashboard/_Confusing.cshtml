@@ -1,0 +1,29 @@
+@using Helinho.Web.Painel
+@model Helinho.Web.Pages.Dashboard.IndexModel
+@using Helinho.Application.Painel
+@using Helinho.Web.Pages.Dashboard
+<section class="panel panel-pad" aria-labelledby="t-dificeis">
+    <div class="panel-head"><div><h2 id="t-dificeis">Questões que mais confundem</h2><p>Menor taxa de acerto nos últimos @Model.Dias dias</p></div><a class="more" href="@Url.Page("/Questoes/Index")">Todas as questões<svg class="icon" aria-hidden="true"><use href="#i-go" /></svg></a></div>
+    @if (Model.Rankings.ConfusingQuestions.Count == 0)
+    {
+        <p class="foot-note">Nenhuma questão com @GetDashboardRankings.MinAnswers respostas ou mais no período.</p>
+    }
+    else
+    {
+        <div class="tscroll"><table class="dtable hard">
+            <caption class="sr">Questões com a menor taxa de acerto</caption>
+            <thead><tr><th scope="col">Questão</th><th scope="col">Acerto</th><th scope="col"><span class="sr">Ação</span></th></tr></thead>
+            <tbody>
+                @foreach (var q in Model.Rankings.ConfusingQuestions)
+                {
+                    var qc = TemaQuiz.Of(q.QuizType);
+                    <tr>
+                        <td><b>@q.Statement</b><span class="q-meta"><span class="tag tag-type @qc.Css"><img src="~/img/@(qc.Slug).webp" width="160" height="160" alt="" />@qc.Nome</span><small>@IndexModel.Num(q.Answers) respostas · @IndexModel.BandLabel(q.AgeBand) anos</small></span></td>
+                        <td><span class="hit" style="--v:@IndexModel.Inv(q.AccuracyPercent / 100.0)"><b>@q.AccuracyPercent%</b><span class="hit-bar" aria-hidden="true"><i></i></span></span></td>
+                        <td><a class="btn btn-sm" href="@Url.Page("/Questoes/Editar", new { id = q.QuestionId })">Revisar<span class="sr"> questão: @q.Statement</span></a></td>
+                    </tr>
+                }
+            </tbody>
+        </table></div>
+    }
+</section>
