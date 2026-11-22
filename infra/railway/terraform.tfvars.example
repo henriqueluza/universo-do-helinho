@@ -10,8 +10,11 @@
 
 # Um projeto Railway por chave. Produção nasce desligada: só existe se a chave `producao` for acrescentada
 # (antes, leia "Produção" no README). O seed só é aceito em homologacao; o subdomínio é único em up.railway.app.
+# `dominio_proprio` é opcional e nasce vazio. Preenchido com o nome do host (ex.: "painel.example.org", sem
+# https:// e sem barra), cria o domínio próprio do serviço web; os registros a cadastrar no DNS saem em
+# `terraform output dns_dominio_proprio`. Passo a passo: docs/operations/railway-dominio.md.
 # ambientes = {
-#   homologacao = { seed_enabled = true, subdominio = "helinho-homologacao" } # roda como Staging
+#   homologacao = { seed_enabled = true, subdominio = "helinho-homologacao", dominio_proprio = "" } # roda como Staging
 #   producao    = {}                                                          # roda como Production
 # }
 
@@ -33,7 +36,7 @@
 #   Email__Provider              = "Fake" # ou "Brevo"
 #   Brevo__SenderEmail           = ""
 #   Brevo__SenderName            = ""
-#   App__PublicBaseUrl           = ""
+#   App__PublicBaseUrl           = "" # vazio + dominio_proprio preenchido = https://<dominio_proprio>
 #   Ai__Provider                 = "Fake"
 #   Ai__Model                    = ""
 # }

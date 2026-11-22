@@ -13,6 +13,8 @@ variable "ambientes" {
   type = map(object({
     seed_enabled = optional(bool, false)
     subdominio   = optional(string) # padrão: helinho-<ambiente>; precisa ser único em up.railway.app
+    # Domínio próprio do serviço web (FQDN em minúsculas, sem esquema nem barra); vazio = só o *.up.railway.app.
+    dominio_proprio = optional(string, "")
   }))
   default  = { homologacao = { seed_enabled = true } }
   nullable = false
@@ -24,6 +26,12 @@ variable "ambientes" {
   validation {
     condition     = alltrue([for nome, a in var.ambientes : nome == "homologacao" || !a.seed_enabled])
     error_message = "O seed sintético só pode ser ligado em homologacao."
+  }
+  validation {
+    condition = alltrue([
+      for a in var.ambientes : a.dominio_proprio == "" || can(regex("^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$", a.dominio_proprio))
+    ])
+    error_message = "dominio_proprio aceita só o nome do host em minúsculas, como painel.example.org: sem https://, sem barra, sem porta e sem curinga."
   }
 }
 
