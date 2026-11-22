@@ -1,6 +1,6 @@
 # ADR-0002 — Hospedagem na Railway, gerenciada por Terraform
 
-**Data:** 18/11/2026 · **Status:** aceito em 22/11/2026, com a D1 em revisão (ver seção 12) · **Decisor:** Henrique
+**Data:** 18/11/2026 · **Status:** aceito em 22/11/2026 (ver seção 12) · **Decisor:** Henrique
 **Base:** ADR-0001 §6 (hospedagem ficou para ADR próprio), Issue #93, skill `devops-standards`, respostas da contratante C04, C13, C14, C15 e C19.
 
 Os códigos C04, C13, C14, C15 e C19 são itens do Q&A com a contratante, "Perguntas e Respostas — Universo do Hélinho", mantido pelo Henrique fora do repositório.
@@ -53,7 +53,7 @@ O que não foi possível confirmar em fonte está na seção 16.
 |---|---|---|
 | Provedor | Railway, na conta da contratante (workspace do Igor) | 1 |
 | IaC | Terraform em `infra/railway/`, provider `terraform-community-providers/railway` fixado em `0.6.3`, lockfile commitado | 4 |
-| Topologia | Um projeto, um ambiente (`homologacao`), dois serviços: `helinho-web` e `Postgres`. `producao` existe no código e nasce desligada. **Em revisão com o Henrique (D1)** | 5 |
+| Topologia | Um projeto, um ambiente (`homologacao`), dois serviços: `helinho-web` e `Postgres`. `producao` existe no código e nasce desligada (D1, aceita na opção A) | 5 |
 | Região | `us-east4-eqdc4a` (US East), web e banco na mesma região. A Railway não tem região no Brasil | 5 |
 | PostgreSQL | Serviço com imagem `postgres:17` + volume, declarado no Terraform, sem domínio público nem TCP proxy | 6 |
 | Build | Dockerfile multi-stage na raiz (Issue #94). O builder automático (Railpack) fica descartado | 7.1 |
@@ -68,7 +68,7 @@ O que não foi possível confirmar em fonte está na seção 16.
 | Logs | JSON no console fora de `Development` (Issue #98); a Railway coleta o stdout | 11 |
 | Rollback e backup | Rollback de deploy pelo painel; backup de volume agendado + `pg_dump` por túnel | 11 |
 
-As linhas de estado do Terraform, deploy contínuo e Data Protection foram decididas pelo Henrique em 22/11/2026; a de topologia segue **em revisão** (seção 12).
+As linhas de topologia, estado do Terraform, deploy contínuo e Data Protection foram decididas pelo Henrique em 22/11/2026 (seção 12).
 
 ## 4. Provider Terraform
 
@@ -277,7 +277,7 @@ Sem persistência, cada deploy gera chaves novas: o cookie do painel cai, os tok
 | C. Volume da Railway no serviço web | US$ 0,15/GB/mês (centavos) | o volume é montado como root: imagem não-root precisa de `RAILWAY_RUN_UID=0`, o que desfaz o usuário não-root da Issue #94; serviço com volume fica indisponível a cada redeploy e não aceita réplicas; as chaves ficam fora do backup do banco |
 | D. Não persistir | zero | login do painel cai a cada deploy; inviável quando houver e-mail com link (Sprint 3) |
 
-**Decisão (Henrique, 22/11/2026): A**, implementada no PR #120. É pacote novo e migração, e o contrato está congelado: entra por **Issue própria**, que acrescenta o pacote em `Directory.Packages.props` (versão confirmada no Context7 e auditada com `supply-chain-risk-auditor`), faz `AppDbContext` implementar `IDataProtectionKeyContext`, gera a migração da tabela `DataProtectionKeys` e registra `PersistKeysToDbContext` com `SetApplicationName` fixo. Cifrar as chaves em repouso (`ProtectKeysWith*`) fica para o ADR de produção.
+**Decisão (Henrique, 22/11/2026): A**, implementada no PR #120. É pacote novo e migração, e o contrato está congelado: entra por **Issue própria**, que acrescenta o pacote em `Directory.Packages.props` (versão confirmada no Context7; auditoria do pacote conforme a D4, seção 12), faz `AppDbContext` implementar `IDataProtectionKeyContext`, gera a migração da tabela `DataProtectionKeys` e registra `PersistKeysToDbContext` com `SetApplicationName` fixo. Cifrar as chaves em repouso (`ProtectKeysWith*`) fica para o ADR de produção.
 
 ## 10. Segredos, token e estado
 
@@ -349,25 +349,27 @@ Registradas em 22/11/2026, pelo Henrique.
 
 | | Resultado |
 |---|---|
-| D1 Topologia | **em revisão**: homologação agora; produção ainda em avaliação |
+| D1 Topologia | **aceita na opção A**: só `homologacao` |
 | D2 Estado do Terraform | **aceita**: local, fora do git, com backup cifrado (exceção à regra da casa) |
 | D3 Deploy contínuo | **opção B**, não a recomendada: `auto_deploy = true` em homologação, com Wait for CI |
 | D4 Data Protection | **aceita**: tabela no PostgreSQL com o pacote oficial (PR #120) |
 | D5 `railway.toml` e IaC nativo | **aceita**: manter o Terraform; `railway.toml` não é criado |
 
-### D1. Topologia (em revisão)
+### D1. Topologia (aceita: opção A)
 
 | Opção | Custo mensal (ver `custos.md`) | Risco |
 |---|---|---|
-| **A. Só `homologacao`: um projeto, um ambiente, web + Postgres** (recomendada) | uso de cerca de US$ 4; fatura de US$ 5 no Hobby ou US$ 20 no Pro | nenhum dado real; produção fica para depois |
+| **A. Só `homologacao`: um projeto, um ambiente, web + Postgres** (recomendada e escolhida) | uso de cerca de US$ 4; fatura de US$ 5 no Hobby ou US$ 20 no Pro | nenhum dado real; produção fica para depois |
 | B. `homologacao` + `producao` como dois ambientes do mesmo projeto | uso de cerca de US$ 16 | o provider só lê serviço e volume do ambiente padrão (L3); sem RBAC por ambiente fora do Enterprise |
 | C. `homologacao` + `producao` em dois projetos, mesmo módulo | uso de cerca de US$ 16 | dois projetos para acompanhar no painel |
 
-**Estado em 22/11/2026: homologação agora; produção ainda em avaliação.** O primeiro deploy, planejado para 22/11/2026, é só `homologacao`. O Henrique perguntou por que não criar `producao` já, para o desenvolvedor Unity testar; a decisão não está fechada. O código já nasce no formato de C (um projeto por ambiente), com `producao` desligada.
+**Decisão do Henrique em 22/11/2026: opção A, só `homologacao`.** Ele chegou a perguntar por que não criar `producao` já, para o desenvolvedor Unity testar, e decidiu pela homologação: depois de subir as mudanças, o ambiente fica quieto para o desenvolvedor Unity testar de forma estável. O código já nasce no formato de C (um projeto por ambiente), com `producao` desligada.
 
 **O ambiente de teste do desenvolvedor Unity é a homologação**: seed sintético e credenciais de teste.
 
 #### O que falta para ligar a produção
+
+A produção não é ligada agora. A lista fica como registro para quando ela for.
 
 1. **Primeiro master.** Não há como criar o primeiro master sem o seed, e o seed é proibido em produção (7.3). Issue #222.
 2. **Chaves do Data Protection persistidas** (seção 9; PR #120).
@@ -404,6 +406,8 @@ O padrão da variável no Terraform (PR #100) continua `false`; o Henrique liga 
 ### D4. Data Protection (aceita)
 
 Opções e riscos na seção 9. **Aceita: tabela no PostgreSQL com o pacote oficial**, em Issue própria (pacote novo + migração), PR #120.
+
+**Auditoria do pacote.** A skill `supply-chain-risk-auditor` não cobre NuGet e não produziu relatório. Em 22/11/2026 o Henrique aceitou, como evidência de auditoria no lugar dela, as quatro checagens feitas fora da skill e registradas no PR #120, sobre o pacote e as seis transitivas novas: consulta ao OSV (ecossistema NuGet), registro do nuget.org (sem vulnerabilidade nem depreciação, autor Microsoft), assinatura conferida com `dotnet nuget verify` e `dotnet list package --vulnerable --include-transitive` limpo.
 
 ### D5. `railway.toml` descontinuado e IaC nativo da Railway (aceita)
 

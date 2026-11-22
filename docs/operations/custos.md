@@ -74,7 +74,7 @@ Faixa: de US$ 2,50 (web em 0,15 GB, banco em 0,06 GB) a US$ 7,65 (web em 0,4 GB 
 
 Faixa: de US$ 6 a US$ 24,50 (web em 1 GB e 0,25 vCPU, banco em 0,5 GB e 0,1 vCPU, 5 GB de volume, 5 GB de backup, 20 GB de egress).
 
-"Algumas centenas de alunos" vem do ADR-0001, não da contratante. A produção não está decidida (ADR-0002 §12, D1, em revisão em 22/11/2026): depende de ADR próprio, da resposta sobre região e fornecedores (C14) e de um teto aprovado (C04).
+"Algumas centenas de alunos" vem do ADR-0001, não da contratante. A produção não é ligada agora (ADR-0002 §12, D1: só homologação, decisão de 22/11/2026) e, quando for, não está dimensionada: depende de ADR próprio, da resposta sobre região e fornecedores (C14) e de um teto aprovado (C04).
 
 ## O que não entra na conta
 
