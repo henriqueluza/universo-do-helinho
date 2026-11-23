@@ -9,9 +9,11 @@ namespace Helinho.Infrastructure.Email;
 /// Tratador dos e-mails de acesso (ADR-0003 §5.3 e §11). A fila traz só o tipo e o id: aqui o destinatário é resolvido,
 /// as condições do fluxo são conferidas de novo, o token nasce, o modelo é renderizado e a resposta do provedor vira
 /// resultado da fila (§4.2). Não grava nada e não loga: destinatário, token e link não saem daqui.
+/// <paramref name="renderer"/> é nulo quando não há base pública (<c>App:PublicBaseUrl</c>) para montar os links.
 /// </summary>
-public sealed class EmailJobHandler(IEmailSubjects subjects, EmailTemplateRenderer renderer, IEmailSender sender, IClock clock) : IJobHandler
+public sealed class EmailJobHandler(IEmailSubjects subjects, EmailTemplateRenderer? renderer, IEmailSender sender, IClock clock) : IJobHandler
 {
+    public const string BaseUrlMissing = "base_url_missing";
     public const string SubjectMissing = "subject_missing";
     public const string RecipientMissing = "recipient_missing";
     public const string RecipientInvalid = "recipient_invalid";
@@ -40,6 +42,12 @@ public sealed class EmailJobHandler(IEmailSubjects subjects, EmailTemplateRender
 
     public async Task<JobResult> HandleAsync(JobContext job, CancellationToken cancellationToken)
     {
+        if (renderer is null)
+        {
+            // Problema de configuração, não da mensagem: como no erro de conta (§6.3), espera sem gastar tentativa.
+            return new JobResult.Suspend(BaseUrlMissing, AccountPause);
+        }
+
         var subject = job.SubjectId is { } id ? await FindAsync(job.Type, id, cancellationToken) : null;
         if (subject is null)
         {
