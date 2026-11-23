@@ -1,5 +1,7 @@
 using Helinho.Application.Ai;
+using Helinho.Domain;
 using Helinho.Infrastructure.Ai;
+using Helinho.Infrastructure.Fakes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -110,11 +112,29 @@ public class AiProviderTests(PostgresFixture postgres)
         await using var real = CreateFactory(Environments.Development, AiOptions.Anthropic, logs, ("Ai:ApiKey", ""));
         await using var unknown = CreateFactory(Environments.Development, "OpenAi");
 
-        var (_, options) = Resolve(real);
+        var (generator, options) = Resolve(real);
 
         Assert.True(options.UsesFake);
+        Assert.Equal(typeof(FakeQuestionDraftGenerator), generator);
         Assert.Single(logs.Lines, line => line.Contains("Ai:Provider=Anthropic ignorado", StringComparison.Ordinal));
         Assert.DoesNotContain(logs.Lines, line => line.Contains(ApiKey, StringComparison.Ordinal));
         Assert.Throws<OptionsValidationException>(() => unknown.Services);
+    }
+
+    /// <summary>Issue #232: com <c>Fake</c> a porta resolve o gerador fictício, que lê <c>Ai:Fake:*</c> da configuração.</summary>
+    [Fact]
+    public async Task Com_Fake_a_porta_gera_rascunhos_ficticios_e_a_falha_simulada_vem_da_configuracao()
+    {
+        await using var fake = CreateFactory(Environments.Production, "fake", null, ("Ai:ApiKey", ""), ("Ai:Model", ""));
+        await using var refusing = CreateFactory(Environments.Production, AiOptions.Fake, null, ("Ai:Fake:Failure", "Refused"));
+        var request = QuestionDraftRequest.Create(QuizType.Cultural, AgeBand.Age11To12, 4, null, []);
+        var ct = TestContext.Current.CancellationToken;
+
+        var batch = await fake.Services.GetRequiredService<IQuestionDraftGenerator>().GenerateAsync(request, ct);
+        var failure = await Assert.ThrowsAsync<QuestionDraftGenerationException>(
+            () => refusing.Services.GetRequiredService<IQuestionDraftGenerator>().GenerateAsync(request, ct));
+
+        Assert.Equal((4, FakeQuestionDraftGenerator.Provider), (batch.Drafts.Count, batch.Usage.Provider));
+        Assert.Equal(QuestionDraftFailure.Refused, failure.Reason);
     }
 }

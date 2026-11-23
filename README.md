@@ -108,6 +108,7 @@ A IA sugere rascunhos de questões e a equipe decide (ADR-0004). **O padrão é 
 
 - Em `Development` o provedor real nunca é usado: `Anthropic` vira `Fake`, com um aviso no log.
 - Com a IA desligada, a porta `IQuestionDraftGenerator` resolve um gerador que recusa toda chamada.
+- Com `Fake`, as sugestões são fictícias e sempre as mesmas para o mesmo pedido. Duas chaves só de desenvolvimento e teste (fora do Terraform): `Ai:Fake:DelayMilliseconds` (padrão `0`; atraso simulado, até 60000) e `Ai:Fake:Failure` (`None`, `Timeout`, `Unavailable`, `Refused`, `InvalidOutput` ou `PartialInvalid`), para exercitar os estados "gerando" e de erro.
 
 ## Deploy
 
