@@ -1,7 +1,9 @@
 using Helinho.Application.Abstractions;
 using Helinho.Infrastructure.Email;
+using Helinho.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace Helinho.Infrastructure.DependencyInjection;
@@ -19,6 +21,7 @@ public static class EmailJobsExtensions
             .Configure<IConfiguration>((options, configuration) => options.Value = configuration[EmailDailyLimitOptions.Key]?.Trim() ?? "")
             .Validate(options => options.Limit is not null, $"{EmailDailyLimitOptions.Key} precisa ser um número inteiro maior ou igual a zero (0 ou vazio = sem teto).")
             .ValidateOnStart();
+        services.TryAddScoped<PreviousGuardianEmailCleaner>(); // a área de alunos também o registra; aqui o tratador não depende dela
         services.AddScoped<IEmailSubjects, EmailSubjects>();
         services.AddScoped<IEmailDailyCount, EmailDailyCount>();
 
