@@ -8,7 +8,7 @@ namespace Helinho.Application.Painel;
 /// <summary>Modelo do formulário de aluno. Não é a entidade: unidade, matrícula e usuário nunca vêm do formulário.</summary>
 public sealed record StudentForm(
     string? FullName, string? Rg, string? Cpf, string? Address, DateOnly? BirthDate,
-    string? GuardianName, string? ClassName, bool GuardianApproved);
+    string? GuardianName, string? GuardianEmail, string? ClassName, bool GuardianApproved);
 
 /// <summary>Resultado do salvamento. <see cref="Errors"/> mapeia campo → mensagem fixa (nunca ecoa CPF ou RG).</summary>
 public sealed record SaveStudentResult(Guid? StudentId, IReadOnlyDictionary<string, string> Errors)
@@ -24,7 +24,7 @@ public static class SaveStudent
     /// <summary>Formulário preenchido com o aluno; <c>null</c> se não existe na unidade do usuário (a tela responde 404).</summary>
     public static async Task<StudentForm?> LoadAsync(IAppDbContext db, Guid id, CancellationToken cancellationToken) =>
         await db.Students.Where(s => s.Id == id)
-            .Select(s => new StudentForm(s.FullName, s.Rg, s.Cpf, s.Address, s.BirthDate, s.GuardianName, s.ClassName, s.GuardianApproved))
+            .Select(s => new StudentForm(s.FullName, s.Rg, s.Cpf, s.Address, s.BirthDate, s.GuardianName, s.GuardianEmail, s.ClassName, s.GuardianApproved))
             .SingleOrDefaultAsync(cancellationToken);
 
     public static async Task<string?> UnitNameAsync(IAppDbContext db, ICurrentUser user, CancellationToken cancellationToken) =>
@@ -53,6 +53,7 @@ public static class SaveStudent
         var student = new Student(
             userId, unitId, enrollment, form.FullName!, form.Rg!, Cpf.Format(form.Cpf), form.Address!,
             form.BirthDate!.Value, form.GuardianName!, form.ClassName!, Today(clock));
+        student.SetGuardianEmail(form.GuardianEmail);
         student.SetGuardianApproval(form.GuardianApproved);
         db.Students.Add(student);
         await db.SaveChangesAsync(cancellationToken);
@@ -76,6 +77,7 @@ public static class SaveStudent
 
         student.UpdateRegistration(
             form.FullName!, form.Rg!, Cpf.Format(form.Cpf), form.Address!, form.BirthDate!.Value, form.GuardianName!, form.ClassName!, Today(clock));
+        student.SetGuardianEmail(form.GuardianEmail);
         student.SetGuardianApproval(form.GuardianApproved);
         await db.SaveChangesAsync(cancellationToken);
         return new SaveStudentResult(student.Id, errors);
@@ -96,6 +98,20 @@ public static class SaveStudent
         else if (!Cpf.IsValid(form.Cpf))
         {
             errors[nameof(StudentForm.Cpf)] = "CPF inválido. Confira os 11 dígitos.";
+        }
+
+        // Mensagens fixas: o endereço digitado nunca é ecoado.
+        if (string.IsNullOrWhiteSpace(form.GuardianEmail))
+        {
+            errors[nameof(StudentForm.GuardianEmail)] = "Informe o e-mail do responsável.";
+        }
+        else if (form.GuardianEmail.Trim().Length > EmailAddress.MaxLength)
+        {
+            errors[nameof(StudentForm.GuardianEmail)] = $"Use no máximo {EmailAddress.MaxLength} caracteres.";
+        }
+        else if (!EmailAddress.IsValid(form.GuardianEmail.Trim()))
+        {
+            errors[nameof(StudentForm.GuardianEmail)] = "E-mail inválido. Confira o endereço.";
         }
 
         if (form.BirthDate is not { } birth)
