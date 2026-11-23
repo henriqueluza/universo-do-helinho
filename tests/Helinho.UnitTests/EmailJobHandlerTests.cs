@@ -3,7 +3,9 @@ using System.Text.RegularExpressions;
 using Helinho.Application.Abstractions;
 using Helinho.Application.Email;
 using Helinho.Application.Identidade;
+using Helinho.Infrastructure.DependencyInjection;
 using Helinho.Infrastructure.Email;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Helinho.UnitTests;
 
@@ -62,9 +64,11 @@ public class EmailJobHandlerTests
         var subjects = new Subjects(known);
         var sender = new Sender(answer ?? new(EmailSendStatus.Sent, "id-sintetico@example.org"));
         var handler = new EmailJobHandler(subjects, EmailTemplateRendererTests.Renderer, sender, new FixedClock());
-        var job = new JobContext(JobId, type, subjectId, JsonDocument.Parse("""{"v":1}""").RootElement, 1, Now, Now.AddHours(24));
-        return (await handler.HandleAsync(job, Ct), subjects, sender);
+        return (await handler.HandleAsync(Job(type, subjectId), Ct), subjects, sender);
     }
+
+    private static JobContext Job(string type, Guid? subjectId) =>
+        new(JobId, type, subjectId, JsonDocument.Parse("""{"v":1}""").RootElement, 1, Now, Now.AddHours(24));
 
     /// <summary>O token como a página de definir senha o lê do link (§10.3).</summary>
     private static string? TokenIn(string body) => LinkDeAcesso.LerToken(Regex.Match(body, "token=([A-Za-z0-9_-]+)").Groups[1].Value);
@@ -192,6 +196,26 @@ public class EmailJobHandlerTests
         Assert.Equal(retryAfterSeconds is { } wait ? Now.AddSeconds(wait) : null, (result as JobResult.Retry)?.NotBefore);
         Assert.Equal(outcome == "Suspend" ? TimeSpan.FromMinutes(15) : null, (result as JobResult.Suspend)?.PauseFor);
         Assert.Null((result as JobResult.Succeeded)?.ExternalId);
+    }
+
+    [Fact]
+    public async Task Sem_base_publica_o_registro_nao_lanca_e_o_tratador_suspende_sem_ler_a_conta_nem_enviar()
+    {
+        var (subjects, sender) = (new Subjects(Admin), new Sender(new(EmailSendStatus.Sent)));
+        await using var provider = new ServiceCollection()
+            .AddEmailTemplates(_ => new(PublicBaseUrl.Parse("", allowHttpLoopback: false), "FUNDHAS", "contato@example.org"))
+            .AddEmailJobs()
+            .AddScoped<IEmailSubjects>(_ => subjects).AddSingleton<IEmailSender>(sender).AddSingleton<IClock>(new FixedClock())
+            .BuildServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+
+        var handler = Assert.Single(scope.ServiceProvider.GetServices<IJobHandler>()); // é assim que o trabalhador os resolve na subida
+        var result = await handler.HandleAsync(Job(EmailJobTypes.PasswordReset, AdminId), Ct);
+
+        var suspended = Assert.IsType<JobResult.Suspend>(result);
+        Assert.Equal(("base_url_missing", TimeSpan.FromMinutes(15)), (suspended.ErrorCode, suspended.PauseFor));
+        Assert.Empty(subjects.Tokens);
+        Assert.Empty(sender.Sent);
     }
 
     [Fact]

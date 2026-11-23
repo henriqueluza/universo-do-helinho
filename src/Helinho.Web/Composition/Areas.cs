@@ -8,6 +8,7 @@ public static class Areas
         services.AddHospedagem().AddEmail().AddIdentidade().AddApiHome().AddApiPerfil().AddApiQuiz()
             .AddPainelAlunos().AddPainelConteudo().AddPainelEngajamento().AddGestao().AddFila();
         services.AddIa();
+        services.AddEmailTratador();
         return services;
     }
 
