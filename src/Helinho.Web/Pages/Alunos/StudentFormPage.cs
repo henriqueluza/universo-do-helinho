@@ -19,11 +19,13 @@ public sealed class StudentInput
 
     public string? GuardianName { get; set; }
 
+    public string? GuardianEmail { get; set; }
+
     public string? ClassName { get; set; }
 
     public bool GuardianApproved { get; set; }
 
-    public StudentForm ToForm() => new(FullName, Rg, Cpf, Address, BirthDate, GuardianName, ClassName, GuardianApproved);
+    public StudentForm ToForm() => new(FullName, Rg, Cpf, Address, BirthDate, GuardianName, GuardianEmail, ClassName, GuardianApproved);
 
     public static StudentInput From(StudentForm f) => new()
     {
@@ -33,6 +35,7 @@ public sealed class StudentInput
         Address = f.Address,
         BirthDate = f.BirthDate,
         GuardianName = f.GuardianName,
+        GuardianEmail = f.GuardianEmail,
         ClassName = f.ClassName,
         GuardianApproved = f.GuardianApproved,
     };

@@ -18,7 +18,7 @@ namespace Helinho.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
 {
-    private static readonly string[] AllFields = ["FullName", "Rg", "Address", "GuardianName", "ClassName", "Cpf", "BirthDate"];
+    private static readonly string[] AllFields = ["FullName", "Rg", "Address", "GuardianName", "GuardianEmail", "ClassName", "Cpf", "BirthDate"];
     private const string ValidCpf = "529.982.247-25";
     private static readonly DateTimeOffset Now = new(2026, 11, 10, 15, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly Today = new(2026, 11, 10);
@@ -66,7 +66,7 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     private static StudentForm Valid(bool approved = false) =>
-        new("Ana Souza", "22.222.222-2", ValidCpf, "Rua Sintética, 2", new DateOnly(2018, 5, 20), "Maria Souza", "4B", approved);
+        new("Ana Souza", "22.222.222-2", ValidCpf, "Rua Sintética, 2", new DateOnly(2018, 5, 20), "Maria Souza", "maria.souza@example.org", "4B", approved);
 
     [Fact]
     public async Task Admin_cadastra_na_propria_unidade_com_conta_de_aluno_sem_senha()
@@ -94,7 +94,7 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
         await using var db = NewContext(new FakeUser(RoleNames.Admin, _unitA.Id));
         var user = new FakeUser(RoleNames.Admin, _unitA.Id);
 
-        var empty = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), new StudentForm(null, " ", null, "", null, null, null, false), ct);
+        var empty = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), new StudentForm(null, " ", null, "", null, null, null, null, false), ct);
         var badCpf = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Valid() with { Cpf = "529.982.247-24" }, ct);
         var young = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Valid() with { BirthDate = new DateOnly(2021, 1, 1) }, ct);
         var old = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Valid() with { BirthDate = new DateOnly(2010, 1, 1) }, ct);
@@ -150,7 +150,75 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
             Assert.DoesNotContain("52998224725", e, StringComparison.Ordinal);
             Assert.DoesNotContain("123.456.789-00", e, StringComparison.Ordinal);
             Assert.DoesNotContain(secretRg, e, StringComparison.Ordinal);
+            Assert.DoesNotContain("maria.souza@example.org", e, StringComparison.Ordinal);
         });
+    }
+
+    [Fact]
+    public async Task Email_do_responsavel_invalido_e_recusado_sem_ecoar_o_valor()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = new FakeUser(RoleNames.Admin, _unitA.Id);
+        await using var db = NewContext(user);
+        var tooLong = new string('a', 250) + "@example.org";
+
+        foreach (var email in new[] { "sem-arroba", "Maria Souza <maria@example.org>", "maria@example.org, outra@example.org", tooLong })
+        {
+            var result = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Valid() with { GuardianEmail = email }, ct);
+
+            var error = Assert.Single(result.Errors);
+            Assert.Equal("GuardianEmail", error.Key);
+            Assert.Equal(email == tooLong ? "Use no máximo 254 caracteres." : "E-mail inválido. Confira o endereço.", error.Value);
+        }
+
+        Assert.Equal(1, await db.Students.IgnoreQueryFilters().CountAsync(ct)); // só o Caio do seed do teste
+    }
+
+    [Fact]
+    public async Task Email_do_responsavel_nao_e_unico_nem_vira_identificador_de_login()
+    {
+        const string Email = "responsavel.irmaos@example.org";
+        var ct = TestContext.Current.CancellationToken;
+        var user = new FakeUser(RoleNames.Admin, _unitA.Id);
+        await using var db = NewContext(user);
+
+        var first = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Valid() with { GuardianEmail = Email }, ct);
+        var sibling = await SaveStudent.CreateAsync(
+            db, user, new FixedClock(), new StudentAccounts(db), Valid() with { FullName = "Bia Souza", GuardianEmail = $" {Email} " }, ct);
+
+        Assert.True(first.Succeeded);
+        Assert.True(sibling.Succeeded); // irmãos: o mesmo responsável
+        await using var read = NewContext(new FakeUser(RoleNames.Master, null));
+        var students = await read.Students.Where(s => s.GuardianEmail == Email).ToListAsync(ct);
+        Assert.Equal(2, students.Count);
+        Assert.All(students, s => Assert.Null(s.PreviousGuardianEmail));
+        // A credencial continua na matrícula: o e-mail do responsável não chega à conta do Identity.
+        var normalized = Email.ToUpperInvariant();
+        var userIds = students.Select(s => s.UserId).ToList();
+        var accounts = await read.Users.Where(u => userIds.Contains(u.Id)).ToListAsync(ct);
+        Assert.Equal(2, accounts.Count);
+        Assert.All(accounts, a => Assert.Null(a.Email));
+        Assert.False(await read.Users.AnyAsync(
+            u => u.Email == Email || u.UserName == Email || u.NormalizedEmail == normalized || u.NormalizedUserName == normalized, ct));
+    }
+
+    [Fact]
+    public async Task Edicao_carrega_e_troca_o_email_e_aluno_anterior_ao_campo_abre_sem_ele()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = NewContext(new FakeUser(RoleNames.Admin, _unitB.Id));
+
+        var legacy = await SaveStudent.LoadAsync(db, _studentB, ct); // o Caio foi criado sem e-mail do responsável
+        var missing = await SaveStudent.UpdateAsync(db, new FixedClock(), _studentB, Valid() with { GuardianEmail = null }, ct);
+        var saved = await SaveStudent.UpdateAsync(db, new FixedClock(), _studentB, Valid() with { GuardianEmail = "novo.responsavel@example.org" }, ct);
+
+        Assert.Null(legacy!.GuardianEmail);
+        Assert.Equal(["GuardianEmail"], missing!.Errors.Keys);
+        Assert.Equal("Informe o e-mail do responsável.", missing.Errors["GuardianEmail"]);
+        Assert.True(saved!.Succeeded);
+        await using var read = NewContext(new FakeUser(RoleNames.Admin, _unitB.Id));
+        Assert.Equal("novo.responsavel@example.org", (await SaveStudent.LoadAsync(read, _studentB, ct))!.GuardianEmail);
+        Assert.Null((await read.Students.SingleAsync(s => s.Id == _studentB, ct)).PreviousGuardianEmail);
     }
 
     [Fact]
@@ -199,7 +267,7 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
     {
         var names = typeof(StudentInput).GetProperties().Select(p => p.Name).ToList();
 
-        Assert.DoesNotContain(names, n => n is "Id" or "UnitId" or "UserId" or "Enrollment" or "Xp");
+        Assert.DoesNotContain(names, n => n is "Id" or "UnitId" or "UserId" or "Enrollment" or "Xp" or "PreviousGuardianEmail");
     }
 
     [Fact]

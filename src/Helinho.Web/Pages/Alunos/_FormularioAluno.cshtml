@@ -9,6 +9,7 @@
         ("Cpf", "CPF", Model.Input.Cpf, "text", "numeric", false),
         ("Address", "Endereço", Model.Input.Address, "text", null, true),
         ("GuardianName", "Nome do responsável", Model.Input.GuardianName, "text", null, true),
+        ("GuardianEmail", "E-mail do responsável", Model.Input.GuardianEmail, "email", null, true),
     };
     var erros = campos.Where(c => Model.Error(c.Name) is not null).ToList();
 }
@@ -55,7 +56,7 @@
             Responsável aprovou o cadastro (desmarcado = pendente)
         </label>
     </div>
-    <div class="note info"><svg aria-hidden="true"><use href="#i-lock"/></svg><span>RG, CPF e endereço aparecem só aqui. A lista e o desempenho nunca mostram esses dados.</span></div>
+    <div class="note info"><svg aria-hidden="true"><use href="#i-lock"/></svg><span>RG, CPF, endereço e e-mail do responsável aparecem só aqui. A lista e o desempenho nunca mostram esses dados.</span></div>
     <div class="form-actions">
         <button class="btn btn-primary" type="submit">Salvar</button>
         <a class="btn" href="@Url.Page("/Alunos/Index")">Cancelar</a>
