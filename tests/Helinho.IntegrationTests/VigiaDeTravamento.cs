@@ -19,7 +19,7 @@ namespace Helinho.IntegrationTests;
 [AttributeUsage(AttributeTargets.Assembly)]
 public sealed class VigiaDeTravamentoAttribute : BeforeAfterTestAttribute
 {
-    /// <summary>Limite em segundos; sem ela, o vigia só liga no GitHub Actions (15 min).</summary>
+    /// <summary>Limite em segundos; sem ela, o vigia só liga no GitHub Actions (12 min).</summary>
     internal const string VariavelDoLimite = "HELINHO_VIGIA_SEGUNDOS";
     private const int CodigoDeSaida = 97;
 
@@ -74,7 +74,7 @@ public sealed class VigiaDeTravamentoAttribute : BeforeAfterTestAttribute
     {
         var limite = int.TryParse(Environment.GetEnvironmentVariable(VariavelDoLimite), CultureInfo.InvariantCulture, out var segundos)
             ? segundos
-            : Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true" ? 900 : 0;
+            : Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true" ? 720 : 0;
         if (limite > 0)
         {
             // Thread própria (não o pool nem um Timer): tem de disparar mesmo com o pool de threads esgotado.
