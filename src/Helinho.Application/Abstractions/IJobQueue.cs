@@ -16,6 +16,8 @@ public interface IJobQueue
     /// <summary>
     /// Marca como cancelados, <b>sem salvar</b>, os trabalhos ainda pendentes do tipo e do sujeito; devolve quantos.
     /// O cancelado libera a chave de idempotência, para o reenvio na mesma janela ser aceito.
+    /// Se o trabalhador pegar o trabalho antes de quem chama salvar, o <c>SaveChanges</c> lança
+    /// <c>DbUpdateConcurrencyException</c>: não engula, o envio já está em curso.
     /// </summary>
     Task<int> CancelPendingAsync(string type, Guid subjectId, CancellationToken cancellationToken);
 }
