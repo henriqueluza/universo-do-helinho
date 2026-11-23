@@ -18,6 +18,7 @@ public class EmailTemplateRendererTests
     private const string SiteLine = "A página que vai abrir fica em https://painel.example.org";
     private static readonly Guid UserId = Guid.Parse("11111111-2222-3333-4444-555555555555");
     private static readonly TimeSpan Invite = TimeSpan.FromHours(72);
+    private static readonly DateOnly ChangedOn = new(2026, 11, 22);
 
     /// <summary>Tokens do tema Recreio (claro) usados no layout; o lilás (`--ai`) é exclusivo de IA e não entra.</summary>
     private static readonly string[] Palette = ["#F8FAFD", "#FFFFFF", "#DEE6EC", "#1C2C41", "#5A6472", "#005497", "#00386E"];
@@ -42,6 +43,10 @@ public class EmailTemplateRendererTests
         new EmailScenario(
             new StudentAccessEmail("Ana", "2026-0042", UserId, Token, Invite), true,
             "Falta definir a senha do jogo. O link vale por 72 horas.", "Ana", "2026-0042", "72 horas"),
+        new EmailScenario(
+            new GuardianEmailChangedEmail("Ana", ChangedOn), false,
+            "Se você não reconhece a troca, procure a unidade da FUNDHAS.", "de Ana no Universo", "Em 22/11/2026, a unidade",
+            "enviados antes para este e-mail deixaram de valer", "Se você não reconhece a troca, procure a unidade da FUNDHAS"),
     };
 
     [Theory]
@@ -116,8 +121,21 @@ public class EmailTemplateRendererTests
             markers.UnionWith(Regex.Matches(reader.ReadToEnd(), @"\{\{([a-z_]+)\}\}").Select(match => match.Groups[1].Value));
         }
 
-        Assert.Equal(10, templates.Count);
-        Assert.Equal(["aluno", "assunto", "conta", "contato", "link", "logo", "matricula", "nome", "organizacao", "painel", "unidade", "validade"], markers);
+        Assert.Equal(12, templates.Count);
+        Assert.Equal(["aluno", "assunto", "conta", "contato", "data", "link", "logo", "matricula", "nome", "organizacao", "painel", "unidade", "validade"], markers);
+    }
+
+    [Fact]
+    public void Aviso_de_troca_do_email_do_responsavel_nao_leva_endereco_novo_matricula_nem_link()
+    {
+        var email = Renderer.Render(new GuardianEmailChangedEmail("Ana", ChangedOn));
+
+        // O modelo nem tem onde receber o endereço novo, a matrícula ou um token (ADR-0003 §11.4).
+        Assert.Equal(["StudentFirstName", "ChangedOn"], typeof(GuardianEmailChangedEmail).GetProperties().Select(property => property.Name));
+        Assert.Equal("O e-mail de responsável no Universo do Helinho foi alterado", email.Subject); // sem nome de aluno no assunto (§5.6)
+        Assert.Equal(["contato@example.org"], Regex.Matches(email.Text, @"[^\s<>]+@[^\s<>]+").Select(match => match.Value));
+        Assert.Equal(["contato@example.org"], Regex.Matches(email.Html, @"[^\s<>]+@[^\s<>]+").Select(match => match.Value));
+        Assert.DoesNotMatch("(?i)matr[ií]cula|href|token|definir-senha", email.Html + email.Text);
     }
 
     [Fact]
@@ -126,6 +144,7 @@ public class EmailTemplateRendererTests
         EmailModel[] models =
         [
             new AdminInviteEmail(Attack, Attack, UserId, Token, Invite), new PasswordChangedEmail(Attack), new StudentAccessEmail(Attack, Attack, UserId, Token, Invite),
+            new GuardianEmailChangedEmail(Attack, ChangedOn),
         ];
 
         Assert.All(models, model =>
@@ -157,6 +176,7 @@ public class EmailTemplateRendererTests
     public void Parametro_vazio_validade_quebrada_ou_token_vazio_falham_em_vez_de_gerar_email()
     {
         Assert.Throws<InvalidOperationException>(() => Renderer.Render(new PasswordChangedEmail(" \r\n")));
+        Assert.Throws<InvalidOperationException>(() => Renderer.Render(new GuardianEmailChangedEmail(" ", ChangedOn)));
         Assert.Throws<ArgumentOutOfRangeException>(() => Renderer.Render(new PasswordResetEmail(UserId, Token, TimeSpan.FromMinutes(90))));
         Assert.Throws<ArgumentException>(() => Renderer.Render(new PasswordResetEmail(UserId, " ", Invite)));
     }

@@ -23,3 +23,9 @@ public sealed record PasswordChangedEmail(string AccountName) : EmailModel;
 
 /// <summary>Acesso do aluno, para o responsável. Dado mínimo (ADR-0003 §11.4): primeiro nome e matrícula.</summary>
 public sealed record StudentAccessEmail(string StudentFirstName, string Enrollment, Guid UserId, string Token, TimeSpan Validity) : EmailModel;
+
+/// <summary>
+/// Aviso ao endereço <b>anterior</b> do responsável de que o e-mail foi trocado (ADR-0003 §11.4). Dado mínimo: primeiro nome
+/// do aluno e a data da troca em Brasília. Sem o endereço novo, sem matrícula e sem link.
+/// </summary>
+public sealed record GuardianEmailChangedEmail(string StudentFirstName, DateOnly ChangedOn) : EmailModel;

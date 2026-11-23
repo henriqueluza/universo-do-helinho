@@ -14,6 +14,12 @@ public sealed record StudentForm(
 public sealed record SaveStudentResult(Guid? StudentId, IReadOnlyDictionary<string, string> Errors)
 {
     public bool Succeeded => StudentId is not null;
+
+    /// <summary>A aprovação passou a valer e o acesso do aluno foi enfileirado nesta gravação (ADR-0003 §11.4); a tela registra na auditoria.</summary>
+    public bool AccessQueued { get; init; }
+
+    /// <summary>O e-mail do responsável foi trocado e os efeitos de segurança entraram nesta gravação; a tela registra na auditoria.</summary>
+    public bool GuardianEmailChanged { get; init; }
 }
 
 /// <summary>Cadastro e edição de aluno pelo administrador, sempre na unidade dele (filtro global de <c>Student</c>).</summary>
@@ -33,7 +39,8 @@ public static class SaveStudent
             : null;
 
     public static async Task<SaveStudentResult> CreateAsync(
-        IAppDbContext db, ICurrentUser user, IClock clock, IStudentAccounts accounts, StudentForm form, CancellationToken cancellationToken)
+        IAppDbContext db, ICurrentUser user, IClock clock, IStudentAccounts accounts, StudentAccessRequests access, StudentForm form,
+        CancellationToken cancellationToken)
     {
         var errors = Validate(form, Today(clock));
         if (user.UnitId is not { } unitId || !user.IsInRole(RoleNames.Admin))
@@ -56,13 +63,17 @@ public static class SaveStudent
         student.SetGuardianEmail(form.GuardianEmail);
         student.SetGuardianApproval(form.GuardianApproved);
         db.Students.Add(student);
+        // Conta recém-criada não tem senha: já aprovado, o acesso sai na mesma gravação (§5.5).
+        var queued = student.GuardianApproved && await access.StageAsync(student.Id, cancellationToken) == StudentAccessRequest.Queued;
         await db.SaveChangesAsync(cancellationToken);
-        return new SaveStudentResult(student.Id, errors);
+        return new SaveStudentResult(student.Id, errors) { AccessQueued = queued };
     }
 
     public static async Task<SaveStudentResult?> UpdateAsync(
-        IAppDbContext db, IClock clock, Guid id, StudentForm form, CancellationToken cancellationToken)
+        IAppDbContext db, IClock clock, StudentAccessRequests access, Guid id, StudentForm form, CancellationToken cancellationToken)
     {
+        // Uma gravação por vez no mesmo aluno: o formulário enviado duas vezes não dispara o gatilho da aprovação duas vezes.
+        await using var transaction = await db.BeginLockedTransactionAsync($"student:{id}", cancellationToken);
         var student = await db.Students.SingleOrDefaultAsync(s => s.Id == id, cancellationToken);
         if (student is null)
         {
@@ -77,10 +88,21 @@ public static class SaveStudent
 
         student.UpdateRegistration(
             form.FullName!, form.Rg!, Cpf.Format(form.Cpf), form.Address!, form.BirthDate!.Value, form.GuardianName!, form.ClassName!, Today(clock));
+        var previousEmail = student.GuardianEmail;
         student.SetGuardianEmail(form.GuardianEmail);
+        // Primeiro preenchimento não é troca: não havia endereço anterior para proteger nem para avisar.
+        var emailChanged = previousEmail is not null && previousEmail != student.GuardianEmail;
+        if (previousEmail is not null && emailChanged)
+        {
+            await access.StageGuardianEmailChangeAsync(student, previousEmail, cancellationToken);
+        }
+
+        var approvedNow = !student.GuardianApproved && form.GuardianApproved;
         student.SetGuardianApproval(form.GuardianApproved);
+        var queued = approvedNow && await access.StageOnApprovalAsync(student.Id, student.UserId, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
-        return new SaveStudentResult(student.Id, errors);
+        await transaction.CommitAsync(cancellationToken);
+        return new SaveStudentResult(student.Id, errors) { AccessQueued = queued, GuardianEmailChanged = emailChanged };
     }
 
     internal static Dictionary<string, string> Validate(StudentForm form, DateOnly today)

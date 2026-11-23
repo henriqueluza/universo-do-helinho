@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Helinho.Infrastructure.Email;
 
 /// <summary>O que vem da configuração: a base pública e o rodapé (identificação da FUNDHAS e um contato).</summary>
@@ -34,6 +36,11 @@ public sealed class EmailTemplateRenderer(EmailTemplateSettings settings)
             ["matricula"] = m.Enrollment,
             ["link"] = Link(m.UserId, m.Token),
             ["validade"] = Hours(m.Validity),
+        }),
+        GuardianEmailChangedEmail m => Compose("GuardianEmailChanged", new()
+        {
+            ["aluno"] = m.StudentFirstName,
+            ["data"] = m.ChangedOn.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
         }),
         _ => throw new ArgumentOutOfRangeException(nameof(model), "Tipo de e-mail sem modelo."),
     };

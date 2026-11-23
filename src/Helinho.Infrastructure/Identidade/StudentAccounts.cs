@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Helinho.Application.Abstractions;
 using Helinho.Domain;
 using Helinho.Infrastructure.Persistence;
@@ -24,5 +26,16 @@ public sealed class StudentAccounts(AppDbContext db) : IStudentAccounts
         db.Users.Add(user);
         db.UserRoles.Add(new IdentityUserRole<Guid> { UserId = user.Id, RoleId = roleId });
         return user.Id;
+    }
+
+    public Task<bool> HasPasswordAsync(Guid userId, CancellationToken cancellationToken) =>
+        db.Users.AnyAsync(u => u.Id == userId && u.PasswordHash != null, cancellationToken);
+
+    public async Task<string> RotateSecurityStampAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var user = await db.Users.SingleAsync(u => u.Id == userId, cancellationToken);
+        user.SecurityStamp = Guid.NewGuid().ToString("N");
+        user.ConcurrencyStamp = Guid.NewGuid().ToString("N"); // como o UserStore: outra gravação da mesma conta em curso perde
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(user.SecurityStamp)))[..16];
     }
 }
