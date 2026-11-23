@@ -93,6 +93,23 @@ Para ela enxergar o esquema e o IP reais, ligue a seção `Proxy` (variável de 
 - `AllowedHosts` (chave do ASP.NET Core, hoje `*`) pode restringir os hosts aceitos; se for definida, inclua `healthcheck.railway.app`, o host do healthcheck.
 - O serviço não deve ter TCP Proxy público, e os demais serviços do mesmo projeto Railway alcançam o contêiner pela rede privada sem passar pela borda: eles são confiáveis por definição.
 
+## Geração de questões por IA: `Off`, `Fake` ou `Anthropic`
+
+A IA sugere rascunhos de questões e a equipe decide (ADR-0004). **O padrão é desligada.** A seção `Ai` é validada na subida: com valor inválido a aplicação não sobe, e a mensagem cita a variável, nunca o valor.
+
+| Chave | Variável de ambiente | Padrão | Efeito |
+|---|---|---|---|
+| `Ai:Provider` | `Ai__Provider` | `Off` | `Off` (ou vazio): IA desligada. `Fake`: gerador fictício, para demonstração. `Anthropic`: provedor real. Outro valor não sobe |
+| `Ai:ApiKey` | `Ai__ApiKey` | vazio | Chave do provedor. Obrigatória com `Anthropic`. Segredo: só por variável de ambiente |
+| `Ai:Model` | `Ai__Model` | vazio | Identificador do modelo. Obrigatório com `Anthropic`; não há modelo fixo no código |
+| `Ai:TimeoutSeconds` | `Ai__TimeoutSeconds` | `90` | Prazo de uma geração, de 5 a 300 segundos |
+| `Ai:DailyQuotaPerAdmin` | `Ai__DailyQuotaPerAdmin` | `60` | Sugestões que uma pessoa pode pedir em 24 horas |
+| `Ai:DailyGlobalLimit` | `Ai__DailyGlobalLimit` | `300` | Sugestões que todos, somados, podem pedir em 24 horas |
+
+- Em `Development` o provedor real nunca é usado: `Anthropic` vira `Fake`, com um aviso no log.
+- Com a IA desligada, a porta `IQuestionDraftGenerator` resolve um gerador que recusa toda chamada.
+- Com `Fake`, as sugestões são fictícias e sempre as mesmas para o mesmo pedido. Duas chaves só de desenvolvimento e teste (fora do Terraform): `Ai:Fake:DelayMilliseconds` (padrão `0`; atraso simulado, até 60000) e `Ai:Fake:Failure` (`None`, `Timeout`, `Unavailable`, `Refused`, `InvalidOutput` ou `PartialInvalid`), para exercitar os estados "gerando" e de erro.
+
 ## Deploy
 
 A homologação roda na Railway e é descrita pelo Terraform de `infra/railway/`. **Só o Henrique** cria token, roda `terraform plan` e `apply` e publica; agentes e o CI não fazem deploy.
