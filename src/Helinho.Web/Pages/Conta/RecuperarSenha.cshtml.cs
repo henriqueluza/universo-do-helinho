@@ -1,15 +1,15 @@
 using System.ComponentModel.DataAnnotations;
-using Helinho.Application.Abstractions;
-using Helinho.Domain;
-using Helinho.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Identity;
+using Helinho.Application.Identidade;
+using Helinho.Web.Composition;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Helinho.Web.Pages.Conta;
 
-/// <summary>Recuperação de senha sem envio real: a resposta é idêntica exista a conta ou não (não revela contas).</summary>
-public sealed class RecuperarSenhaModel(UserManager<AppUser> users, IEmailSender email) : PageModel
+/// <summary>Pedido de redefinição de senha (ADR-0003 §11.1): a resposta é a mesma exista a conta ou não. Quem envia o e-mail é a fila.</summary>
+[EnableRateLimiting(RedefinicaoDeSenhaArea.RateLimitPolicy)]
+public sealed class RecuperarSenhaModel(PedirRedefinicaoHandler pedidos) : PageModel
 {
     [BindProperty]
     public RecoveryInput Input { get; set; } = new();
@@ -27,20 +27,10 @@ public sealed class RecuperarSenhaModel(UserManager<AppUser> users, IEmailSender
             return Page();
         }
 
-        var user = await users.FindByEmailAsync(Input.Email);
-        if (user?.Email is { } address && await HasPanelRoleAsync(user))
-        {
-            // Sem token nem link: a redefinição real é outra Issue. O corpo não carrega segredo.
-            const string Notice = "Recebemos um pedido de recuperação de senha para esta conta.";
-            await email.SendAsync(new EmailMessage(address, "Recuperação de senha", $"<p>{Notice}</p>", Notice), cancellationToken);
-        }
-
+        await pedidos.HandleAsync(Input.Email, cancellationToken);
         Sent = true;
         return Page();
     }
-
-    private async Task<bool> HasPanelRoleAsync(AppUser user) =>
-        await users.IsInRoleAsync(user, RoleNames.Master) || await users.IsInRoleAsync(user, RoleNames.Admin);
 
     public sealed class RecoveryInput
     {
