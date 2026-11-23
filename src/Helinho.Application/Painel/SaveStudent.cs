@@ -17,6 +17,9 @@ public sealed record SaveStudentResult(Guid? StudentId, IReadOnlyDictionary<stri
 
     /// <summary>A aprovação passou a valer e o acesso do aluno foi enfileirado nesta gravação (ADR-0003 §11.4); a tela registra na auditoria.</summary>
     public bool AccessQueued { get; init; }
+
+    /// <summary>O e-mail do responsável foi trocado e os efeitos de segurança entraram nesta gravação; a tela registra na auditoria.</summary>
+    public bool GuardianEmailChanged { get; init; }
 }
 
 /// <summary>Cadastro e edição de aluno pelo administrador, sempre na unidade dele (filtro global de <c>Student</c>).</summary>
@@ -85,13 +88,21 @@ public static class SaveStudent
 
         student.UpdateRegistration(
             form.FullName!, form.Rg!, Cpf.Format(form.Cpf), form.Address!, form.BirthDate!.Value, form.GuardianName!, form.ClassName!, Today(clock));
+        var previousEmail = student.GuardianEmail;
         student.SetGuardianEmail(form.GuardianEmail);
+        // Primeiro preenchimento não é troca: não havia endereço anterior para proteger nem para avisar.
+        var emailChanged = previousEmail is not null && previousEmail != student.GuardianEmail;
+        if (previousEmail is not null && emailChanged)
+        {
+            await access.StageGuardianEmailChangeAsync(student, previousEmail, cancellationToken);
+        }
+
         var approvedNow = !student.GuardianApproved && form.GuardianApproved;
         student.SetGuardianApproval(form.GuardianApproved);
         var queued = approvedNow && await access.StageOnApprovalAsync(student.Id, student.UserId, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new SaveStudentResult(student.Id, errors) { AccessQueued = queued };
+        return new SaveStudentResult(student.Id, errors) { AccessQueued = queued, GuardianEmailChanged = emailChanged };
     }
 
     internal static Dictionary<string, string> Validate(StudentForm form, DateOnly today)

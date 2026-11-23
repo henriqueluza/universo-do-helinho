@@ -44,9 +44,16 @@ public sealed class EditarModel(
             StudentAccessAudit.AccessQueued(logger, Id, user.UserId);
         }
 
+        if (result.GuardianEmailChanged)
+        {
+            StudentAccessAudit.GuardianEmailChanged(logger, Id, user.UserId);
+        }
+
         if (result.Succeeded)
         {
-            TempData["Aviso"] = "Cadastro atualizado.";
+            TempData["Aviso"] = result.GuardianEmailChanged
+                ? "Cadastro atualizado. O e-mail do responsável mudou: os links já enviados deixaram de valer. Se precisar, envie o acesso de novo na ficha do aluno."
+                : "Cadastro atualizado.";
             return RedirectToPage("/Alunos/Index");
         }
 
