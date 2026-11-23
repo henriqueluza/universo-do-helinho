@@ -8,6 +8,7 @@ public enum CriarAdministradorStatus
     Created,
     InvalidUnit,
     UnitHasActiveAdmin,
+    EmailInUse,
     Rejected,
 }
 
@@ -36,6 +37,12 @@ public sealed class CriarAdministradorHandler(IAdminAccountGateway accounts, ICl
         if (admins.Any(a => a.UnitId == account.UnitId && IsActive(a, clock.UtcNow)))
         {
             return CriarAdministradorResult.Of(CriarAdministradorStatus.UnitHasActiveAdmin);
+        }
+
+        // E-mail repetido quebraria o login e a recuperação por e-mail das duas contas (#184).
+        if (await accounts.EmailInUseAsync(account.Email, cancellationToken))
+        {
+            return CriarAdministradorResult.Of(CriarAdministradorStatus.EmailInUse);
         }
 
         var errors = await accounts.CreateAdminAsync(account, cancellationToken);
