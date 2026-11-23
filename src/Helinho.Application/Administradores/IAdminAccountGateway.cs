@@ -24,6 +24,15 @@ public interface IAdminAccountGateway
 
     Task<IReadOnlyList<AdminAccount>> ListAdminsAsync(CancellationToken cancellationToken);
 
+    /// <summary>A conta com o papel Admin, ou nulo.</summary>
+    Task<AdminAccount?> FindAdminAsync(Guid accountId, CancellationToken cancellationToken);
+
+    /// <summary>Troca o carimbo de segurança de uma conta ainda sem senha: os links já enviados deixam de valer. Falso = não há tal conta.</summary>
+    Task<bool> RotateSecurityStampAsync(Guid accountId, CancellationToken cancellationToken);
+
+    /// <summary>Apaga a conta de administrador que nunca teve senha. Falso = não há tal conta (ou ela acabou de ganhar senha).</summary>
+    Task<bool> DeleteInvitedAdminAsync(Guid accountId, CancellationToken cancellationToken);
+
     Task<IAdminUnitLock> BeginUnitLockAsync(Guid unitId, CancellationToken cancellationToken);
 
     /// <summary>

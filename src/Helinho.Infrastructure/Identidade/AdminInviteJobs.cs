@@ -21,4 +21,7 @@ public sealed class AdminInviteJobs(AppDbContext db) : IAdminInviteJobs
             g => g.Key,
             g => new InviteJob(g.Last.Status == QueueJobStatus.Failed, g.Last.Status == QueueJobStatus.Succeeded ? g.Last.FinishedAt : null));
     }
+
+    public Task<int> CountSinceAsync(Guid accountId, DateTimeOffset since, CancellationToken cancellationToken) =>
+        db.QueueJobs.CountAsync(j => j.Type == EmailJobTypes.AdminInvite && j.SubjectId == accountId && j.CreatedAt >= since, cancellationToken);
 }
