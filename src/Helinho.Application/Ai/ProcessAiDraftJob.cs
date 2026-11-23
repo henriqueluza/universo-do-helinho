@@ -14,6 +14,9 @@ public static class AiFailureCodes
 {
     public const string Timeout = "ai_timeout";
 
+    /// <summary>A fila encerrou o trabalho pela validade, ou a leitura encontrou o pedido vencido.</summary>
+    public const string Expired = "expired";
+
     /// <summary>O trabalho não aponta para um pedido em lote que exista: defeito de quem enfileirou, não do provedor.</summary>
     public const string JobMissing = "ai_job_missing";
 
