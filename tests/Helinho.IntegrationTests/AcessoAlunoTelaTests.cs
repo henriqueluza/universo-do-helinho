@@ -46,6 +46,7 @@ public class AcessoAlunoTelaTests(PostgresFixture postgres, AcessoAlunoTelaTests
         internal Guid OtherUnitId { get; private set; }
         internal Guid WithPassword { get; private set; }
         internal Guid NoPassword { get; private set; }
+        internal Guid NeverSent { get; private set; } // sem senha e sem envio: só é lido; quem envia usa NoPassword (a ordem dos testes não é fixa)
         internal Guid Pending { get; private set; }
         internal Guid NoEmail { get; private set; }
         internal Guid Limited { get; private set; }
@@ -68,6 +69,7 @@ public class AcessoAlunoTelaTests(PostgresFixture postgres, AcessoAlunoTelaTests
             Pending = Add(db, "TELA-02", "tela02.responsavel@example.org", approved: false);
             NoEmail = Add(db, "TELA-03", null, approved: true);
             Limited = Add(db, "TELA-04", "tela04.responsavel@example.org", approved: true);
+            NeverSent = Add(db, "TELA-05", "tela05.responsavel@example.org", approved: true);
             await db.SaveChangesAsync(Ct);
             return _factory = factory;
         }
@@ -135,11 +137,11 @@ public class AcessoAlunoTelaTests(PostgresFixture postgres, AcessoAlunoTelaTests
     {
         using var client = await AdminAsync();
 
-        var first = await client.GetStringAsync($"/Alunos/Editar/{shared.NoPassword}", Ct);
+        var first = await client.GetStringAsync($"/Alunos/Editar/{shared.NeverSent}", Ct);
         var change = await client.GetStringAsync($"/Alunos/Editar/{shared.WithPassword}", Ct);
 
         Assert.Contains("<h2 id=\"acesso-titulo\">Acesso ao jogo</h2>", first, StringComparison.Ordinal);
-        Assert.Contains($"action=\"/Alunos/Editar/{shared.NoPassword}{Handler}\"", first, StringComparison.Ordinal);
+        Assert.Contains($"action=\"/Alunos/Editar/{shared.NeverSent}{Handler}\"", first, StringComparison.Ordinal);
         Assert.Contains("<button class=\"btn btn-primary\" type=\"submit\">Enviar acesso</button>", first, StringComparison.Ordinal);
         Assert.Contains("válido por 72 horas", first, StringComparison.Ordinal);
         Assert.Contains("<span class=\"tag tag-neutral\" id=\"acesso-situacao\">Nenhum envio ainda</span>", first, StringComparison.Ordinal);
@@ -147,7 +149,7 @@ public class AcessoAlunoTelaTests(PostgresFixture postgres, AcessoAlunoTelaTests
         Assert.Contains("válido por 1 hora", change, StringComparison.Ordinal);
         Assert.DoesNotContain(">Enviar acesso<", change, StringComparison.Ordinal);
         // O endereço aparece só no campo do formulário; o painel de acesso não o repete.
-        Assert.Equal(1, Regex.Count(first, "tela01\\.responsavel@example\\.org"));
+        Assert.Equal(1, Regex.Count(first, "tela05\\.responsavel@example\\.org"));
     }
 
     [Theory]
