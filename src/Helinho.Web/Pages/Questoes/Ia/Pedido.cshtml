@@ -1,0 +1,101 @@
+@page "/Questoes/Ia/{jobId:guid}"
+@using Helinho.Domain.Entities
+@using Helinho.Web.Painel
+@model Helinho.Web.Pages.Questoes.Ia.PedidoModel
+@{
+    ViewData["Title"] = "Sugestões da IA";
+    var job = Model.Job;
+    var tema = TemaQuiz.Of(job.QuizType);
+    var faixa = Helinho.Web.Pages.Questoes.IndexModel.BandLabel(job.AgeBand);
+    var total = job.Drafts.Count;
+}
+@section Head {
+    @if (Model.AutoRefresh)
+    {
+        <meta http-equiv="refresh" content="@IaTexto.PollSeconds" />
+    }
+}
+<div class="stack">
+    <div>
+        <a class="back" href="/Questoes/Ia"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Gerar questões com IA</a>
+        <div class="page-head">
+            <p class="sub">@job.RequestedCount @(job.RequestedCount == 1 ? "sugestão" : "sugestões") · @tema.Nome · @faixa@(string.IsNullOrEmpty(job.Subject) ? "" : " · assunto: " + job.Subject)</p>
+        </div>
+    </div>
+
+    @if (Model.Demo)
+    {
+        <div class="note ai"><svg aria-hidden="true"><use href="#i-ai"/></svg><span>@IaTexto.DemoNotice</span></div>
+    }
+
+    <ol class="ai-steps" aria-label="Etapas">
+        <li>Pedir</li>
+        <li aria-current="step">Revisar</li>
+        <li>Aprovar</li>
+    </ol>
+
+    @if (Model.InProgress)
+    {
+        <section class="panel panel-pad" id="ia-gerando" aria-labelledby="t-gerando">
+            <div class="empty" role="status" aria-live="polite">
+                <b id="t-gerando">@(job.Status == AiJobStatus.Pending ? "Na fila para gerar" : "Gerando as sugestões")</b>
+                @if (Model.Slow)
+                {
+                    <p>Está demorando mais que o normal. Atualize a página em instantes; o pedido continua guardado.</p>
+                }
+                else
+                {
+                    <p>Pode levar alguns segundos. Esta página atualiza sozinha a cada @IaTexto.PollSeconds segundos.</p>
+                }
+                <a class="btn" asp-page="Pedido" asp-route-jobId="@job.Id">Atualizar</a>
+            </div>
+        </section>
+    }
+    else if (job.Status == AiJobStatus.Failed)
+    {
+        <div class="alert" role="alert" id="ia-falha">
+            <svg aria-hidden="true"><use href="#i-alert"/></svg>
+            <div>
+                <b class="alert-title">Não deu para gerar as sugestões</b>
+                <div>@IaTexto.Failure(job.FailureReason)</div>
+            </div>
+        </div>
+        <div class="form-actions">
+            <a class="btn btn-ai" href="@Model.AgainUrl()"><svg class="fill" aria-hidden="true"><use href="#i-ai"/></svg>Pedir de novo</a>
+            <a class="link" asp-page="/Questoes/Index">Voltar às questões</a>
+        </div>
+    }
+    else if (total == 0)
+    {
+        <section class="panel panel-pad" id="ia-sem-sugestoes" aria-labelledby="t-sem">
+            <div class="empty">
+                <b id="t-sem">A IA não trouxe sugestões aproveitáveis.</b>
+                <p>
+                    Geradas: @job.GeneratedCount · válidas: @job.ValidCount · com problema: @job.InvalidCount · repetidas de questões que já existem: @job.DuplicateCount.
+                    Tente outro assunto ou peça de novo.
+                </p>
+                <a class="btn btn-ai" href="@Model.AgainUrl()"><svg class="fill" aria-hidden="true"><use href="#i-ai"/></svg>Pedir de novo</a>
+            </div>
+        </section>
+    }
+    else
+    {
+        <div class="note ai" id="ia-aviso"><svg aria-hidden="true"><use href="#i-ai"/></svg><span>@IaTexto.CheckNotice</span></div>
+        @if (job.InvalidCount + job.DuplicateCount > 0)
+        {
+            <div class="note info"><svg aria-hidden="true"><use href="#i-info"/></svg><span>@job.InvalidCount com problema e @job.DuplicateCount repetidas foram descartadas antes de chegar aqui.</span></div>
+        }
+        <section aria-labelledby="t-rev">
+            <div class="panel-head">
+                <h2 id="t-rev">Sugestões para revisar</h2>
+                <p id="ia-contador" role="status">@job.ReviewedCount de @total revisadas</p>
+            </div>
+            <div class="review">
+                @foreach (var draft in job.Drafts)
+                {
+                    <partial name="_Cartao" model="@((job, draft))" />
+                }
+            </div>
+        </section>
+    }
+</div>
