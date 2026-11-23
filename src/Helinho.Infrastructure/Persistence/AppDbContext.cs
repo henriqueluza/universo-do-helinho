@@ -64,6 +64,9 @@ public partial class AppDbContext(DbContextOptions<AppDbContext> options, ICurre
     /// <summary>Chaves do Data Protection (ADR-0002 §9). Infraestrutura: fora de <see cref="IAppDbContext"/>, de DTOs e de rotas.</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
+    /// <summary>Fila persistente (ADR-0003 §5). Infraestrutura: fora de <see cref="IAppDbContext"/>, de DTOs e de rotas.</summary>
+    public DbSet<QueueJob> QueueJobs => Set<QueueJob>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
