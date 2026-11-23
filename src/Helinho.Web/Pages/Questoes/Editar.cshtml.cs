@@ -150,14 +150,28 @@ public sealed class EditarModel(IAppDbContext db, IClock clock, SuggestSingleDra
             try
             {
                 var i = Input;
-                var saved = await SaveQuestion.HandleAsync(db, Id, i.QuizType!.Value, i.AgeBand!.Value, i.Statement, i.Explanation,
-                    [i.OptionA, i.OptionB, i.OptionC, i.OptionD], i.Correct, ct, clock.UtcNow);
+                string?[] options = [i.OptionA, i.OptionB, i.OptionC, i.OptionD];
+                var fromAi = false;
+                Guid? saved;
+                if (Id is null)
+                {
+                    // Questão nova: com o pedido do "Sugerir" (campo oculto), a origem é IA; sem ele ou com valor que não serve, equipe.
+                    var created = await suggest.SaveAsync(AiJobId, i.QuizType!.Value, i.AgeBand!.Value, i.Statement, i.Explanation, options, i.Correct, ct);
+                    saved = created.QuestionId;
+                    fromAi = created.Origin == QuestionOrigin.Ai;
+                }
+                else
+                {
+                    saved = await SaveQuestion.HandleAsync(db, Id, i.QuizType!.Value, i.AgeBand!.Value, i.Statement, i.Explanation, options, i.Correct, ct, clock.UtcNow);
+                }
+
                 if (saved is null)
                 {
                     return NotFound();
                 }
 
-                TempData["Saved"] = Id is null ? "Questão criada como rascunho." : "Questão salva e devolvida a rascunho.";
+                TempData["Saved"] = Id is not null ? "Questão salva e devolvida a rascunho."
+                    : fromAi ? "Questão criada como rascunho, com origem IA." : "Questão criada como rascunho.";
                 return RedirectToPage("Index");
             }
             catch (DomainException e)
