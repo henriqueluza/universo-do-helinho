@@ -28,11 +28,12 @@
                 <tbody>
                     @foreach (var r in Model.Rows)
                     {
+                        var (selo, situacao) = IndexModel.Selo(r.Situacao);
                         <tr>
                             <th scope="row">@r.UserName</th>
                             <td>@r.Email</td>
                             <td>@r.UnitName</td>
-                            <td><span class="tag @(r.Active ? "tag-ok" : "tag-neutral")">@(r.Active ? "Ativo" : "Inativo")</span></td>
+                            <td><span class="tag @selo">@situacao</span></td>
                         </tr>
                     }
                 </tbody>

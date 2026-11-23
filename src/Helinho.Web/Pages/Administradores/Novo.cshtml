@@ -1,4 +1,5 @@
 @page
+@using Helinho.Application.Identidade
 @model Helinho.Web.Pages.Administradores.NovoModel
 @{
     ViewData["Title"] = "Novo administrador";
@@ -27,7 +28,8 @@ else
             <div class="field">
                 <label asp-for="Input.Email">E-mail <span class="req">(obrigatório)</span></label>
                 <input class="input" asp-for="Input.Email" type="email" maxlength="200" autocomplete="off"
-                       aria-invalid="@Aria("Input.Email")" aria-describedby="@Desc("Input.Email")" />
+                       aria-invalid="@Aria("Input.Email")" aria-describedby="Input_Email-ajuda @Desc("Input.Email")" />
+                <small id="Input_Email-ajuda">A pessoa recebe neste endereço um link para criar a própria senha. O link vale @LinkDeAcesso.ValidadeConvite.TotalHours horas.</small>
                 <span id="Input_Email-erro" class="field-error" asp-validation-for="Input.Email"></span>
             </div>
             <div class="field">
@@ -42,16 +44,9 @@ else
                 </select>
                 <span id="Input_UnitId-erro" class="field-error" asp-validation-for="Input.UnitId"></span>
             </div>
-            <div class="field">
-                <label asp-for="Input.Password">Senha inicial <span class="req">(obrigatório)</span></label>
-                <input class="input" asp-for="Input.Password" type="password" value="" autocomplete="new-password"
-                       aria-invalid="@Aria("Input.Password")" aria-describedby="Input_Password-ajuda @Desc("Input.Password")" />
-                <small id="Input_Password-ajuda">Mínimo de 6 caracteres, com maiúscula, minúscula, número e um símbolo. Ela não será exibida de novo.</small>
-                <span id="Input_Password-erro" class="field-error" asp-validation-for="Input.Password"></span>
-            </div>
         </div>
         <div class="form-actions">
-            <button class="btn btn-primary" type="submit">Criar administrador</button>
+            <button class="btn btn-primary" type="submit">Criar e enviar convite</button>
             <a class="btn" href="/Administradores">Cancelar</a>
         </div>
     </form>
