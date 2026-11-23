@@ -113,7 +113,7 @@ public class PanelUnidadesAdminsRecreioTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task Formulario_novo_administrador_mantem_senha_sem_eco_e_regra_da_unidade()
+    public async Task Formulario_novo_administrador_nao_pede_senha_e_mantem_a_regra_da_unidade()
     {
         await using var factory = await NewFactoryAsync();
         Guid unitId;
@@ -130,14 +130,14 @@ public class PanelUnidadesAdminsRecreioTests(PostgresFixture postgres)
         var vazio = await GetAsync(client, "/Administradores/Novo");
         Assert.Contains("panel panel-pad form", vazio);
         Assert.Contains("form-grid", vazio);
-        Assert.Matches("<input[^>]*type=\"password\"[^>]*autocomplete=\"new-password\"|<input[^>]*autocomplete=\"new-password\"[^>]*type=\"password\"", vazio);
+        Assert.DoesNotContain("type=\"password\"", vazio); // ADR-0003 §11.2: quem define a senha é o convidado, pelo link
+        Assert.Contains("aria-describedby=\"Input_Email-ajuda", vazio);
 
         Dictionary<string, string> Form(string user) => new()
         {
             ["Input.UserName"] = user,
             ["Input.Email"] = $"{user}@exemplo.test",
             ["Input.UnitId"] = unitId.ToString(),
-            ["Input.Password"] = "Segredo-Inicial9x",
         };
 
         await PostAsync(client, "/Administradores/Novo", Form("adm.primeiro"));
@@ -145,6 +145,5 @@ public class PanelUnidadesAdminsRecreioTests(PostgresFixture postgres)
 
         Assert.Contains("Esta unidade já tem um administrador ativo.", segundo);
         Assert.Contains("aria-describedby=\"Input_UnitId-erro\"", segundo);
-        Assert.DoesNotContain("Segredo-Inicial9x", segundo);
     }
 }

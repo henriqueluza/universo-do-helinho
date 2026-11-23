@@ -19,16 +19,12 @@ public sealed class NovoModel(CriarAdministradorHandler criar) : PageModel
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
         await LoadUnitsAsync(cancellationToken);
-        var password = Input.Password;
-        Input.Password = ""; // a senha nunca volta na tela
-
         if (!ModelState.IsValid)
         {
             return Page();
         }
 
-        var result = await criar.HandleAsync(
-            new NewAdminAccount(Input.UserName, Input.Email, Input.UnitId!.Value, password), cancellationToken);
+        var result = await criar.HandleAsync(new NewAdminAccount(Input.UserName, Input.Email, Input.UnitId!.Value), cancellationToken);
         switch (result.Status)
         {
             case CriarAdministradorStatus.Created:
@@ -72,9 +68,5 @@ public sealed class NovoModel(CriarAdministradorHandler criar) : PageModel
 
         [Required(ErrorMessage = "Selecione a unidade.")]
         public Guid? UnitId { get; set; }
-
-        [Required(ErrorMessage = "Informe a senha inicial.")]
-        [StringLength(128, ErrorMessage = "A senha pode ter no máximo 128 caracteres.")]
-        public string Password { get; set; } = "";
     }
 }
