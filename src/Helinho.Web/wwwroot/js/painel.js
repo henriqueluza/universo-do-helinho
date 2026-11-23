@@ -271,6 +271,30 @@ const calmo = () => reduz.matches;
   });
 })();
 
+// "Sugerir com IA" (#288): a sugestão chega por POST e a página recarrega; aqui só o retorno enquanto espera.
+// Sem JS o botão funciona igual. Texto sempre por textContent.
+(() => {
+  const botoes = document.querySelectorAll('[data-sugerir]');
+  if (!botoes.length) return;
+  const status = document.querySelector('[data-sugerir-aviso]');
+  const originais = new Map();
+  botoes.forEach((botao) => originais.set(botao, botao.querySelector('[data-sugerir-rotulo]')?.textContent ?? ''));
+  const restaurar = () => botoes.forEach((botao) => {
+    botao.removeAttribute('aria-busy');
+    const rotulo = botao.querySelector('[data-sugerir-rotulo]');
+    if (rotulo) rotulo.textContent = originais.get(botao);
+  });
+  botoes[0].form?.addEventListener('submit', (e) => {
+    const botao = e.submitter;
+    if (!botao || !botao.hasAttribute('data-sugerir')) return;
+    botao.setAttribute('aria-busy', 'true');
+    const rotulo = botao.querySelector('[data-sugerir-rotulo]');
+    if (rotulo) rotulo.textContent = 'Sugerindo…';
+    if (status) status.textContent = 'Pedindo a sugestão à IA. Pode levar alguns segundos.';
+  });
+  addEventListener('pageshow', (e) => { if (e.persisted) restaurar(); });
+})();
+
 // Criador de questões: prévia ao vivo. O servidor (#154) já entrega prévia e checklist ao enviar o formulário;
 // aqui só acompanha a digitação. Texto sempre por textContent; nenhuma animação por JS
 // (o pop do checklist é CSS dentro de prefers-reduced-motion: no-preference).

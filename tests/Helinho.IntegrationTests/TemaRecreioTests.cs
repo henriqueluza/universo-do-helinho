@@ -168,15 +168,16 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
         Assert.Equal(HttpStatusCode.NotFound, fonte.StatusCode);
     }
 
+    // Sprint 4 (#286 e #294): os componentes de IA entram no tema, só na camada de componentes, e o lilás (--ai)
+    // continua exclusivo deles. Telas e movimento seguem sem IA (TemaTelasCssTests).
     [Fact]
-    public async Task Seletores_de_ia_vivem_so_na_camada_de_componentes()
+    public async Task Tema_tem_os_componentes_de_ia_so_na_camada_de_componentes_e_so_neles_usa_o_lilas()
     {
         await using var factory = await NewFactoryAsync();
         using var client = factory.CreateAnonymousClient();
 
         var css = await client.GetStringAsync("/css/theme.css", Ct);
 
-        // Sprint 4 (#286): o lilás da IA entra como componente. Telas e movimento seguem sem ele (TemaTelasCssTests).
         var fora = new System.Text.StringBuilder();
         var camada = new System.Text.StringBuilder();
         var nivel = 0;
@@ -196,17 +197,26 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
             }
         }
 
-        foreach (var selector in new[] { ".btn-ai", ".tag-ai", ".note.ai", ".ai-panel", ".rcard" })
+        // Regra 1: todo seletor de IA (lote, criador e lista) existe, e só dentro da camada de componentes.
+        var elementosDeIa = new Regex(@"\.btn-ai|\.tag-ai|\.note\.ai|\.ai-|\.rcard|ai-fill");
+        foreach (var selector in new[] { ".btn-ai", ".tag-ai", ".note.ai", ".ai-panel", ".rcard", ".ai-help", ".ai-filled", ".ai-flag" })
         {
             Assert.Contains(selector, camada.ToString());
-            Assert.DoesNotContain(selector, fora.ToString());
         }
 
-        // O criador e a lista (outra frente) também só podem declarar estes dentro de componentes.
-        foreach (var selector in new[] { ".ai-help", ".ai-filled", ".ai-flag" })
+        Assert.DoesNotMatch(elementosDeIa, fora.ToString());
+
+        // Regra 2: toda linha que usa o lilás pertence a um elemento de IA.
+        var vazamentos = css.Split('\n').Where(l => l.Contains("var(--ai", StringComparison.Ordinal) && !elementosDeIa.IsMatch(l)).ToList();
+        Assert.Empty(vazamentos);
+
+        // As duas frentes de tela (#286 e #294) trouxeram os mesmos seletores: fica uma declaração de cada.
+        foreach (var unico in new[] { "  .btn-ai {", "  .tag-ai {", "  .tag-ai svg {", "  .note.ai {", "  :root[data-theme=\"dark\"] .btn-ai {" })
         {
-            Assert.DoesNotContain(selector, fora.ToString());
+            Assert.Single(css.Split('\n'), l => l.StartsWith(unico, StringComparison.Ordinal));
         }
+
+        Assert.DoesNotContain(".ai-progress", css); // sem uso em nenhuma tela
     }
 
     [Fact]

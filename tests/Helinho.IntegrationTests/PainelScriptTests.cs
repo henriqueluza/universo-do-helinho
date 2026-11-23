@@ -58,6 +58,8 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [InlineData("[data-limpar-endereco]")] // definir senha (#240): tira o token da barra de endereço
     [InlineData("history.replaceState(null, '', location.pathname)")]
     [InlineData("/[?&]token=/i.test(location.search)")] // só mexe no endereço que traz o token
+    [InlineData("[data-sugerir]")] // "Sugerir com IA": retorno enquanto a página recarrega (#288)
+    [InlineData("[data-sugerir-aviso]")]
     public async Task Painel_js_mantem_os_modulos_da_preview(string marcador)
     {
         var body = await GetBodyAsync();
