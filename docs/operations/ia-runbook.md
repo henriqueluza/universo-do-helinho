@@ -1,7 +1,7 @@
 # Runbook — geração de rascunhos de questões por IA
 
 **Para quem:** Henrique, sozinho, no navegador e na própria máquina (macOS). **Escrito em:** 22/11/2026 (Issue #253).
-**Descreve:** o ADR-0004 (`docs/architecture/ADR-0004-ia-geracao-questoes.md`, aceito em 22/11/2026), o Terraform de `infra/railway/` na versão do PR #233 (ainda não mesclado) e o código do núcleo da IA, que ainda está em branches empilhadas (Issues #227, #232, #249, #250, #251). Formato e terminal do Terraform: o mesmo do [runbook da Railway](railway-runbook.md) e do [runbook da Brevo](brevo-runbook.md).
+**Descreve:** o ADR-0004 (`docs/architecture/ADR-0004-ia-geracao-questoes.md`, aceito em 22/11/2026), o Terraform de `infra/railway/` na versão do PR #233 (ainda não mesclado) e o código do núcleo da IA: porta, opções, gerador desligado, gerador fake e prompt v1 já estão na branch padrão (Issues #224, #227, #231, #232); validador, analisador e adaptador da Anthropic ainda estão fora dela (Issues #236, #246, #249, #250, #251). Formato e terminal do Terraform: o mesmo do [runbook da Railway](railway-runbook.md) e do [runbook da Brevo](brevo-runbook.md).
 
 > **Nada deste runbook foi executado.** Nenhum agente criou conta, chave ou limite de gasto, nem chamou a API da Anthropic, nem rodou `terraform plan` ou `apply`. Os passos do console da Anthropic **não foram conferidos na tela**: vêm do ADR-0004 (fontes lidas em 19/11/2026) e estão marcados **Confira**. O console muda; se a tela não bater com o texto, vale a tela.
 
@@ -48,7 +48,7 @@ Ligar o provedor real exige **todos** os itens abaixo (ADR-0004 §14). Sem eles,
 - [ ] **Limite de gasto configurado no console antes da primeira chamada** ([2.2](#22-limite-de-gasto)).
 - [ ] Homologação no ar pelo runbook da Railway.
 
-**Privacidade, para você saber o que sai do sistema.** Vão ao provedor: tipo de quiz, faixa etária, quantidade, o assunto digitado e até 80 enunciados de questões do mesmo tipo e faixa. **Nenhum dado de aluno, de administrador ou de unidade vai ao provedor**; isso é garantido pelo tipo da requisição e por testes (ADR-0004 §11). O campo "assunto" é texto livre: quem digita é orientado a não escrever nome de pessoa, mas o sistema só recusa e-mail e sequências de 6 ou mais dígitos. Se alguém digitou um nome, ele saiu do sistema; trate como incidente de privacidade e avise a contratante. O provedor processa fora do Brasil (global por padrão) e guarda entradas e saídas por até 30 dias, mais tempo se o conteúdo for sinalizado pelos sistemas de segurança dele; não usa dados da API para treinar por padrão (ADR-0004 §6.1). **Confira** esses prazos com a Anthropic antes de afirmá-los à contratante (ADR-0004 §18, item 4).
+**Privacidade, para você saber o que sai do sistema.** Vão ao provedor: tipo de quiz, faixa etária, quantidade, o assunto digitado e até 80 enunciados de questões do mesmo tipo e faixa. **Nenhum dado de aluno, de administrador ou de unidade vai ao provedor**: o desenho do ADR-0004 §11 prevê isso pelo tipo da requisição, pelo caso de uso e por testes. Na branch padrão já existem o teste da forma da requisição (`QuestionDraftRequestTests`) e o do envelope montado sobre o seed (`AiPromptPrivacyTests`); o caso de uso ainda não existe. O campo "assunto" é texto livre: quem digita é orientado a não escrever nome de pessoa, mas o sistema só recusa e-mail e sequências de 6 ou mais dígitos. Se alguém digitou um nome, ele saiu do sistema; trate como incidente de privacidade e avise a contratante. O provedor processa fora do Brasil (global por padrão) e guarda entradas e saídas por até 30 dias; o conteúdo sinalizado pelos sistemas de segurança dele pode ficar até 2 anos (as pontuações de classificação, até 7 anos); não usa dados da API para treinar por padrão (ADR-0004 §6.1). **Confira** esses prazos com a Anthropic antes de afirmá-los à contratante (ADR-0004 §18, item 4).
 
 ## 2. Console da Anthropic: chave, limite e modelo
 
@@ -82,6 +82,8 @@ O modelo vem **sempre** de `Ai__Model`; o código não tem nome de modelo.
 - O modelo que respondeu fica gravado em cada pedido (quando a tela e a migração existirem), então dá para saber depois qual rodou.
 
 ## 3. Ligar pelo Terraform
+
+> **Confira contra o código mesclado.** As variáveis, as validações e a saída `provedor_ia` desta seção vêm do PR #233 (branch `issue-229-terraform-email-ia`), ainda **fora da branch padrão**. Antes do `plan`, abra `infra/railway/variables.tf` e `infra/railway/README.md` na branch padrão; se divergirem deste texto, vale o código mesclado.
 
 Terminal do Terraform, na raiz do repositório, como no [runbook da Railway, 4.3](railway-runbook.md#43-exportar-os-segredos-sem-deixá-los-no-histórico). **Você** roda `plan` e `apply`; nenhum agente roda.
 
@@ -129,7 +131,7 @@ Esta parte será escrita quando as telas de `/questoes/ia` existirem (ADR-0004 �
 
 ### 4.3 O que cada motivo de falha significa
 
-O adaptador classifica toda falha num motivo fechado (`QuestionDraftFailure`). Na fila, o motivo vira `ai_timeout`, `ai_unavailable` etc. (ADR-0004 §10.2). O que cada um pede de quem opera:
+O adaptador classifica toda falha num motivo fechado (`QuestionDraftFailure`, já na branch padrão). A classificação por código HTTP vem do adaptador, ainda fora da branch padrão (branch `issue-250-ia-registro-anthropic`): **confira contra o código mesclado**. Na fila, o motivo vira `ai_timeout`, `ai_unavailable` etc. (ADR-0004 §10.2). O que cada um pede de quem opera:
 
 | Motivo | Quando acontece | O que fazer |
 |---|---|---|
@@ -154,7 +156,7 @@ O motivo é o mesmo para causas diferentes e o log só traz o `request-id`. Perc
 
 ### 4.4 O que olhar no log
 
-Logs do deploy do `helinho-web` na Railway (aba **Deployments** → **Deploy Logs**; ou **Observability**, como no [runbook da Railway](railway-runbook.md)). O adaptador escreve **uma linha por geração** e uma por repetição:
+Logs do deploy do `helinho-web` na Railway (aba **Deployments** → **Deploy Logs**; ou **Observability**, como no [runbook da Railway](railway-runbook.md)). O adaptador escreve **uma linha por geração** e uma por repetição. Os textos abaixo são os da branch `issue-250-ia-registro-anthropic`, ainda fora da branch padrão; **confira contra o código mesclado**:
 
 | Linha (texto da aplicação) | Nível | Quer dizer |
 |---|---|---|
@@ -166,7 +168,7 @@ Logs do deploy do `helinho-web` na Railway (aba **Deployments** → **Deploy Log
 
 ## 5. Cotas e custo
 
-Três limites do nosso lado, mais o do console:
+Quatro controles do nosso lado (ADR-0004 §13): três limites configuráveis e o máximo por pedido, fixo no código. Acima deles fica o limite de gasto do console:
 
 | Limite | Variável | Padrão | O que faz |
 |---|---|---|---|
@@ -203,6 +205,7 @@ Com `Off`, os botões e avisos de IA somem, as rotas de IA respondem 404 (quando
 ### 6.2 Trocar ou revogar a chave
 
 - **Troca de rotina** (ou chave vazou): crie a chave nova no console ([2.1](#21-criar-a-chave)); `read -rs TF_VAR_ai_api_key && export TF_VAR_ai_api_key` com o valor novo; `plan` e `apply`; confira a geração; **só então apague a chave antiga no console.** Se **vazou**, inverta: apague a antiga primeiro (a IA falha com `Misconfigured` até o `apply`), depois troque.
+- **Rotacione também qualquer chave que tenha aparecido em log, chat, Issue, PR ou captura de tela**, mesmo que por um instante: trate como vazada.
 - **Se vazou:** além de apagar, olhe o gasto do período no console. O que for gasto por terceiros é incidente a registrar e a levar à contratante.
 - O valor antigo continua no estado do Terraform (`terraform.tfstate`) e nos backups dele. Por isso o estado fica cifrado e fora do git ([runbook da Railway](railway-runbook.md)).
 - Sem uso, o provedor pode desativar chaves antigas. **Confira** a política atual no console.
@@ -210,9 +213,9 @@ Com `Off`, os botões e avisos de IA somem, as rotas de IA respondem 404 (quando
 ## 7. Avisos
 
 - **Não defina `ANTHROPIC_LOG=debug` em produção** (nem em homologação com texto real). **Confira** na documentação do SDK C# (`https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/csharp`) o que esse nível registra; o risco é gravar requisições com cabeçalhos e texto no log. O adaptador por si só nunca grava nada disso (item 4.4).
-- **`ANTHROPIC_BASE_URL` não é usado** pelo adaptador. O endereço da API é fixo no código, em HTTPS. Também não valem `ANTHROPIC_API_KEY` nem `ANTHROPIC_AUTH_TOKEN` (há teste cobrindo). Não existe `Ai__BaseUrl`. A chave só vale vinda de `Ai__ApiKey`.
+- **`ANTHROPIC_BASE_URL` não é usado** pelo adaptador. O endereço da API é fixo no código, em HTTPS. Também não valem `ANTHROPIC_API_KEY` nem `ANTHROPIC_AUTH_TOKEN`: endereço e chave são passados na construção do cliente (handoff 249). Há teste para `ANTHROPIC_BASE_URL` e `ANTHROPIC_AUTH_TOKEN` (`AnthropicQuestionDraftGeneratorTests`); para `ANTHROPIC_API_KEY`, **ainda não há teste**. Não existe `Ai__BaseUrl`. A chave só vale vinda de `Ai__ApiKey`.
 - **Em `Development` o provedor efetivo nunca é o real:** `Anthropic` vira `Fake` com aviso no log. Teste local não chama a API mesmo com chave no ambiente.
-- **O cliente HTTP do adaptador não segue redirecionamento**, para que uma resposta 307 não reenvie a chave a outro endereço.
+- **O cliente HTTP do adaptador não segue redirecionamento**, para que uma resposta 307 não reenvie a chave a outro endereço (`AllowAutoRedirect = false` em `Composition/Areas/Ia.cs`, coberto por `AiProviderTests`, na branch `issue-250-ia-registro-anthropic`).
 - **Não cadastre chave real em máquina de desenvolvimento nem em CI.** Nenhum teste chama a API; se um teste pedir chave real, é defeito.
 
 ## O que ainda não existe
@@ -221,7 +224,8 @@ O runbook descreve o que **vale hoje**. Para não prometer o que o código não 
 
 | Peça | Estado em 22/11/2026 | Efeito no runbook |
 |---|---|---|
-| Opções `Ai__*`, porta, gerador desligado, gerador `Fake`, prompt v1, validador, analisador (#227, #232 e vizinhas) | Escritos, em branches empilhadas ainda fora da branch padrão | O que está nos passos 1 a 3 só vale depois que essas branches entrarem na branch padrão e houver deploy |
+| Porta, opções `Ai__*`, gerador desligado, gerador `Fake` e prompt v1 (#224, #227, #231, #232) | Na branch padrão | Valem no próximo deploy |
+| Validador e analisador da saída (#236, #246) | Fora da branch padrão | Sem eles o adaptador não entra |
 | Adaptador da Anthropic, repetição, registro na porta (#249, #251, #250) | Escritos, fora da branch padrão; **nunca falaram com a API real** | A primeira chamada real é o teste de fumaça deste runbook, quando a UI existir |
 | Variáveis `Ai__*` no Terraform (PR #233) | Aprovado, **não mesclado** | O passo 3 só funciona depois do merge |
 | **Migração** (`AiGenerationJobs`, `AiQuestionSuggestions`, proveniência em `Question`) | Não existe | Sem tabelas, não há registro de uso, cota nem sugestões |
@@ -236,11 +240,11 @@ O runbook descreve o que **vale hoje**. Para não prometer o que o código não 
 
 O runbook segue o **código** onde ele difere do ADR, e diz isso aqui.
 
-1. **Limite de gasto próprio do console (HTTP 400) e falta de crédito (402).** O ADR-0004 §6.2 manda o limite de gasto virar `ProviderUnavailable`. No código, só o 429 de teto de gasto da camada vira `ProviderUnavailable`; o 400 do limite próprio e o 402 caem em `Misconfigured` (qualquer 4xx fora de 401/403/404/429). O diagnóstico da seção 4.3 cobre isso. Vale levar à Issue de testes ou de ajuste do adaptador.
+1. **Limite de gasto próprio do console (HTTP 400) e falta de crédito (402).** O ADR-0004 §6.2 manda o limite de gasto virar `ProviderUnavailable`. No código, só o 429 de teto de gasto da camada vira `ProviderUnavailable`; o 400 do limite próprio e o 402 caem em `Misconfigured` (qualquer 4xx fora de 401/403/404/429). O diagnóstico da seção 4.3 cobre isso. O ajuste está na Issue #256; quando ela entrar, a tabela da seção 4.3 muda.
 2. **Faixas de cota.** O código só exige cotas maiores que zero. O Terraform é mais estrito (`Ai__DailyQuotaPerAdmin` de 1 a 10000 e `Ai__DailyGlobalLimit` de 1 a 100000). O Terraform manda no ambiente; as duas coisas não conflitam.
 3. **Atraso do fake.** O ADR sugere 1500 ms na demonstração; o código padrão é 0 (o ADR e o handoff da #232 dizem que quem liga é o ambiente ou `scripts/demo.sh`). `Ai:Fake:DelayMilliseconds` não está no Terraform.
 4. **`Timeout` no fake.** Não lança `Timeout`: espera até o prazo de quem chamou. Só importa para quem testa localmente.
-5. **SDK.** O ADR §6.4 diz "SDK oficial" (D4) e o código usa o pacote `Anthropic` 13.10.0; a tentativa do SDK é desligada (`MaxRetries = 0`) e a repetição é nossa, só para 429 e 5xx. Não há diferença para quem opera.
+5. **SDK.** O ADR §6.4 diz "SDK oficial" (D4) e o código usa o pacote `Anthropic` 13.10.0 (`Directory.Packages.props` e handoff 249); a tentativa do SDK é desligada (`MaxRetries = 0`, em `AnthropicQuestionDraftGenerator.cs`; handoffs 249 e 251) e a repetição é nossa, só para 429 e 5xx. Tudo isso está na branch `issue-250-ia-registro-anthropic`. Não há diferença para quem opera.
 6. **Terraform e o ADR §14.** Os dois ajustes que o ADR pedia ao Terraform (chave só com `Anthropic`; `Fake`/`Off` sem chave) estão no PR #233, junto com a exigência de `Ai__Model` e a recusa de `latest`.
 
 ## Fontes
@@ -248,4 +252,5 @@ O runbook segue o **código** onde ele difere do ADR, e diz isso aqui.
 - ADR-0004, seções 6.1 (fatos da API na data), 11, 13, 14, 16 e 18; `docs/context/pendencias-ia.md`.
 - `infra/railway/README.md` do PR #233 (branch `issue-229-terraform-email-ia`): variáveis, padrões, validações, `terraform output ambientes`.
 - Handoffs 227, 232, 249, 250 e 251 (branch `issue-250-ia-registro-anthropic`): nomes das opções, motivos de falha, repetição, log, `Development`.
+- Branch padrão, conferida em 22/11/2026: `src/Helinho.Application/Ai/AiOptions.cs` (nomes, padrões e mensagens das opções) e `src/Helinho.Web/Composition/Areas/Ia.cs` (aviso em `Development`).
 - Documentação da Anthropic citada pelo ADR-0004, lida em 19/11/2026 e **não reconferida** para este runbook: `https://platform.claude.com/docs/en/about-claude/models/overview`, `.../api/errors`, `.../api/rate-limits`, `.../cli-sdks-libraries/sdks/csharp`.
