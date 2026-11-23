@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Helinho.Domain;
+using Helinho.Infrastructure.Identidade;
 using Helinho.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -29,7 +30,7 @@ public sealed class EntrarModel(SignInManager<AppUser> signIn, UserManager<AppUs
             return Page();
         }
 
-        var user = await users.FindByNameAsync(Input.UserName) ?? await users.FindByEmailAsync(Input.UserName);
+        var user = await users.FindByNameAsync(Input.UserName) ?? await users.FindByUniqueEmailAsync(Input.UserName);
         if (user is null || !await HasPanelRoleAsync(user))
         {
             ModelState.AddModelError(string.Empty, InvalidMessage);
