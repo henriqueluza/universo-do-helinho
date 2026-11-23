@@ -11,7 +11,7 @@ namespace Helinho.IntegrationTests;
 
 /// <summary>Issue #286, fatia 1: acompanhar o pedido de rascunhos de IA em /questoes/ia (ADR-0004 §15). Só o gerador Fake.</summary>
 [Collection(PostgresCollection.Name)]
-public class AiTelaAcompanharTests(PostgresFixture postgres)
+public partial class AiTelaAcompanharTests(PostgresFixture postgres)
 {
     private const string Xss = "<script>alert(1)</script>";
     private static readonly string[] Four = ["Um", "Dois", "Três", "Quatro"];
@@ -145,23 +145,5 @@ public class AiTelaAcompanharTests(PostgresFixture postgres)
         Assert.Contains("(alternativa certa)", html, StringComparison.Ordinal);
         Assert.DoesNotMatch("<script(?![^>]*\\bsrc=)", raw);
         Assert.DoesNotMatch(" style=\"(?!--t:)", raw);
-    }
-
-    [Theory]
-    [InlineData("ai_timeout", "A IA demorou demais. Tente de novo.")]
-    [InlineData("ai_unavailable", "A IA está indisponível agora.")]
-    [InlineData("ai_rate_limited", "A IA está indisponível agora.")]
-    [InlineData("ai_refused", "A IA não gerou sugestões para este assunto. Tente outro assunto.")]
-    [InlineData("ai_invalid_output", "As sugestões vieram com problema e foram descartadas.")]
-    [InlineData("ai_misconfigured", "A IA não está configurada. Avise o responsável técnico.")]
-    [InlineData("expired", "O pedido não terminou a tempo.")]
-    [InlineData("max_attempts", "O pedido não terminou a tempo.")]
-    [InlineData("codigo_novo", "Não foi possível gerar as sugestões.")]
-    public void Falha_vira_mensagem_clara_sem_jargao(string code, string expected)
-    {
-        var text = Helinho.Web.Pages.Questoes.Ia.IaTexto.Failure(code);
-
-        Assert.Contains(expected, text, StringComparison.Ordinal);
-        Assert.DoesNotContain("ai_", text, StringComparison.Ordinal);
     }
 }
