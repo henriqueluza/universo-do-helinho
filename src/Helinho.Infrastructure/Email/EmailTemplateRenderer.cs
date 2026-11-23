@@ -30,7 +30,7 @@ public sealed class EmailTemplateRenderer(EmailTemplateSettings settings)
         }),
         PasswordResetEmail m => Compose("PasswordReset", new() { ["link"] = Link(m.UserId, m.Token), ["validade"] = Hours(m.Validity) }),
         PasswordChangedEmail m => Compose("PasswordChanged", new() { ["conta"] = m.AccountName }),
-        StudentAccessEmail m => Compose("StudentAccess", new()
+        StudentAccessEmail m => Compose(m.Renewal ? "StudentPasswordChange" : "StudentAccess", new()
         {
             ["aluno"] = m.StudentFirstName,
             ["matricula"] = m.Enrollment,

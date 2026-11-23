@@ -192,15 +192,16 @@ public class EmailJobHandlerTests
     }
 
     [Theory]
-    [InlineData(false, LinkDeAcesso.ProvedorConvite, "72 horas")]
-    [InlineData(true, LinkDeAcesso.ProvedorRedefinicao, "1 hora")]
-    public async Task Acesso_do_aluno_vai_para_o_responsavel_e_o_link_segue_o_estado_da_conta(bool hasPassword, string provider, string validity)
+    [InlineData(false, LinkDeAcesso.ProvedorConvite, "72 horas", "Acesso ao jogo Universo do Helinho")]
+    [InlineData(true, LinkDeAcesso.ProvedorRedefinicao, "1 hora", "Troca de senha do jogo Universo do Helinho")]
+    public async Task Acesso_do_aluno_vai_para_o_responsavel_e_o_link_e_o_texto_seguem_o_estado_da_conta(bool hasPassword, string provider, string validity, string title)
     {
         var (result, subjects, sender) = await RunAsync(EmailJobTypes.StudentAccess, StudentId, known: Student with { HasPassword = hasPassword });
 
         var message = Assert.Single(sender.Sent);
         Assert.IsType<JobResult.Succeeded>(result);
-        Assert.Equal(GuardianEmail, message.Recipient);
+        Assert.Equal((GuardianEmail, title), (message.Recipient, message.Subject));
+        Assert.Equal(hasPassword, message.TextBody.Contains("Esta é uma troca de senha.", StringComparison.Ordinal));
         Assert.Equal([(StudentUserId, provider)], subjects.Tokens);
         Assert.Equal(RawToken, TokenIn(message.TextBody));
         Assert.Contains($"usuario={StudentUserId:D}&", message.TextBody);

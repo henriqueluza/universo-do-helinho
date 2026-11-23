@@ -42,7 +42,11 @@ public class EmailTemplateRendererTests
             "Se não foi você, avise a FUNDHAS.", "Marina Teste", "Se foi você, não precisa fazer nada."),
         new EmailScenario(
             new StudentAccessEmail("Ana", "2026-0042", UserId, Token, Invite), true,
-            "Falta definir a senha do jogo. O link vale por 72 horas.", "Ana", "2026-0042", "72 horas"),
+            "Falta definir a senha do jogo. O link vale por 72 horas.", "Ana", "2026-0042", "72 horas", "uma senha que você define agora"),
+        new EmailScenario(
+            new StudentAccessEmail("Ana", "2026-0042", UserId, Token, TimeSpan.FromHours(1), Renewal: true), true,
+            "Link para criar a nova senha do jogo. Vale por 1 hora.", "Esta é uma troca de senha.", "responsável por Ana", "2026-0042",
+            "vale por 1 hora e só pode ser usado uma vez", "a senha atual continua valendo", "Se você não pediu a troca"),
         new EmailScenario(
             new GuardianEmailChangedEmail("Ana", ChangedOn), false,
             "Se você não reconhece a troca, procure a unidade da FUNDHAS.", "de Ana no Universo", "Em 22/11/2026, a unidade",
@@ -121,7 +125,7 @@ public class EmailTemplateRendererTests
             markers.UnionWith(Regex.Matches(reader.ReadToEnd(), @"\{\{([a-z_]+)\}\}").Select(match => match.Groups[1].Value));
         }
 
-        Assert.Equal(12, templates.Count);
+        Assert.Equal(14, templates.Count);
         Assert.Equal(["aluno", "assunto", "conta", "contato", "data", "link", "logo", "matricula", "nome", "organizacao", "painel", "unidade", "validade"], markers);
     }
 
@@ -139,12 +143,26 @@ public class EmailTemplateRendererTests
     }
 
     [Fact]
+    public void Acesso_de_conta_com_senha_diz_que_e_troca_e_nao_que_o_acesso_acabou_de_ser_liberado()
+    {
+        var first = Renderer.Render(new StudentAccessEmail("Ana", "2026-0042", UserId, Token, Invite));
+        var change = Renderer.Render(new StudentAccessEmail("Ana", "2026-0042", UserId, Token, TimeSpan.FromHours(1), Renewal: true));
+
+        // ADR-0003 §11.4: com senha, "o e-mail diz que é uma troca de senha". Assunto sem nome de aluno (§5.6).
+        Assert.Equal("Acesso ao jogo Universo do Helinho", first.Subject);
+        Assert.Equal("Troca de senha do jogo Universo do Helinho", change.Subject);
+        Assert.DoesNotMatch("(?i)troca", first.Subject + first.Html + first.Text);
+        Assert.DoesNotMatch("(?i)já pode jogar|agora tem acesso|72 horas", change.Html + change.Text);
+        Assert.Contains("Definir a nova senha</a>", change.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Nome_de_aluno_de_unidade_e_de_administrador_saem_codificados_no_html_e_crus_so_no_texto()
     {
         EmailModel[] models =
         [
             new AdminInviteEmail(Attack, Attack, UserId, Token, Invite), new PasswordChangedEmail(Attack), new StudentAccessEmail(Attack, Attack, UserId, Token, Invite),
-            new GuardianEmailChangedEmail(Attack, ChangedOn),
+            new StudentAccessEmail(Attack, Attack, UserId, Token, Invite, Renewal: true), new GuardianEmailChangedEmail(Attack, ChangedOn),
         ];
 
         Assert.All(models, model =>
