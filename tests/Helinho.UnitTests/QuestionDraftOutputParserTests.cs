@@ -1,3 +1,4 @@
+using System.Text;
 using Helinho.Application.Ai;
 
 namespace Helinho.UnitTests;
@@ -23,6 +24,7 @@ public class QuestionDraftOutputParserTests
         Assert.Equal([0, 2, -1, -1], drafts.Select(d => d.CorrectIndex)); // fora de a–d fica -1, para o validador recusar
         Assert.Equal((" Qual é a cor do céu? ", "O céu parece azul."), (drafts[0].Statement, drafts[0].Explanation)); // sem aparar nem limpar
         Assert.Equal(["Azul", "Verde", "Roxo", "Cinza"], drafts[0].Options);
+        Assert.Equal(" Azul ", QuestionDraftOutputParser.Parse(Batch(Valid.Replace("\"Azul\"", "\" Azul \"", StringComparison.Ordinal)))[0].Options[0]);
         Assert.Empty(QuestionDraftOutputParser.Parse("""{"questoes":[]}"""));
     }
 
@@ -37,6 +39,10 @@ public class QuestionDraftOutputParserTests
             Valid.Replace("\"a\":\"Azul\"", "\"a\":5", StringComparison.Ordinal),
             Valid.Replace("\"a\":", "\"a\":\"repetida\",\"a\":", StringComparison.Ordinal),
             Valid.Replace("Azul", "par quebrado " + Backslash + "uD83D", StringComparison.Ordinal),
+            Valid.Replace("\"enunciado\"", "\"" + Backslash + "uD83D\"", StringComparison.Ordinal), // escape quebrado na chave
+            Valid.Replace("\"enunciado\"", "\"Enunciado\"", StringComparison.Ordinal), // a chave diferencia maiúsculas
+            Valid.Replace("\"a\":\"Azul\"", "\"a\":{\"b\":\"x\"}", StringComparison.Ordinal),
+            Valid.Replace("\"a\":\"Azul\"", "\"a\":[]", StringComparison.Ordinal),
             "\"só texto\"", "null", "[]",
         ];
 
@@ -72,10 +78,15 @@ public class QuestionDraftOutputParserTests
     [Fact]
     public void Saida_acima_de_64_KB_e_recusada_antes_de_analisar_e_no_limite_passa()
     {
-        var padding = Batch(Valid).Length;
+        // O limite é em bytes UTF-8, não em caracteres: o texto tem acentos (dois bytes cada) e o enchimento é ASCII.
+        var padding = Encoding.UTF8.GetByteCount(Batch(Valid));
         string Sized(int bytes) => Batch(Valid.Replace("O céu parece azul.", "O céu parece azul." + new string('x', bytes - padding), StringComparison.Ordinal));
+        var atLimit = Sized(QuestionDraftOutputParser.MaxBytes);
 
-        Assert.Single(QuestionDraftOutputParser.Parse(Sized(QuestionDraftOutputParser.MaxBytes - 8)));
-        Assert.Throws<QuestionDraftGenerationException>(() => QuestionDraftOutputParser.Parse(Sized(QuestionDraftOutputParser.MaxBytes + 1)));
+        Assert.Equal(QuestionDraftOutputParser.MaxBytes, Encoding.UTF8.GetByteCount(atLimit));
+        Assert.True(atLimit.Length < QuestionDraftOutputParser.MaxBytes);
+        Assert.Single(QuestionDraftOutputParser.Parse(atLimit));
+        var failure = Assert.Throws<QuestionDraftGenerationException>(() => QuestionDraftOutputParser.Parse(Sized(QuestionDraftOutputParser.MaxBytes + 1)));
+        Assert.Equal(QuestionDraftFailure.InvalidOutput, failure.Reason);
     }
 }
