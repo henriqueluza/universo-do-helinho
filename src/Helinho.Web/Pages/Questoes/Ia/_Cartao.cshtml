@@ -37,4 +37,16 @@
         }
     </ol>
     <p class="why">Explicação: @draft.Explanation</p>
+    @if (pending)
+    {
+        <div class="rcard-actions">
+            <form method="post" asp-page="Pedido" asp-page-handler="Aprovar" asp-route-jobId="@job.Id" asp-route-id="@draft.Id">
+                <button class="btn btn-primary" type="submit"><svg aria-hidden="true"><use href="#i-ok"/></svg>Aprovar<span class="visually-hidden"> sugestão: @draft.Statement</span></button>
+            </form>
+            <a class="btn" asp-page="Editar" asp-route-jobId="@job.Id" asp-route-id="@draft.Id"><svg aria-hidden="true"><use href="#i-edit"/></svg>Editar<span class="visually-hidden"> sugestão: @draft.Statement</span></a>
+            <form method="post" asp-page="Pedido" asp-page-handler="Descartar" asp-route-jobId="@job.Id" asp-route-id="@draft.Id">
+                <button class="btn btn-quiet-bad" type="submit"><svg aria-hidden="true"><use href="#i-x"/></svg>Descartar<span class="visually-hidden"> sugestão: @draft.Statement</span></button>
+            </form>
+        </div>
+    }
 </article>

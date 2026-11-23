@@ -28,6 +28,11 @@
         <div class="note ai"><svg aria-hidden="true"><use href="#i-ai"/></svg><span>@IaTexto.DemoNotice</span></div>
     }
 
+    @if (Model.Notice is not null)
+    {
+        <div class="note @(Model.NoticeKind == "ok" ? "ok" : "")" role="status" id="ia-resultado"><svg aria-hidden="true"><use href="#@(Model.NoticeKind == "ok" ? "i-ok" : "i-alert")"/></svg><span>@Model.Notice</span></div>
+    }
+
     <ol class="ai-steps" aria-label="Etapas">
         <li>Pedir</li>
         <li aria-current="step">Revisar</li>
@@ -84,6 +89,10 @@
         @if (job.InvalidCount + job.DuplicateCount > 0)
         {
             <div class="note info"><svg aria-hidden="true"><use href="#i-info"/></svg><span>@job.InvalidCount com problema e @job.DuplicateCount repetidas foram descartadas antes de chegar aqui.</span></div>
+        }
+        @if (job.ReviewedCount == total)
+        {
+            <div class="note ok" id="ia-tudo-revisado"><svg aria-hidden="true"><use href="#i-ok"/></svg><span>Tudo revisado. As aprovadas já estão em <a class="link-btn" href="/Questoes">Questões</a>; as editadas ficam como rascunho até alguém aprovar.</span></div>
         }
         <section aria-labelledby="t-rev">
             <div class="panel-head">
