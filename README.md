@@ -94,6 +94,7 @@ A IA sugere rascunhos de questões e a equipe decide (ADR-0004). **O padrão é 
 | `Ai:DailyGlobalLimit` | `Ai__DailyGlobalLimit` | `300` | Sugestões que todos, somados, podem pedir em 24 horas |
 
 - Em `Development` o provedor real nunca é usado: `Anthropic` vira `Fake`, com um aviso no log.
+- Com `Anthropic`, a chamada vai pelo SDK oficial para `https://api.anthropic.com`; endereço e chave vêm só de `Ai:*` (as variáveis `ANTHROPIC_*` do SDK não valem). Não defina `ANTHROPIC_LOG=debug` em produção: liga o log de depuração do SDK.
 - Com a IA desligada, a porta `IQuestionDraftGenerator` resolve um gerador que recusa toda chamada.
 - Com `Fake`, as sugestões são fictícias e sempre as mesmas para o mesmo pedido. Duas chaves só de desenvolvimento e teste (fora do Terraform): `Ai:Fake:DelayMilliseconds` (padrão `0`; atraso simulado, até 60000) e `Ai:Fake:Failure` (`None`, `Timeout`, `Unavailable`, `Refused`, `InvalidOutput` ou `PartialInvalid`), para exercitar os estados "gerando" e de erro.
 

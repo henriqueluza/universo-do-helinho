@@ -35,12 +35,16 @@ public static class AiExtensions
             .Configure<IConfiguration>((options, configuration) => configuration.GetSection(FakeAiOptions.Section).Bind(options));
         services.AddSingleton<DisabledQuestionDraftGenerator>();
         services.AddSingleton<FakeQuestionDraftGenerator>();
-        // O gerador da Anthropic entra aqui pela Issue dele. Até lá, e sempre com Off, a porta falha fechada.
-        // IOptionsMonitor é a mesma instância que o ValidateOnStart já validou.
+        // Transitório: o cliente HTTP tipado do adaptador da Anthropic não pode ficar preso num singleton. Ele é
+        // registrado por AddIa, na área IA do Web, que tem o Microsoft.Extensions.Http; um host que use Anthropic sem
+        // chamar AddIa falha ao resolver. IOptionsMonitor é a mesma instância que o ValidateOnStart já validou.
         services.AddTransient<IQuestionDraftGenerator>(provider =>
-            provider.GetRequiredService<IOptionsMonitor<AiOptions>>().CurrentValue.UsesFake
-                ? provider.GetRequiredService<FakeQuestionDraftGenerator>()
-                : provider.GetRequiredService<DisabledQuestionDraftGenerator>());
+        {
+            var options = provider.GetRequiredService<IOptionsMonitor<AiOptions>>().CurrentValue;
+            return options.UsesAnthropic ? provider.GetRequiredService<AnthropicQuestionDraftGenerator>()
+                : options.UsesFake ? provider.GetRequiredService<FakeQuestionDraftGenerator>()
+                : provider.GetRequiredService<DisabledQuestionDraftGenerator>();
+        });
         return services;
     }
 
