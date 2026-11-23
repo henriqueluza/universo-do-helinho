@@ -1,3 +1,4 @@
+using Helinho.Application.Abstractions;
 using Helinho.Application.Ai;
 using Helinho.Infrastructure.Ai;
 
@@ -29,6 +30,8 @@ public static partial class IaArea
         });
         // Casos de uso da IA (ADR-0004 §10.2). A página que os chama fica sob a política Panel.
         services.AddScoped<RequestAiDrafts>();
+        // Tratador da raia ai.question-drafts: o trabalhador da fila o descobre por IJobHandler (ADR-0003 §6.6).
+        services.AddScoped<IJobHandler, ProcessAiDraftJob>();
         return services;
     }
 

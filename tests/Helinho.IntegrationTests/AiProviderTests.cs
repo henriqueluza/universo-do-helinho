@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Helinho.Application.Abstractions;
 using Helinho.Application.Ai;
 using Helinho.Domain;
 using Helinho.Infrastructure.Ai;
@@ -197,5 +198,6 @@ public class AiProviderTests(PostgresFixture postgres)
         Assert.Equal(QuestionDraftFailure.Refused, failure.Reason);
         using var scope = fake.Services.CreateScope();
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<RequestAiDrafts>()); // Issue #258: o caso de uso está na composição
+        Assert.Contains(scope.ServiceProvider.GetServices<IJobHandler>(), handler => handler is ProcessAiDraftJob); // Issue #259: a raia da IA
     }
 }
