@@ -10,6 +10,7 @@ public static class Areas
         services.AddRedefinicaoDeSenha();
         services.AddIa();
         services.AddEmailTratador();
+        services.AddBrevoWebhook();
         return services;
     }
 
@@ -17,6 +18,7 @@ public static class Areas
     {
         app.MapIdentidade().MapApiHome().MapApiPerfil().MapApiQuiz()
             .MapPainelAlunos().MapPainelConteudo().MapPainelEngajamento().MapGestao();
+        app.MapBrevoWebhook();
         return app;
     }
 }
