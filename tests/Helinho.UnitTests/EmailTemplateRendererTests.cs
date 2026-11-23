@@ -25,7 +25,7 @@ public class EmailTemplateRendererTests
     private static readonly EmailTemplateSettings Settings = new(
         PublicBaseUrl.Parse("https://painel.example.org", allowHttpLoopback: false), "FUNDHAS (identificação sintética)", "contato@example.org");
 
-    private static readonly EmailTemplateRenderer Renderer = new(Settings);
+    internal static readonly EmailTemplateRenderer Renderer = new(Settings);
 
     public static TheoryData<EmailScenario> Scenarios => new()
     {
@@ -82,7 +82,7 @@ public class EmailTemplateRendererTests
         // Layout: coluna de até 600 px, pré-cabeçalho escondido antes do conteúdo e só as cores do tema Recreio (sem lilás).
         Assert.Contains("<table role=\"presentation\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;max-width:600px;\">", email.Html, StringComparison.Ordinal);
         Assert.Contains($"<body style=\"margin:0;padding:0;background-color:#F8FAFD;\">\n<div style=\"display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;mso-hide:all;\">{scenario.Preheader}</div>", WebUtility.HtmlDecode(email.Html), StringComparison.Ordinal);
-        Assert.All(Regex.Matches(email.Html, "#[0-9A-Fa-f]{3,8}\\b"), color => Assert.Contains(color.Value, Palette));
+        Assert.All(Regex.Matches(email.Html, "#[0-9A-Fa-f]{3,8}\\b"), color => Assert.Contains(color.Value.ToUpperInvariant(), Palette));
 
         // ADR-0003 §8.4: no HTML a URL com o token é só o destino do botão, que tem texto de ação; por extenso, só o endereço do site.
         var buttons = Regex.Matches(email.Html, "<a href=\"([^\"]*)\"[^>]*>([^<]*)</a>");
