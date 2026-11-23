@@ -45,6 +45,13 @@ Sequência sugerida, um PR por vez:
 
 Por que trabalhador e tratador antes dos fluxos: os fluxos só enfileiram. Se um fluxo chegar antes, a página funciona, mas o e-mail fica `Pending` até vencer (convite e aviso em 24 horas, redefinição em 30 minutos), e ninguém recebe nada. Com o trabalhador e o tratador já na branch padrão e nenhum fluxo, nada acontece: não há trabalho na fila.
 
+**Duas correções da #291 valem ser levadas para as branches de origem antes de abrir os PRs delas**, senão o CI de quem entrar por último reprova:
+
+- `Web/Composition/Areas/EmailTratador.cs` (tratador, #271): ler a base pública por `IOptionsMonitor<EmailOptions>.CurrentValue` em vez de `IOptions<EmailOptions>.Value`. Com o trabalhador (#228) e o tratador juntos, `EmailProviderTests.Em_Development_o_provedor_e_sempre_Fake_com_aviso_mas_provedor_desconhecido_ainda_falha` falha (o aviso sai duas vezes). Sozinha, cada pilha passa.
+- `tests/Helinho.IntegrationTests/AcessoAlunoTelaTests.cs` (acesso do aluno, #267 parte 2): o teste de leitura usa um aluno próprio. Como está na branch do #267, a classe falha conforme a ordem em que o xUnit roda os testes.
+
+As duas estão no commit `816ca94`. Se forem levadas para as branches de origem, a #291 junta sem conflito (mudança idêntica).
+
 Antes de #291 entrar, o aviso de troca do e-mail do responsável falha com `template_missing` e `PreviousGuardianEmail` fica preso na coluna. Se a parte 4 do #267 for para produção antes da #291, cada troca de e-mail deixa um endereço guardado sem prazo. **Levar #291 logo depois do #267.**
 
 ## Conflitos e como resolver
@@ -88,13 +95,18 @@ Merge `b0b4020`.
 
 Se o PR #276 entrar primeiro, os itens 3 e 4 são resolvidos nas branches do convite e da redefinição (merge da branch padrão nelas). Se entrar depois, são resolvidos no próprio PR #276.
 
-### 5. Costura (#291) × tratador e acesso do aluno
+### 5. Tratador (#271) × trabalhador (#228): incompatibilidade sem conflito textual
+O Git junta as duas pilhas sem acusar nada, e o build passa. O defeito só aparece em execução: o trabalhador resolve os tratadores na subida, o tratador de e-mail lia `IOptions<EmailOptions>` (segunda instância das opções), e o `PostConfigure` da área de e-mail rodava de novo. Em Development com `Email:Provider=Brevo`, o aviso "ignorado" saía duas vezes e `EmailProviderTests` falhava. Corrigido na #291 (`EmailTratador.cs`, uma linha).
+
+### 6. Costura (#291) × tratador e acesso do aluno
 Não há conflito: #291 nasceu sobre a junção. Ela edita `EmailJobHandler.cs`, `IEmailSubjects.cs`, `EmailSubjects.cs` e `EmailJobsExtensions.cs` (tratador) e usa `PreviousGuardianEmailCleaner` e `GuardianEmailChangedEmail` (acesso do aluno). Só pode virar PR depois de #272 e #267 parte 5.
 
 ## Resultado das verificações nesta sessão
 
 - **Build:** `dotnet build --no-restore -warnaserror` e `dotnet format --verify-no-changes` limpos em `email-integrada` e nas três branches.
 - **Testes, pelo script de trava, classe a classe** (ver a tabela no fim). A suíte completa **não rodou** (orientação da onda).
+- **Dois defeitos apareceram ao rodar as classes da junção** e foram corrigidos na #291: o aviso em dobro (tratador × trabalhador) e um teste da #267 que dependia da ordem. Em `email-integrada`, sem a #291, `EmailProviderTests` tem 1 falha e `AcessoAlunoTelaTests` falha conforme a ordem.
+- **`HospedagemTests`: 2 falhas conhecidas da base** (`Em_Development_nao_ha_redirecionamento…` e `Proto_encaminhado_e_tratado_como_https…`, banco não migrado antes de pedir `/entrar`). A correção está na branch do PR #120 (`cf39854`) e não em `base-email`. Não foram mexidas.
 - **Ponta a ponta (#293):** convite, redefinição, acesso do aluno e troca do e-mail do responsável: os quatro passam.
 - **`security-scan.sh`** (Semgrep e gitleaks): limpo.
 
@@ -137,4 +149,21 @@ Observações (nenhuma foi mexida; decidir em Issue própria):
 
 ## Classes de teste rodadas (trava `testar.sh`, uma por vez)
 
-Preenchido no fim da sessão; ver a seção seguinte.
+Resultado final de cada classe no topo da pilha (`issue-293-email-ponta-a-ponta`), salvo indicação. Número = testes da classe, todos aprovados.
+
+| Projeto | Classes |
+|---|---|
+| `Helinho.UnitTests` | `EmailJobHandlerTests` 57 · `EmailTemplateRendererTests` 19 · `EmailContrastTests` 11 · `CriarAdministradorHandlerTests` 8 · `ConviteAdministradorTests` 5 · `ConviteAbertoHandlerTests` 8 · `PedirRedefinicaoHandlerTests` 10 · `DefinirSenhaHandlerTests` 6 |
+| `Helinho.ArchitectureTests` | `ArchitectureRules` 3 |
+| `Helinho.IntegrationTests`, e-mail e fila | `EmailPontaAPontaTests` 4 · `EmailCosturaTests` 8 · `EmailTratadorTests` 6 · `EmailProviderTests` 19 · `EmailRepetidoTests` 6 · `EmailFeedbackRecorderTests` 16 · `BrevoWebhookTests` 20 · `JobProcessorTests` 14 · `JobQueueTests` 8 · `JobWorkerTests` 6 |
+| `Helinho.IntegrationTests`, contas | `PanelSessionTests` 7 · `LoginTests` 7 · `ApiLoginTests` 17 · `RecuperarSenhaTests` 4 · `SenhaAlteradaAvisoTests` 2 · `DefinirSenhaPaginaTests` 6 · `DefinirSenhaLinkTests` 7 · `PanelAdministradoresTests` 10 · `PanelConvitesTests` 5 · `ConviteAbertoTests` 3 |
+| `Helinho.IntegrationTests`, alunos | `AcessoAlunoTelaTests` 8 · `SendStudentAccessTests` 5 · `StudentApprovalAccessTests` 5 · `GuardianEmailChangeTests` 5 · `StudentFormTests` 13 |
+| `Helinho.IntegrationTests`, outras | `PainelSemStyleInlineTests` 7 · `HospedagemTests` 8, com as **2 falhas conhecidas** da base |
+
+A última rodada da sessão (classes de tela e de persistência no topo da pilha) está em "Última rodada", abaixo.
+
+## Última rodada (topo da pilha, depois das correções da #291)
+
+Todas aprovadas: `EmailJobHandlerTests` 57 · `EmailTemplateRendererTests` 19 · `EmailContrastTests` 11 · `CriarAdministradorHandlerTests` 8 · `EmailPontaAPontaTests` 4 · `EmailCosturaTests` 8 · `EmailProviderTests` 19 · `AcessoAlunoTelaTests` 8 · `EmailRepetidoTests` 6 · `ContaRecreioTests` 3 · `PanelUnidadesAdminsRecreioTests` 5 · `GuardianEmailTests` 4 · `AlunosRecreioTests` 6 · `SegregacaoUnidadeTests` 5 · `PanelIconesTests` 2 · `PanelMenuSmokeTests` 16 · `PersistenceTests` 3 · `DataProtectionKeysTests` 3 · `StudentListTests` 7.
+
+O resto da suíte de integração (dashboards, quiz, seeds, missões, eventos, questões, IA) não rodou nesta sessão.
