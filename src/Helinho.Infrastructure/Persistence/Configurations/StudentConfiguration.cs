@@ -18,6 +18,9 @@ internal sealed class StudentConfiguration : IEntityTypeConfiguration<Student>
         b.Property(x => x.Cpf).HasMaxLength(14);
         b.Property(x => x.Address).HasMaxLength(300);
         b.Property(x => x.GuardianName).HasMaxLength(200);
+        // Sem índice e sem unicidade: irmãos têm o mesmo responsável (ADR-0003 §9).
+        b.Property(x => x.GuardianEmail).HasMaxLength(Helinho.Domain.EmailAddress.MaxLength);
+        b.Property(x => x.PreviousGuardianEmail).HasMaxLength(Helinho.Domain.EmailAddress.MaxLength);
         b.Property(x => x.ClassName).HasMaxLength(60);
         b.Property(x => x.Avatar).HasMaxLength(60);
         b.HasOne<Unit>().WithMany().HasForeignKey(x => x.UnitId).OnDelete(DeleteBehavior.Restrict);
