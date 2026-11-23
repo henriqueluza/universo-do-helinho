@@ -16,7 +16,9 @@ public static class IdentityExtensions
     public static IServiceCollection AddAdminAccounts(this IServiceCollection services)
     {
         services.AddScoped<IAdminAccountGateway, AdminAccountGateway>();
+        services.AddScoped<IAdminInviteJobs, AdminInviteJobs>();
         services.AddScoped<CriarAdministradorHandler>();
+        services.AddScoped<ConviteAbertoHandler>();
         services.AddScoped<ListarAdministradoresHandler>();
         return services;
     }
