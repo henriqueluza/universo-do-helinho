@@ -15,4 +15,16 @@ public static class PasswordResetExtensions
         services.AddScoped<PedirRedefinicaoHandler>();
         return services;
     }
+
+    /// <summary>
+    /// Aviso "sua senha foi alterada" (ADR-0003 §11.3): decora a porta de definir senha. Precisa vir depois de
+    /// <c>AddPasswordLinks</c>, porque o último registro da porta é o que vale.
+    /// </summary>
+    public static IServiceCollection AddPasswordChangedNotice(this IServiceCollection services)
+    {
+        services.AddScoped<PasswordLinkGateway>();
+        services.AddScoped<IPasswordLinkGateway>(sp => ActivatorUtilities.CreateInstance<PasswordChangeNotifyingGateway>(
+            sp, sp.GetRequiredService<PasswordLinkGateway>()));
+        return services;
+    }
 }

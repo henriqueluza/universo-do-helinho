@@ -15,7 +15,7 @@ public static class RedefinicaoDeSenhaArea
 
     public static IServiceCollection AddRedefinicaoDeSenha(this IServiceCollection services)
     {
-        services.AddPasswordResetRequests();
+        services.AddPasswordResetRequests().AddPasswordChangedNotice();
         // Soma uma política às opções que a área Identidade já configura (o 429 vem de lá). O IP é o resolvido pela
         // área Hospedagem. Em Razor Pages o atributo vale para a página inteira: o GET fica sem limite.
         services.AddRateLimiter(o => o.AddPolicy(RateLimitPolicy, context => HttpMethods.IsPost(context.Request.Method)
