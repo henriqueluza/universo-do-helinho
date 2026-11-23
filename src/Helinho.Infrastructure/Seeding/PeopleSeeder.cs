@@ -129,6 +129,7 @@ public sealed class PeopleSeeder(AppDbContext db, IClock clock, IConfiguration c
             user.Id, unit.Id, enrollment, $"Aluno Fictício {nn}", $"FICT-RG-{nn}", $"000.000.0{nn}-00",
             $"Rua Inexistente {n}, Bairro Fictício", birthDate, $"Responsável Fictício {nn}",
             $"Turma {(char)('A' + (n - 1) % 4)}", today);
+        student.SetGuardianEmail($"responsavel{nn}@example.org"); // domínio reservado: nunca chega a uma caixa de verdade
 
         if (!PendingGuardian.Contains(n))
         {

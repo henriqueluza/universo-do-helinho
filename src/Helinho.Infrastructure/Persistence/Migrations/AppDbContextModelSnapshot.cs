@@ -402,10 +402,18 @@ namespace Helinho.Infrastructure.Persistence.Migrations
                     b.Property<bool>("GuardianApproved")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("GuardianEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
                     b.Property<string>("GuardianName")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PreviousGuardianEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
 
                     b.Property<string>("Rg")
                         .IsRequired()
