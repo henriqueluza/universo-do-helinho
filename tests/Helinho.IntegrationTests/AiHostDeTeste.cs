@@ -2,6 +2,7 @@ using Helinho.Application.Abstractions;
 using Helinho.Application.Ai;
 using Helinho.Infrastructure.Fakes;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace Helinho.IntegrationTests;
@@ -26,6 +27,7 @@ public sealed class AiHostDeTeste : IAsyncDisposable
             _factory = new HelinhoWebFactory(postgres, configure: services =>
             {
                 services.AddSingleton<TimeProvider>(Time);
+                services.Replace(ServiceDescriptor.Singleton<IApiSessionValidator, TestSessionValidator>()); // o jogo entra com token de teste
                 services.Configure<AiOptions>(o => o.Provider = AiOptions.Fake);
                 var port = services.Last(d => d.ServiceType == typeof(IQuestionDraftGenerator)).ImplementationFactory!;
                 services.AddTransient<IQuestionDraftGenerator>(provider => new ObservedGenerator((IQuestionDraftGenerator)port(provider), Probe));
