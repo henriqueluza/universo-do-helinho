@@ -73,9 +73,12 @@ public static partial class BrevoWebhookArea
             return Results.Unauthorized();
         }
 
+        // Um byte além do limite: é o que distingue o corpo grande demais quando não há Content-Length.
         var buffer = new byte[MaxBodyBytes + 1];
-        if (context.Request.ContentLength > MaxBodyBytes
-            || await context.Request.Body.ReadAtLeastAsync(buffer, buffer.Length, false, context.RequestAborted) is var read && read > MaxBodyBytes)
+        var read = context.Request.ContentLength > MaxBodyBytes
+            ? buffer.Length
+            : await context.Request.Body.ReadAtLeastAsync(buffer, buffer.Length, false, context.RequestAborted);
+        if (read > MaxBodyBytes)
         {
             return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
         }
