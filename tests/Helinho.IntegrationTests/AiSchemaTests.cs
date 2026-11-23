@@ -96,14 +96,17 @@ public class AiSchemaTests(PostgresFixture postgres)
             [.. suggestion.Options.Select((o, i) => (o, i == suggestion.CorrectIndex))], job.Id, "gerar-questoes.v1", Now);
         db.AddRange(job, suggestion, question);
         await db.SaveChangesAsync(Ct);
-
         await using var read = NewContext();
-        var saved = await read.AiQuestionSuggestions.AsNoTracking().SingleAsync(Ct);
+        var saved = await read.AiQuestionSuggestions.SingleAsync(Ct);
         var created = await read.Questions.AsNoTracking().SingleAsync(Ct);
         Assert.Equal((job.Id, AiSuggestionStatus.Pending, 1), (saved.JobId, saved.Status, saved.CorrectIndex));
         Assert.Equal((QuestionOrigin.Ai, job.Id, "gerar-questoes.v1", Now), (created.Origin, created.AiJobId, created.PromptVersion, created.GeneratedAt));
         // §9.3: a decisão sobre a sugestão leva o Status lido; a segunda gravação simultânea é recusada pelo banco.
-        Assert.True(read.Model.FindEntityType(typeof(AiQuestionSuggestion))?.FindProperty(nameof(AiQuestionSuggestion.Status))?.IsConcurrencyToken);
+        await db.AiQuestionSuggestions.ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, AiSuggestionStatus.Discarded), Ct);
+        read.Entry(saved).Property(s => s.Status).CurrentValue = AiSuggestionStatus.Approved;
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => read.SaveChangesAsync(Ct));
+        db.Add(new AiQuestionSuggestion(job.Id, 0, "Outro enunciado sintético?", ["Um", "Dois", "Três", "Quatro"], 0, "Explicação sintética.")); // índice único (JobId, Position)
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, ((await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync(Ct))).InnerException as PostgresException)?.SqlState);
     }
 
     /// <summary>Issue #263 (ADR-0004 §9.3): duas pessoas decidem a mesma sugestão; a segunda gravação é recusada inteira.</summary>
