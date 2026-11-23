@@ -44,6 +44,7 @@ public static class DomainPersistenceExtensions
         services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(WithoutGssNegotiation(configuration.GetConnectionString("Default"))));
         services.AddScoped<Helinho.Application.Abstractions.IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+        services.AddScoped<Helinho.Application.Abstractions.IJobQueue, JobQueue>();
 
         // ADR-0002 §9: chaves na tabela DataProtectionKeys, para o cookie do painel sobreviver a um redeploy.
         services.AddDataProtection()
