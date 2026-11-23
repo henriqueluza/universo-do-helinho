@@ -162,7 +162,7 @@ public class PanelSessionTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task Recuperar_senha_responde_igual_para_conta_existente_e_inexistente_e_so_usa_o_sender_fake()
+    public async Task Recuperar_senha_responde_igual_para_conta_existente_e_inexistente_e_nao_envia_direto()
     {
         var email = new RecordingEmail();
         await using var factory = await NewFactoryAsync(email);
@@ -178,9 +178,8 @@ public class PanelSessionTests(PostgresFixture postgres)
         const string Confirmation = "Se o e-mail estiver cadastrado";
         Assert.Contains(Confirmation, known);
         Assert.Contains(Confirmation, unknown);
-        var sent = Assert.Single(email.Sent);
-        Assert.Equal(address, sent.Recipient);
-        Assert.DoesNotContain("token", sent.HtmlBody + sent.TextBody, StringComparison.OrdinalIgnoreCase);
+        // ADR-0003 §11.1: a página só enfileira; quem envia é o tratador de e-mail. A fila é conferida em RecuperarSenhaTests.
+        Assert.Empty(email.Sent);
     }
 
     [Fact]
