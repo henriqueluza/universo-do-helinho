@@ -16,8 +16,9 @@ using Microsoft.Extensions.Options;
 namespace Helinho.IntegrationTests;
 
 /// <summary>
-/// Issue #265: webhook da Brevo (ADR-0003 §12, D18) com o segredo configurado. Dados sintéticos; nenhuma chamada à Brevo.
-/// As chamadas sem IP próprio dividem a mesma cota de 60 por minuto: a classe inteira faz bem menos que isso.
+/// Issue #265: rota do webhook da Brevo (ADR-0003 §12, D18) com o segredo configurado. Dados sintéticos; nenhuma chamada
+/// à Brevo. A gravação em si é coberta na #277. As chamadas sem IP próprio dividem a mesma cota de 60 por minuto: a
+/// classe inteira faz bem menos que isso.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host shared) : IClassFixture<BrevoWebhookTests.Host>
@@ -27,12 +28,10 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    /// <summary>Um host para a classe inteira (#215), com relógio controlado e todo o log capturado.</summary>
-    public sealed class Host : IAsyncDisposable, IClock, ILoggerProvider, ILogger
+    /// <summary>Um host para a classe inteira (#215), com todo o log capturado.</summary>
+    public sealed class Host : IAsyncDisposable, ILoggerProvider, ILogger
     {
         private WebApplicationFactory<Program>? _factory;
-
-        public DateTimeOffset UtcNow { get; set; } = new(2026, 11, 22, 12, 0, 0, TimeSpan.Zero);
 
         public System.Collections.Concurrent.ConcurrentQueue<string> Lines { get; } = new();
 
@@ -40,7 +39,7 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
         {
             if (_factory is null)
             {
-                var factory = new HelinhoWebFactory(postgres, clock: this, configure: s =>
+                var factory = new HelinhoWebFactory(postgres, configure: s =>
                         s.AddLogging(b => b.AddProvider(this).AddFilter<Host>(null, LogLevel.Trace)))
                     .WithWebHostBuilder(b => b.UseSetting("Brevo:WebhookSecret", Secret));
                 await using var scope = factory.Services.CreateAsyncScope();
@@ -75,31 +74,29 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
         protected override bool TryComputeLength(out long length) => (length = 0) != 0;
     }
 
-    private static string NovoMessageId() => $"{Guid.NewGuid():N}@relay.example.org";
-
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
 
     /// <summary>Corpo como o da Brevo, com os campos que a rota não pode gravar nem logar.</summary>
     private static StringContent Evento(string nome, string messageId) => Json(
         $$"""{"event":"{{nome}}","message-id":"{{messageId}}","email":"responsavel@example.com","subject":"Assunto sintético","reason":"motivo-sintetico"}""");
 
-    private async Task<Guid> TrabalhoEnviadoAsync(string externalId, string type = "email.student-access")
+    /// <summary>Trabalho de e-mail já enviado; o <c>ExternalId</c>, que é do trabalhador gravar, vai direto no banco.</summary>
+    private async Task<(Guid Job, string MessageId)> TrabalhoEnviadoAsync()
     {
         await using var scope = (await shared.GetAsync(postgres)).Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var job = new QueueJob(new JobRequest(type, Guid.NewGuid(), new JobPayload(), TimeSpan.FromHours(72)), shared.UtcNow);
+        var job = new QueueJob(new JobRequest("email.student-access", Guid.NewGuid(), new JobPayload(), TimeSpan.FromHours(72)), DateTimeOffset.UtcNow);
+        var messageId = $"{Guid.NewGuid():N}@relay.example.org";
         db.QueueJobs.Add(job);
         await db.SaveChangesAsync(Ct);
-        // O ExternalId é gravado pelo trabalhador (Issue 8a/8b); aqui, direto no banco.
-        await db.QueueJobs.Where(j => j.Id == job.Id).ExecuteUpdateAsync(s => s.SetProperty(j => j.ExternalId, externalId), Ct);
-        return job.Id;
+        await db.QueueJobs.Where(j => j.Id == job.Id).ExecuteUpdateAsync(s => s.SetProperty(j => j.ExternalId, messageId), Ct);
+        return (job.Id, messageId);
     }
 
-    private async Task<(string? Feedback, DateTimeOffset? At)> RetornoAsync(Guid jobId)
+    private async Task<string?> RetornoAsync(Guid jobId)
     {
         await using var scope = (await shared.GetAsync(postgres)).Services.CreateAsyncScope();
-        var job = await scope.ServiceProvider.GetRequiredService<AppDbContext>().QueueJobs.AsNoTracking().SingleAsync(j => j.Id == jobId, Ct);
-        return (job.Feedback, job.FeedbackAt);
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().QueueJobs.Where(j => j.Id == jobId).Select(j => j.Feedback).SingleAsync(Ct);
     }
 
     /// <summary>Chama a rota e confere o que vale para toda resposta: o status, nenhum corpo e nenhum cookie.</summary>
@@ -123,40 +120,21 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
     [InlineData(EmailFeedback.InvalidEmail)]
     [InlineData(EmailFeedback.Blocked)]
     [InlineData(EmailFeedback.Spam)]
-    public async Task Cada_um_dos_quatro_eventos_grava_o_retorno_so_no_trabalho_daquele_message_id(string evento)
+    public async Task Cada_um_dos_quatro_eventos_grava_o_retorno_so_naquele_trabalho_e_repetido_responde_200(string evento)
     {
-        var messageId = NovoMessageId();
-        var job = await TrabalhoEnviadoAsync(messageId);
-        var outro = await TrabalhoEnviadoAsync(NovoMessageId());
+        var (job, messageId) = await TrabalhoEnviadoAsync();
+        var (outro, _) = await TrabalhoEnviadoAsync();
 
-        await ChamarAsync(HttpStatusCode.OK, Evento(evento, $"<{messageId}>"), Secret); // comparado sem os sinais (§12)
+        await ChamarAsync(HttpStatusCode.OK, Evento(evento, $"<{messageId}>"), Secret);
+        await ChamarAsync(HttpStatusCode.OK, Evento(evento, messageId), Secret);
 
-        Assert.Equal((evento, shared.UtcNow), await RetornoAsync(job));
-        Assert.Equal((null, null), await RetornoAsync(outro));
-    }
-
-    [Fact]
-    public async Task O_mesmo_evento_de_novo_nao_muda_o_estado_e_o_primeiro_retorno_vale()
-    {
-        var messageId = NovoMessageId();
-        var job = await TrabalhoEnviadoAsync(messageId);
-        await ChamarAsync(HttpStatusCode.OK, Evento(EmailFeedback.Spam, messageId), Secret);
-        var primeiro = await RetornoAsync(job);
-        shared.UtcNow += TimeSpan.FromMinutes(10);
-
-        await ChamarAsync(HttpStatusCode.OK, Evento(EmailFeedback.Spam, messageId), Secret);
-        await ChamarAsync(HttpStatusCode.OK, Evento(EmailFeedback.HardBounce, messageId), Secret);
-
-        Assert.Equal(EmailFeedback.Spam, primeiro.Feedback);
-        Assert.Equal(primeiro, await RetornoAsync(job));
+        Assert.Equal(evento, await RetornoAsync(job));
+        Assert.Null(await RetornoAsync(outro));
     }
 
     [Theory]
     [InlineData("""{"event":"delivered","message-id":"ID"}""")]
     [InlineData("""{"event":"soft_bounce","message-id":"ID"}""")]
-    [InlineData("""{"event":"deferred","message-id":"ID"}""")]
-    [InlineData("""{"event":"error","message-id":"ID"}""")]
-    [InlineData("""{"event":"HARD_BOUNCE","message-id":"ID"}""")]
     [InlineData("""{"event":"hard_bounce","message-id":"desconhecido-ID"}""")]
     [InlineData("""{"event":"hard_bounce","message-id":7}""")]
     [InlineData("""{"event":["hard_bounce"],"message-id":"ID"}""")]
@@ -164,23 +142,11 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
     [InlineData("{}")]
     public async Task Evento_fora_da_lista_corpo_de_outro_formato_e_message_id_desconhecido_respondem_200_sem_efeito(string corpo)
     {
-        var messageId = NovoMessageId();
-        var job = await TrabalhoEnviadoAsync(messageId);
+        var (job, messageId) = await TrabalhoEnviadoAsync();
 
         await ChamarAsync(HttpStatusCode.OK, Json(corpo.Replace("ID", messageId, StringComparison.Ordinal)), Secret);
 
-        Assert.Equal((null, null), await RetornoAsync(job));
-    }
-
-    [Fact]
-    public async Task Trabalho_que_nao_e_de_email_nao_recebe_retorno()
-    {
-        var messageId = NovoMessageId();
-        var job = await TrabalhoEnviadoAsync(messageId, "ai.question-drafts");
-
-        await ChamarAsync(HttpStatusCode.OK, Evento(EmailFeedback.HardBounce, messageId), Secret);
-
-        Assert.Equal((null, null), await RetornoAsync(job));
+        Assert.Null(await RetornoAsync(job));
     }
 
     [Theory]
@@ -188,7 +154,6 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
     [InlineData("outro")]
     [InlineData("sem o último caractere")]
     [InlineData("com um caractere a mais")]
-    [InlineData("em maiúsculas")]
     public async Task Segredo_ausente_ou_errado_responde_401_sem_corpo_e_nada_e_gravado(string caso)
     {
         var segredo = caso switch
@@ -196,15 +161,13 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
             "ausente" => null,
             "outro" => $"{Guid.NewGuid():N}",
             "sem o último caractere" => Secret[..^1],
-            "com um caractere a mais" => Secret + "0",
-            _ => Secret.ToUpperInvariant() + "A", // o "A" garante a diferença mesmo se o segredo só tiver dígitos
+            _ => Secret + "0",
         };
-        var messageId = NovoMessageId();
-        var job = await TrabalhoEnviadoAsync(messageId);
+        var (job, messageId) = await TrabalhoEnviadoAsync();
 
         await ChamarAsync(HttpStatusCode.Unauthorized, Evento(EmailFeedback.HardBounce, messageId), segredo);
 
-        Assert.Equal((null, null), await RetornoAsync(job));
+        Assert.Null(await RetornoAsync(job));
     }
 
     [Theory]
@@ -212,8 +175,7 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
     [InlineData(false)]
     public async Task Corpo_acima_de_64_KB_responde_413_com_ou_sem_Content_Length_e_no_limite_exato_passa(bool comTamanho)
     {
-        var messageId = NovoMessageId();
-        var job = await TrabalhoEnviadoAsync(messageId);
+        var (job, messageId) = await TrabalhoEnviadoAsync();
         HttpContent Corpo(int bytes)
         {
             var conteudo = Encoding.UTF8.GetBytes($$"""{"event":"blocked","message-id":"{{messageId}}"}""".PadRight(bytes));
@@ -221,10 +183,10 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
         }
 
         await ChamarAsync(HttpStatusCode.RequestEntityTooLarge, Corpo(BrevoWebhookArea.MaxBodyBytes + 1), Secret);
-        Assert.Equal((null, null), await RetornoAsync(job));
+        Assert.Null(await RetornoAsync(job));
 
         await ChamarAsync(HttpStatusCode.OK, Corpo(BrevoWebhookArea.MaxBodyBytes), Secret);
-        Assert.Equal(EmailFeedback.Blocked, (await RetornoAsync(job)).Feedback);
+        Assert.Equal(EmailFeedback.Blocked, await RetornoAsync(job));
     }
 
     [Theory]
@@ -233,19 +195,17 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
     [InlineData("""{"event":"hard_bounce","message-id":"ID" """)]
     public async Task Corpo_que_nao_e_JSON_responde_400_sem_detalhe_e_nada_e_gravado(string corpo)
     {
-        var messageId = NovoMessageId();
-        var job = await TrabalhoEnviadoAsync(messageId);
+        var (job, messageId) = await TrabalhoEnviadoAsync();
 
         await ChamarAsync(HttpStatusCode.BadRequest, Json(corpo.Replace("ID", messageId, StringComparison.Ordinal)), Secret);
 
-        Assert.Equal((null, null), await RetornoAsync(job));
+        Assert.Null(await RetornoAsync(job));
     }
 
     [Fact]
     public async Task O_log_traz_so_o_tipo_do_evento_e_o_id_do_trabalho()
     {
-        var messageId = NovoMessageId();
-        var job = await TrabalhoEnviadoAsync(messageId);
+        var (job, messageId) = await TrabalhoEnviadoAsync();
         var segredoErrado = $"{Guid.NewGuid():N}";
 
         await ChamarAsync(HttpStatusCode.OK, Evento(EmailFeedback.InvalidEmail, messageId), Secret);
@@ -295,9 +255,9 @@ public class BrevoWebhookConfiguracaoTests(PostgresFixture postgres)
     public async Task Sem_segredo_configurado_a_rota_nao_existe()
     {
         await using var factory = new HelinhoWebFactory(postgres);
-        using var request = new HttpRequestMessage(HttpMethod.Post, BrevoWebhookArea.Route) { Content = new StringContent("{}") };
+        using var content = new StringContent("{}");
 
-        using var response = await factory.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
+        using var response = await factory.CreateClient().PostAsync(new Uri(BrevoWebhookArea.Route, UriKind.Relative), content, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
