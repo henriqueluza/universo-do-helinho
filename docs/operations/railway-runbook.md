@@ -11,7 +11,7 @@ Só dados sintéticos em homologação. Produção não é ligada por este runbo
 
 - **D1 do ADR-0002: só homologação por enquanto.** Depois de subir tudo, o ambiente fica parado para o desenvolvedor Unity testar com estabilidade. Produção é etapa posterior ([`ambientes.md`](ambientes.md#o-que-falta-para-ligar-a-produção)).
 - **D3: auto-deploy ligado em homologação** (`auto_deploy = true` no `terraform.tfvars`). Cada merge na `main` publica sozinho. O padrão da variável no Terraform continua `false`; quem liga é o `terraform.tfvars`.
-- **Risco aceito para homologação:** com auto-deploy, a opção **Wait for CI** da Railway **não espera build nem testes**, porque o workflow `validate` só roda em `pull_request`; no push para a `main` só roda o `security`. O Henrique aceitou isso em homologação (dado sintético). A Issue #225 (rodar o `validate` também no commit que chega à `main`) continua aberta e é **pré-requisito de produção**. O que segura um commit ruim hoje é a proteção da `main` (PR, `validate`, `semgrep`, `gitleaks` e `pr-size` antes do merge). Detalhes: [Wait for CI](#58-ligar-wait-for-ci).
+- **Risco aceito para homologação:** com auto-deploy, a opção **Wait for CI** da Railway **não espera build nem testes**, porque o workflow `validate` só roda em `pull_request`; no push para a `main` só roda o `security`. O Henrique aceitou isso em homologação (dado sintético) em 22/11/2026 ([registro na Issue #225](https://github.com/henriqueluza/universo-do-helinho/issues/225#issuecomment-7089221462); ADR-0002, D3). A Issue #225 (rodar o `validate` também no commit que chega à `main`) continua aberta e é **pré-requisito de produção**. O que segura um commit ruim hoje é a proteção da `main` (PR, `validate`, `semgrep`, `gitleaks` e `pr-size` antes do merge). Detalhes: [Wait for CI](#58-ligar-wait-for-ci).
 - **Senha do seed:** valor genérico, só para testes, definido por ele em `TF_VAR_seed_password` na máquina dele. Nunca em arquivo versionado. A Issue #115 (senha separada para alunos) fica de lado.
 - **Domínio próprio do painel:** entra depois, pela variável `dominio_proprio` (PR #221, na branch `issue-99-terraform-esqueleto`; passo a passo em `docs/operations/railway-dominio.md` quando o #100 chegar à `main`). Os exemplos usam `paineladm.example.org`. O domínio real nunca entra no repositório.
 
@@ -22,7 +22,7 @@ Só dados sintéticos em homologação. Produção não é ligada por este runbo
 3. **Token:** criar um token de **workspace** em `railway.com/account/tokens` e guardar no gerenciador de senhas. → [2.5](#25-criar-o-token-de-workspace)
 4. **GitHub App:** instalar a app da Railway na conta do GitHub com acesso a `universo-do-helinho`. → [Passo 3](#passo-3--github-app-da-railway-no-repositório)
 5. **Entradas:** copiar `terraform.tfvars.example` para `terraform.tfvars` e descomentar `auto_deploy = true`; `read -rs` de `RAILWAY_TOKEN` e `TF_VAR_seed_password` em um terminal só do Terraform. → [Passo 4](#passo-4--terraformtfvars-e-variáveis-de-ambiente)
-6. **Terraform:** `init` → `plan -out` (esperado: `Plan: 7 to add`, nenhum domínio nem TCP proxy no banco, nenhum segredo na tela) → `apply`. → [Passo 5](#passo-5--init-plan-e-apply)
+6. **Terraform:** `init` → `plan -out` (esperado: `Plan: 7 to add`, nenhum domínio nem TCP proxy no banco, nenhum segredo na tela) → conferir a proteção da `main` → `apply`. → [Passo 5](#passo-5--init-plan-e-apply)
 7. **Estado:** backup cifrado de `infra/railway/terraform.tfstate` logo depois do `apply`. → [5.7](#57-backup-cifrado-do-estado)
 8. **Wait for CI e primeiro deploy:** logo depois do `apply`, ligar **Wait for CI** no painel ([5.8](#58-ligar-wait-for-ci)). Com `auto_deploy = true` a Railway já publica sozinha; confira que o pre-deploy `migrate` rodou e o deploy ficou ativo (se não houver deploy, `Cmd+K` → **Deploy Latest Commit**). → [Passo 6](#passo-6--primeiro-deploy-e-conferências)
 9. **Conferir:** `/health/ready` responde 200, login no painel com `master@helinho.example`, `POST /api/login` com a matrícula `2026001`. → [6.4](#64-healthready)
@@ -372,6 +372,12 @@ O primeiro `plan`, sem estado, provavelmente não fala com a Railway: um token e
 
 ### 5.4 `apply`
 
+**Antes do `apply`, confira a proteção da `main`.** Com `auto_deploy = true`, o próprio `apply` pode publicar, e a proteção da `main` é a única barreira antes de cada deploy; o ADR-0002 §7.5 deixa a você conferi-la antes do primeiro `apply`. O ruleset `protect-main` deve exigir PR e os checks `validate`, `semgrep`, `gitleaks` e `pr-size` antes do merge. Veja em `gh api repos/henriqueluza/universo-do-helinho/rulesets` ou em **Settings → Rules** do repositório.
+
+**✔ Confira:** o ruleset está ativo na `main`, exige PR e lista os quatro checks.
+
+**Se der errado:** o ruleset não exige os checks, ou a `main` aceita push direto → **não rode o `apply`** com `auto_deploy = true`. Avise o Henrique.
+
 Abra o painel da Railway em outra janela para acompanhar. O `apply` cria, nesta ordem: projeto → senha → serviço `Postgres` → variáveis do `Postgres` (reimplanta) → serviço `helinho-web` → domínio e variáveis do web (reimplanta).
 
 ```sh
@@ -502,7 +508,7 @@ Copie o arquivo `.age` para **fora da máquina** ([8.9](#89-onde-fica-o-estado-d
 Faça **logo depois do primeiro `apply`** (ADR-0002 §7.5). O provider não alcança esse botão: é clique no painel.
 
 1. Painel → projeto `helinho-homologacao` → serviço `helinho-web` → **Settings**, na parte de origem e auto-deploy → ligue **Wait for CI** [F5]. **Confira:** o lugar exato e o nome do botão podem variar; se não achar, procure na documentação [F5] antes de improvisar.
-2. Confira a proteção da `main` no GitHub (quem confirma é uma pessoa, o ADR-0002 §7.5 deixa isso a você): o ruleset `protect-main` deve exigir PR e os checks `validate`, `semgrep`, `gitleaks` e `pr-size` antes do merge. Em `gh api repos/henriqueluza/universo-do-helinho/rulesets` ou em **Settings → Rules** do repositório.
+2. Confira de novo a proteção da `main` no GitHub, a mesma do [5.4](#54-apply) (quem confirma é uma pessoa, o ADR-0002 §7.5 deixa isso a você): o ruleset `protect-main` deve exigir PR e os checks `validate`, `semgrep`, `gitleaks` e `pr-size` antes do merge. Em `gh api repos/henriqueluza/universo-do-helinho/rulesets` ou em **Settings → Rules** do repositório.
 
 > **Aviso, risco aceito só para homologação.** Ligar **Wait for CI não faz a Railway esperar build nem testes** do commit publicado. O workflow `validate` (format, build e testes) só roda em `pull_request`; no push para a `main` roda apenas o `security` (gitleaks e semgrep). Um merge com o `validate` verde no PR publica sozinho, sem nenhuma verificação nova. **Confira (ADR-0002 §16, item 10):** não se sabe como a Railway se comporta com Wait for CI quando o único workflow do push é o `security`: pode publicar na hora, esperar só ele ou segurar o deploy.
 >
@@ -535,7 +541,7 @@ Painel → projeto `helinho-homologacao` → serviço `helinho-web` → aba **De
 
 **✔ Confira:** o deploy termina **verde** e é o deploy ativo do serviço.
 
-Este é o caminho usado **só no primeiro deploy** (ou quando o deploy automático não aconteceu). O dia a dia é o [8.1](#81-o-que-dispara-um-deploy-e-como-conferir). Com `auto_deploy = false` a publicação é sempre manual por este comando (e o ADR-0002 §16, item 2, deixa em aberto se ele respeita o watch pattern: se o deploy aparecer como **ignorado** em **Show Skipped** [F5], o plano B é o botão **Disable** do auto-deploy nas configurações do serviço, que é estado só de painel e deve ser registrado em `ambientes.md`).
+Este é o caminho usado no primeiro deploy, quando o deploy automático não aconteceu e para publicar de novo depois de um restore ou de uma rotação de senha ([8.5](#85-restore-do-banco), [8.7](#87-rotação-das-senhas)). O dia a dia é o [8.1](#81-o-que-dispara-um-deploy-e-como-conferir). Com `auto_deploy = false` a publicação é sempre manual por este comando (e o ADR-0002 §16, item 2, deixa em aberto se ele respeita o watch pattern: se o deploy aparecer como **ignorado** em **Show Skipped** [F5], o plano B é o botão **Disable** do auto-deploy nas configurações do serviço, que é estado só de painel e deve ser registrado em `ambientes.md`).
 
 **Se der errado:**
 

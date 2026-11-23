@@ -37,7 +37,7 @@ Registro do que está publicado e de como acessar. Quem mantém é o Henrique, d
 | Seed | Ligado (`Seed__Enabled=true`); roda no pre-deploy `migrate` |
 | E-mail e IA | `Email__Provider=Fake`, `Ai__Provider=Fake` |
 | Sessões do painel | `<a preencher: persistem entre deploys (decisão D4, opção A, com o PR da Issue #103) ou caem a cada deploy (D4 aberta ou opção D)>` |
-| Publicação | **Automática** a cada merge na `main` (`auto_deploy = true` no `terraform.tfvars`, decisão D3 do Henrique em 22/11/2026). **Wait for CI não espera build nem testes** (o `validate` só roda em `pull_request`); risco aceito só para homologação. Como voltar atrás: [runbook, 8.2](railway-runbook.md#82-rollback-para-o-deploy-anterior) |
+| Publicação | **Automática** a cada merge na `main` (`auto_deploy = true` no `terraform.tfvars`, decisão D3 do Henrique em 22/11/2026). **Wait for CI não espera build nem testes** (o `validate` só roda em `pull_request`); risco aceito só para homologação. Como voltar atrás: commit quebrado publicado → [runbook, 8.2](railway-runbook.md#82-rollback-para-o-deploy-anterior); parar a publicação automática → [Deixar a homologação parada](railway-runbook.md#deixar-a-homologação-parada-para-o-teste-do-jogo) |
 | Infraestrutura como código | `infra/railway/` (Terraform); `plan` e `apply` só pelo Henrique |
 | Estado do Terraform | Local, na máquina do Henrique, fora do git, com backup cifrado ([runbook, 8.9](railway-runbook.md#89-onde-fica-o-estado-do-terraform)) |
 | Decisão de hospedagem | [`ADR-0002`](../architecture/ADR-0002-hospedagem-railway.md) |
