@@ -19,6 +19,7 @@ public interface IJobQueue
     /// </summary>
     Task<int> CancelPendingAsync(string type, Guid subjectId, CancellationToken cancellationToken);
 }
+#pragma warning restore CA1711
 
 /// <summary>Pedido de enfileiramento. <paramref name="ExpiresIn"/> conta a partir da criação (§6.2).</summary>
 public sealed partial record JobRequest(string Type, Guid? SubjectId, JobPayload Payload, TimeSpan ExpiresIn, string? IdempotencyKey = null)

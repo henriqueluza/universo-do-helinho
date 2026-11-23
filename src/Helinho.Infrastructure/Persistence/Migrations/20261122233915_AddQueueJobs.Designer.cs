@@ -592,6 +592,7 @@ namespace Helinho.Infrastructure.Persistence.Migrations
                         .HasColumnType("jsonb");
 
                     b.Property<string>("Status")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");

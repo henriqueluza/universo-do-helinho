@@ -35,7 +35,8 @@ public class PersistenceTests(PostgresFixture postgres)
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
 
         Assert.False(db.Database.HasPendingModelChanges());
-        // Exceções ao schema congelado: AddDataProtectionKeys (Issue #103, ADR-0002 §9) e AddQueueJobs (Issue #223, ADR-0003 §5).
+        // Exceções ao schema congelado: AddDataProtectionKeys (Issue #103, ADR-0002 §9) e AddQueueJobs (Issue #223, ADR-0003 §5,
+        // decisões D1 e D15 aceitas em 22/11/2026).
         Assert.Equal(
             ["20261110034535_InitialCreate", "20261119015853_AddDataProtectionKeys", "20261122233915_AddQueueJobs"],
             db.Database.GetMigrations());

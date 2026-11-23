@@ -43,7 +43,7 @@ public class QueueJob
 
     public QueueJobStatus Status { get; private set; } = QueueJobStatus.Pending;
 
-    /// <summary>Tentativas já iniciadas; é o token de concorrência da guarda de posse (§6.6).</summary>
+    /// <summary>Tentativas já iniciadas. Com <see cref="Status"/>, é token de concorrência: a guarda de posse (§6.6).</summary>
     public int Attempts { get; private set; }
 
     public DateTimeOffset NextAttemptAt { get; private set; }

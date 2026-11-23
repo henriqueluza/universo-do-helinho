@@ -38,3 +38,4 @@ public sealed class JobQueue(AppDbContext db, IClock clock) : IJobQueue
         return pending.Count;
     }
 }
+#pragma warning restore CA1711

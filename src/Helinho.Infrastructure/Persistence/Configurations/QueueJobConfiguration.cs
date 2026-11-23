@@ -11,7 +11,9 @@ internal sealed class QueueJobConfiguration : IEntityTypeConfiguration<QueueJob>
         b.HasKey(x => x.Id);
         b.Property(x => x.Type).HasMaxLength(60);
         b.Property(x => x.Payload).HasColumnType("jsonb");
-        b.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+        // Guarda de posse (§6.6): toda gravação leva o Status e o Attempts lidos. Cobre os dois sentidos da corrida
+        // entre cancelar e processar.
+        b.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsConcurrencyToken();
         b.Property(x => x.Attempts).IsConcurrencyToken();
         b.Property(x => x.LastError).HasMaxLength(100);
         b.Property(x => x.IdempotencyKey).HasMaxLength(200);

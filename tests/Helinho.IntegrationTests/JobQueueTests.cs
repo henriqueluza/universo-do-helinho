@@ -66,8 +66,8 @@ public class JobQueueTests(PostgresFixture postgres)
         Assert.Equal(Now.AddHours(24), row.GetProperty("ExpiresAt").GetDateTimeOffset());
         Assert.Equal(["v", "reason"], row.GetProperty("Payload").EnumerateObject().Select(p => p.Name));
         Assert.Equal(1, row.GetProperty("Payload").GetProperty("v").GetInt32());
+        Assert.Equal("resend", JobCode.Require(row.GetProperty("Payload").GetProperty("reason").GetString() ?? "", "reason")); // código, não texto livre
         Assert.DoesNotContain("@", json); // nenhum endereço em repouso
-        Assert.DoesNotContain(" ", json.Replace("\": ", "\":").Replace(", \"", ",\"")); // nem texto livre: só a pontuação do jsonb tem espaço
     }
 
     [Fact]
@@ -174,6 +174,26 @@ public class JobQueueTests(PostgresFixture postgres)
         await db.Database.ExecuteSqlAsync($"""UPDATE "QueueJobs" SET "Status" = 'Processing', "Attempts" = "Attempts" + 1 WHERE "Id" = {id}""", Ct);
 
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => db.SaveChangesAsync(Ct));
+    }
+
+    [Fact]
+    public async Task Gravacao_de_quem_leu_o_trabalho_pendente_e_recusada_se_o_cancelamento_salvou_antes()
+    {
+        await using var db = await MigratedAsync();
+        var id = await new JobQueue(db, Clock).EnqueueAsync(Request(), Ct);
+        await db.SaveChangesAsync(Ct);
+        await using var worker = NewContext();
+        var read = await worker.QueueJobs.SingleAsync(j => j.Id == id, Ct); // leu o pendente antes do cancelamento
+        await using var useCase = NewContext();
+        Assert.Equal(1, await new JobQueue(useCase, Clock).CancelPendingAsync(Invite, Subject, Ct));
+        await useCase.SaveChangesAsync(Ct);
+
+        // Sentido inverso: Status também é token de concorrência (§6.6), então o cancelado não volta a Processing.
+        worker.Entry(read).Property(j => j.Status).CurrentValue = QueueJobStatus.Processing;
+        worker.Entry(read).Property(j => j.Attempts).CurrentValue = 1;
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => worker.SaveChangesAsync(Ct));
+        Assert.Equal(QueueJobStatus.Cancelled, await db.QueueJobs.Where(j => j.Id == id).Select(j => j.Status).SingleAsync(Ct));
     }
 
     [Fact]
