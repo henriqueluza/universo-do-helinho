@@ -73,6 +73,7 @@ Chromium do cache do Playwright, app com `--no-launch-profile`, Postgres em cont
 | 01 | `entrega-ia-01-migracao` | `afb8b8f` | Closes #257 | 397 |
 | 02 | `entrega-ia-02-dominio` | `bcb8d12` | Closes #263 | 246 |
 | 03 | `entrega-ia-03-pedir-rascunhos` | `610db4e` | Closes #258 | 399 |
+| 03a | `entrega-ia-03a-health-falha-na-requisicao` (sobre a 03; **fora da linha**, entra antes da 04) | `cacac79` | Closes #305 | 7 |
 | 04 | `entrega-ia-04-tratador` | `b44e8b0` | Closes #259; Parte de #298 | 363 |
 | 05 | `entrega-ia-05-leitura-pedido` | `40b1c84` | Closes #275 | 225 |
 | 06 | `entrega-ia-06-revisao` | `8244712` | Closes #260 | 348 |
@@ -91,13 +92,14 @@ Chromium do cache do Playwright, app com `--no-launch-profile`, Postgres em cont
 | 19 | `entrega-ia-19-relogio-unico` | `487861d` | Closes #297 | 34 |
 | 20 | `entrega-ia-20-tratador-no-trabalhador` | `631b988` | Closes #298 | 256 |
 | 21 | `entrega-ia-21-lista-gerar-e-pendentes` | `d687dec` | Closes #300 | 120 |
-| 22 | `entrega-ia-22-ponta-a-ponta` | topo da branch (traz este handoff) | Closes #301; Closes #303 | 281 |
+| 22 | `entrega-ia-22-ponta-a-ponta` | topo da branch | Closes #301; Closes #303 | 281 |
 
 **Antes da cadeia:** o PR #120 (chaves do Data Protection; a branch dele traz junto a fila `QueueJobs` da #237 e a #245) e as cinco fatias do trabalhador (#228). A IA não depende das fatias de e-mail. As fatias do adaptador (#251, repetição em 429/5xx) são independentes da cadeia.
 
 **Como abrir cada PR:** quando o passo anterior estiver na branch padrão, crie a branch do PR a partir dela e aplique só a fatia: `git diff origin/entrega-ia-(NN-1) origin/entrega-ia-NN | git apply --index --3way`. Abrir o PR direto de `entrega-ia-NN` mostraria de novo as fatias anteriores (a base comum é antiga). A migração `20261123011145_AddAiQuestionDrafts` fica depois de `AddQueueJobs` e `AddStudentGuardianEmail` e **não** foi regenerada; o retrato do modelo aplicou sem conflito sobre o PR #120 final.
 
 **Onde a ordem difere da pedida, e por quê:**
+- **Passo 03a (#305), fora da linha:** `HealthTests.Falha_inesperada_na_consulta_vira_503_sem_detalhe` quebrava a subida do host assim que um tratador da fila passa a existir (passo 04). O defeito só apareceu na conferência do topo, com 04 a 22 já publicadas; a correção (7 linhas, só teste) está em `entrega-ia-03a-health-falha-na-requisicao`, sobre a 03, e **tem de entrar antes da 04**. O topo da cadeia não a contém: `HealthTests` fica 5/6 nele e 6/6 com ela (conferido). A outra cadeia (e-mails) precisa dela antes do tratador de e-mail.
 - A linha que une as opções de IA (parte da #298) entra no passo 04, com o tratador: é ali que o defeito passa a existir (o teste de `AiProviderTests` ficaria vermelho de 04 a 20).
 - A #299 não tem passo próprio: a conferência "pertence ao pedido" está nos mesmos arquivos de página que os passos 13 e 14 trazem no estado final.
 - No lote, "editar" (13) vem antes de "aprovar e descartar" (14), para o link Editar dos cartões nunca apontar para uma página inexistente.
@@ -127,11 +129,11 @@ Exigiu mexer em código só de teste (#303): `AiTelaAcompanharTests`, `AiTelaPed
 
 ## 9. O que ficou por fazer
 
-- Abrir os 22 PRs na ordem da seção 6 (cada um passa por `review-pr`).
+- Abrir os 23 PRs na ordem da seção 6 (o 03a antes do 04) (cada um passa por `review-pr`).
 - Issue 13 do plano do ADR (purga das sugestões descartadas, D7) e `scripts/demo.sh` da Issue 14: sem Issue aberta.
 - Trabalho de fila de tipo sem tratador registrado nunca expira nem é apagado (decisão da #228): com a raia da IA sempre registrada isso não ocorre para `ai.question-drafts`.
 - Medir contraste com ferramenta; `qa-tester`, `docs-writer`, `static-analysis` e `insecure-defaults` na abertura dos PRs.
 
 ## 10. O que não rodou
 
-A suíte completa (regra da máquina: uma classe por vez, pela trava). Rodaram verdes, por classe: todas as classes de teste tocadas em cada passo da cadeia (lista no relatório da sessão), mais `ArchitectureTests`, `JobWorkerTests`, `PanelTests`, `PainelQuestoesTests`, `QuestoesRecreioTests`, `QuestoesListaRecreioTests`, `TemaTelasCssTests` e `PainelSemStyleInlineTests` na branch final. `HospedagemTests` e `HealthTests` não foram rodados (eram os do PR #120, já corrigido na base da cadeia).
+A suíte completa (regra da máquina: uma classe por vez, pela trava). Rodaram verdes, por classe: todas as classes de teste tocadas em cada passo da cadeia (lista no relatório da sessão), mais `ArchitectureTests`, `JobWorkerTests`, `PanelTests`, `PainelQuestoesTests`, `QuestoesRecreioTests`, `QuestoesListaRecreioTests`, `TemaTelasCssTests` e `PainelSemStyleInlineTests` na branch final. No topo da cadeia rodaram também `AiProviderTests` (11), `HospedagemTests` (8), `JobWorkerTests` (6), `ArchitectureTests` (4) e `HealthTests` (5/6 sem o passo 03a, 6/6 com ele). Como só rodaram as classes tocadas, outro teste que quebre um serviço na subida pode ter o mesmo problema do 03a: só a suíte completa do CI mostra.
