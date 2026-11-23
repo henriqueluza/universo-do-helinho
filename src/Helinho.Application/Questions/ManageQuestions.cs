@@ -52,17 +52,7 @@ public static class SaveQuestion
         IAppDbContext db, Guid? id, QuizType quizType, AgeBand ageBand, string? statement, string? explanation,
         IReadOnlyList<string?> options, int? correctIndex, CancellationToken cancellationToken)
     {
-        if (!Enum.IsDefined(quizType) || !Enum.IsDefined(ageBand))
-        {
-            throw new DomainException("Escolha o tipo de quiz e a faixa etária.");
-        }
-
-        if (statement?.Trim().Length > StatementMax || explanation?.Trim().Length > ExplanationMax || options.Any(o => o?.Trim().Length > OptionMax))
-        {
-            throw new DomainException("Algum texto passou do tamanho máximo.");
-        }
-
-        var items = options.Select((o, i) => (o ?? "", i == correctIndex)).ToList();
+        var items = ValidatedOptions(quizType, ageBand, statement, explanation, options, correctIndex);
         if (id is null)
         {
             var created = new Question(quizType, ageBand, statement ?? "", explanation ?? "", items);
@@ -80,6 +70,24 @@ public static class SaveQuestion
         question.Update(quizType, ageBand, statement ?? "", explanation ?? "", items);
         await db.SaveChangesAsync(cancellationToken);
         return question.Id;
+    }
+
+    /// <summary>As checagens de tipo, faixa e tamanho, e as alternativas com a correta marcada. Também usada ao criar questão a partir de sugestão da IA.</summary>
+    /// <exception cref="DomainException">Dado inválido (mensagem em português).</exception>
+    internal static List<(string Label, bool IsCorrect)> ValidatedOptions(
+        QuizType quizType, AgeBand ageBand, string? statement, string? explanation, IReadOnlyList<string?> options, int? correctIndex)
+    {
+        if (!Enum.IsDefined(quizType) || !Enum.IsDefined(ageBand))
+        {
+            throw new DomainException("Escolha o tipo de quiz e a faixa etária.");
+        }
+
+        if (statement?.Trim().Length > StatementMax || explanation?.Trim().Length > ExplanationMax || options.Any(o => o?.Trim().Length > OptionMax))
+        {
+            throw new DomainException("Algum texto passou do tamanho máximo.");
+        }
+
+        return [.. options.Select((o, i) => (o ?? "", i == correctIndex))];
     }
 }
 
