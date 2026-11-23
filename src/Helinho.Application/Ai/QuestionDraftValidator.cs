@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Helinho.Application.Abstractions;
 using Helinho.Application.Questions;
 using Helinho.Domain;
+using Helinho.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Helinho.Application.Ai;
@@ -85,6 +86,17 @@ public static partial class QuestionDraftValidator
         IAppDbContext db, QuizType quizType, AgeBand ageBand, CancellationToken cancellationToken) =>
         await db.Questions.AsNoTracking().Where(q => q.QuizType == quizType && q.AgeBand == ageBand)
             .Select(q => q.Statement).ToListAsync(cancellationToken);
+
+    /// <summary>
+    /// Enunciados das sugestões do mesmo tipo e faixa ainda guardadas (pendentes e descartadas com o texto dentro da
+    /// retenção): entram na deduplicação, mas não vão ao provedor.
+    /// </summary>
+    public static async Task<IReadOnlyList<string>> ListStoredSuggestionStatementsAsync(
+        IAppDbContext db, QuizType quizType, AgeBand ageBand, CancellationToken cancellationToken) =>
+        await db.AiQuestionSuggestions.AsNoTracking()
+            .Where(s => (s.Status == AiSuggestionStatus.Pending || s.Status == AiSuggestionStatus.Discarded) && s.ContentPurgedAt == null
+                && db.AiGenerationJobs.Any(j => j.Id == s.JobId && j.QuizType == quizType && j.AgeBand == ageBand))
+            .Select(s => s.Statement).ToListAsync(cancellationToken);
 
     private static DraftRejection? Check(QuestionDraft? draft)
     {
