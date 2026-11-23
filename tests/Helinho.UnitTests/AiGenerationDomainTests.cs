@@ -17,8 +17,8 @@ public class AiGenerationDomainTests
         var ai = Question.FromAi(QuizType.Ambiental, AgeBand.Age8To10, "Enunciado", "Explicação", Options, jobId, "gerar-questoes.v1", Now);
 
         Assert.Equal((QuestionOrigin.Team, null, null, null), (team.Origin, team.AiJobId, team.PromptVersion, team.GeneratedAt));
-        Assert.Equal((QuestionOrigin.Ai, jobId, "gerar-questoes.v1", Now), (ai.Origin, ai.AiJobId, ai.PromptVersion, ai.GeneratedAt));
-        Assert.Equal(QuestionStatus.Draft, ai.Status); // quem aprova é uma pessoa
+        Assert.Equal((QuestionOrigin.Ai, jobId, "gerar-questoes.v1", Now, QuestionStatus.Draft), (ai.Origin, ai.AiJobId, ai.PromptVersion, ai.GeneratedAt, ai.Status)); // rascunho: quem aprova é uma pessoa
+        Assert.Equal(new string('v', Question.PromptVersionMax), Question.FromAi(QuizType.Ambiental, AgeBand.Age8To10, "E", "X", Options, jobId, new string('v', 61), Now).PromptVersion); // cortada no tamanho da coluna
         Assert.Throws<DomainException>(() => Question.FromAi(QuizType.Ambiental, AgeBand.Age8To10, "E", "X", Options, Guid.Empty, "v1", Now));
         Assert.Throws<DomainException>(() => Question.FromAi(QuizType.Ambiental, AgeBand.Age8To10, "E", "X", Options, jobId, " ", Now));
         Assert.Throws<DomainException>(() => Question.FromAi(QuizType.Ambiental, AgeBand.Age8To10, "E", "X", Options[..3], jobId, "v1", Now));

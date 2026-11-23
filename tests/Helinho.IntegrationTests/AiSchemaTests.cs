@@ -59,11 +59,11 @@ public class AiSchemaTests(PostgresFixture postgres)
             (await ColumnsAsync(db, "Questions")).TakeLast(5));
 
         var indexes = await db.Database.SqlQuery<string>(
-            $"""SELECT indexdef AS "Value" FROM pg_indexes WHERE tablename IN ('AiGenerationJobs', 'AiQuestionSuggestions')""").ToListAsync(Ct);
-        Assert.Contains(indexes, i => i.EndsWith("\"AiGenerationJobs\" USING btree (\"RequestedByUserId\", \"CreatedAt\")", StringComparison.Ordinal));
-        Assert.Contains(indexes, i => i.EndsWith("\"AiGenerationJobs\" USING btree (\"CreatedAt\")", StringComparison.Ordinal));
+            $"""SELECT indexdef AS "Value" FROM pg_indexes WHERE tablename IN ('AiGenerationJobs', 'AiQuestionSuggestions', 'Questions')""").ToListAsync(Ct);
+        string[] expected = ["\"AiGenerationJobs\" USING btree (\"RequestedByUserId\", \"CreatedAt\")", "\"AiGenerationJobs\" USING btree (\"CreatedAt\")",
+            "\"AiQuestionSuggestions\" USING btree (\"Status\")", "\"AiQuestionSuggestions\" USING btree (\"QuestionId\")", "\"Questions\" USING btree (\"AiJobId\")"];
+        Assert.All(expected, e => Assert.Contains(indexes, i => i.EndsWith(e, StringComparison.Ordinal)));
         Assert.Contains(indexes, i => i.StartsWith("CREATE UNIQUE INDEX", StringComparison.Ordinal) && i.EndsWith("(\"JobId\", \"Position\")", StringComparison.Ordinal));
-        Assert.Contains(indexes, i => i.EndsWith("\"AiQuestionSuggestions\" USING btree (\"Status\")", StringComparison.Ordinal));
     }
 
     [Fact]
