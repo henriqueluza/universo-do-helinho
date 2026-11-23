@@ -1,0 +1,8 @@
+[[conteudo]]
+
+Esta é uma mensagem automática sobre o acesso ao Universo do Helinho, que fica em {{painel}}
+Ninguém da FUNDHAS pede senha por e-mail, telefone ou mensagem.
+
+--
+{{organizacao}}
+Contato: {{contato}}

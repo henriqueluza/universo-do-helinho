@@ -37,4 +37,12 @@ public static class IdentidadeExtensions
         services.AddScoped<IApiSessionValidator, ApiSessionValidator>();
         return services;
     }
+
+    /// <summary>Definir senha pelo link do e-mail (convite e redefinição): a porta sobre o Identity e o caso de uso.</summary>
+    public static IServiceCollection AddPasswordLinks(this IServiceCollection services)
+    {
+        services.AddScoped<IPasswordLinkGateway, PasswordLinkGateway>();
+        services.AddScoped<DefinirSenhaHandler>();
+        return services;
+    }
 }

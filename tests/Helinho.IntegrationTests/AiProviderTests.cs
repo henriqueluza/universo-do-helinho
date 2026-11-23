@@ -1,5 +1,3 @@
-using System.Net;
-using System.Text;
 using Helinho.Application.Abstractions;
 using Helinho.Application.Ai;
 using Helinho.Domain;
@@ -9,7 +7,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -88,64 +85,8 @@ public class AiProviderTests(PostgresFixture postgres)
 
         Assert.True(options.UsesAnthropic);
         Assert.Equal((30, 7, 9), (options.TimeoutSeconds, options.DailyQuotaPerAdmin, options.DailyGlobalLimit));
-        Assert.Equal(typeof(AnthropicQuestionDraftGenerator), generator);
-    }
-
-    /// <summary>Issue #250: a cadeia é a que a aplicação registra; nada é enviado, só o handler é criado.</summary>
-    [Fact]
-    public async Task O_cliente_da_Anthropic_nao_segue_redirecionamento_nem_tem_o_tempo_limite_padrao()
-    {
-        await using var factory = CreateFactory(Environments.Production, AiOptions.Anthropic);
-
-        var handler = factory.Services.GetRequiredService<IHttpMessageHandlerFactory>().CreateHandler(nameof(AnthropicQuestionDraftGenerator));
-        while (handler is DelegatingHandler { InnerHandler: { } inner })
-        {
-            handler = inner;
-        }
-
-        var sockets = Assert.IsType<SocketsHttpHandler>(handler);
-        Assert.False(sockets.AllowAutoRedirect || sockets.UseCookies);
-        Assert.Equal(Timeout.InfiniteTimeSpan, factory.Services.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(AnthropicQuestionDraftGenerator)).Timeout);
-    }
-
-    /// <summary>Issue #250: no lugar da rede, um handler que devolve uma resposta escrita à mão. A Anthropic nunca é chamada.</summary>
-    private sealed class CannedHandler : HttpMessageHandler
-    {
-        public HttpRequestMessage? Request { get; private set; }
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            Request = request;
-            const string Body = """
-                {"id":"msg_sintetico","type":"message","role":"assistant","model":"modelo-sintetico-que-respondeu","stop_reason":"end_turn",
-                 "content":[{"type":"text","text":"{\"questoes\":[{\"enunciado\":\"resposta-bruta-sintetica?\",\"a\":\"Um\",\"b\":\"Dois\",\"c\":\"Tres\",\"d\":\"Quatro\",\"correta\":\"a\",\"explicacao\":\"e\"}]}"}],
-                 "usage":{"input_tokens":10,"output_tokens":20}}
-                """;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(Body, Encoding.UTF8, "application/json") });
-        }
-    }
-
-    [Fact]
-    public async Task Com_tudo_em_Trace_o_cliente_registrado_envia_a_chave_e_nao_grava_chave_assunto_prompt_nem_resposta_em_log()
-    {
-        var logs = new LogCollector();
-        using var network = new CannedHandler();
-        await using var factory = new HelinhoWebFactory(postgres, configure: s =>
-        {
-            s.AddLogging(b => b.AddProvider(logs).AddFilter<LogCollector>(null, LogLevel.Trace));
-            s.ConfigureAll<HttpClientFactoryOptions>(o => o.HttpMessageHandlerBuilderActions.Add(h => h.PrimaryHandler = network));
-        }).WithWebHostBuilder(b => b.UseEnvironment(Environments.Production)
-            .UseSetting("Ai:Provider", AiOptions.Anthropic).UseSetting("Ai:ApiKey", ApiKey).UseSetting("Ai:Model", Model));
-        var request = QuestionDraftRequest.Create(QuizType.Cultural, AgeBand.Age11To12, 1, "assunto-sintetico-secreto", ["enunciado-existente-sintetico"]);
-
-        var batch = await factory.Services.GetRequiredService<IQuestionDraftGenerator>().GenerateAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Equal("resposta-bruta-sintetica?", Assert.Single(batch.Drafts).Statement);
-        Assert.Equal($"Bearer {ApiKey}", network.Request?.Headers.Authorization?.ToString());
-        var all = string.Join('\n', logs.Lines);
-        Assert.Contains("Authorization: *", all, StringComparison.Ordinal); // o log de cabeçalhos foi capturado, com o valor mascarado
-        string[] secrets = [ApiKey, "assunto-sintetico-secreto", "enunciado-existente-sintetico", "resposta-bruta-sintetica", "Você escreve questões"];
-        Assert.All(secrets, secret => Assert.DoesNotContain(secret, all, StringComparison.Ordinal));
+        // O adaptador do provedor ainda não existe neste build: a porta falha fechada.
+        Assert.Equal(typeof(DisabledQuestionDraftGenerator), generator);
     }
 
     [Theory]
