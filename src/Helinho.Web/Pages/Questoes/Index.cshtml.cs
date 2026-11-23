@@ -38,8 +38,16 @@ public sealed class IndexModel(IAppDbContext db, IOptions<AiOptions> ai) : PageM
     /// <summary>O filtro Origem só aparece com a IA ligada (ADR-0004 §14), ou quando a URL já o traz.</summary>
     public bool ShowOrigin => ai.Value.IsEnabled || Origem is not null;
 
-    public async Task OnGetAsync(CancellationToken ct) =>
+    /// <summary>Com a IA desligada, o botão "Gerar com IA" e o aviso de pendentes não são renderizados (ADR-0004 §14).</summary>
+    public bool AiEnabled => ai.Value.IsEnabled;
+
+    public PendingAiDraftsSummary PendingDrafts { get; private set; } = PendingAiDraftsSummary.None;
+
+    public async Task OnGetAsync(CancellationToken ct)
+    {
         Result = await Application.Painel.ListQuestions.HandleAsync(db, new QuestionListQuery(Tipo, Faixa, Status, Pagina, Origem), ct);
+        PendingDrafts = await PendingAiDrafts.CountAsync(db, ai.Value, ct);
+    }
 
     public async Task<IActionResult> OnPostAprovarAsync(Guid id, CancellationToken ct)
     {
