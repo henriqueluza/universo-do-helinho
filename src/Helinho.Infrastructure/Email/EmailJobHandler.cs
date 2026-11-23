@@ -131,7 +131,8 @@ public sealed class EmailJobHandler(
         (EmailJobTypes.PasswordChanged, { } student) => new(student.GuardianEmail, Model: _ => new PasswordChangedEmail(student.FirstName)),
         (EmailJobTypes.PasswordChanged, null) => new(subject.Email, Model: _ => new PasswordChangedEmail(subject.Name)),
 
-        // §11.4: sem aprovação não envia; o link segue o estado da conta agora (sem senha, 72 horas; com senha, 1 hora).
+        // §11.4: sem aprovação não envia; o link e o texto seguem o estado da conta agora (sem senha, primeiro acesso
+        // e 72 horas; com senha, troca de senha e 1 hora).
         (EmailJobTypes.StudentAccess, { Approved: false }) => new(Refusal: NotApproved),
         (EmailJobTypes.StudentAccess, { } student) => StudentAccess(subject, student),
 
@@ -148,7 +149,7 @@ public sealed class EmailJobHandler(
             ? (LinkDeAcesso.ProvedorRedefinicao, LinkDeAcesso.ValidadeRedefinicao)
             : (LinkDeAcesso.ProvedorConvite, LinkDeAcesso.ValidadeConvite);
         return new(student.GuardianEmail, provider,
-            token => new StudentAccessEmail(student.FirstName, student.Enrollment, subject.UserId, token, validity));
+            token => new StudentAccessEmail(student.FirstName, student.Enrollment, subject.UserId, token, validity, subject.HasPassword));
     }
 
     /// <summary>Tabela do §4.2: o que o provedor respondeu vira o que a fila faz com o trabalho.</summary>
