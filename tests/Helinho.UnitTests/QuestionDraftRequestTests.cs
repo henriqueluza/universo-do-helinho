@@ -51,7 +51,10 @@ public class QuestionDraftRequestTests
     {
         Assert.Equal(QuestionDraftRequest.SubjectMax, Create(new string('a', QuestionDraftRequest.SubjectMax)).Subject!.Length);
         Assert.Equal("copa de 2026", Create("copa de 2026").Subject);
+        Assert.Equal("sala 12345", Create("sala 12345").Subject); // cinco dígitos seguidos passam; seis, não
         Assert.Throws<DomainException>(() => Create(new string('a', QuestionDraftRequest.SubjectMax + 1)));
+        // Muito acima do teto é recusado antes de sanear, mesmo que o que sobrasse coubesse.
+        Assert.Throws<DomainException>(() => Create("a" + new string(' ', QuestionDraftRequest.SubjectMax * 4) + "b"));
     }
 
     [Theory]
@@ -80,5 +83,26 @@ public class QuestionDraftRequestTests
         Assert.Equal(["Enunciado sintético"], request.ExistingStatements);
         Assert.Equal("QuestionDraftRequest", $"{request}");
         Assert.Equal("QuestionDraft", $"{draft}");
+        // null! de propósito: o que se testa é a recusa de uma lista nula vinda de código sem anotações.
+        Assert.Throws<ArgumentNullException>(() => QuestionDraftRequest.Create(QuizType.Esportivo, AgeBand.Age13To14, 3, null, null!));
+    }
+
+    [Fact]
+    public void A_excecao_guarda_o_motivo_fechado_e_a_mensagem_so_traz_o_nome_dele()
+    {
+        Assert.Equal(
+            ["Timeout", "ProviderUnavailable", "RateLimited", "Refused", "InvalidOutput", "Misconfigured", "Disabled"],
+            Enum.GetNames<QuestionDraftFailure>());
+        Assert.All(Enum.GetValues<QuestionDraftFailure>(), reason =>
+        {
+            var failure = new QuestionDraftGenerationException(reason);
+
+            Assert.Equal(reason, failure.Reason);
+            Assert.Equal($"A geração de rascunhos falhou: {reason}.", failure.Message);
+            Assert.Null(failure.InnerException);
+        });
+        // O único construtor recebe o motivo: não há por onde entrar texto livre nem exceção interna.
+        var constructor = Assert.Single(typeof(QuestionDraftGenerationException).GetConstructors());
+        Assert.Equal([typeof(QuestionDraftFailure)], constructor.GetParameters().Select(p => p.ParameterType));
     }
 }

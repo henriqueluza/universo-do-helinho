@@ -24,12 +24,14 @@ public sealed record QuestionDraftRequest(
 {
     public const int MaxCount = 20;
     public const int SubjectMax = 120;
+    private const int RawSubjectMax = SubjectMax * 4;
     private const int DigitRunMax = 5;
 
     /// <exception cref="DomainException">Dado inválido (mensagem em português, sem repetir o que foi digitado).</exception>
     public static QuestionDraftRequest Create(
         QuizType quizType, AgeBand ageBand, int count, string? subject, IReadOnlyList<string> existingStatements)
     {
+        ArgumentNullException.ThrowIfNull(existingStatements);
         if (!Enum.IsDefined(quizType) || !Enum.IsDefined(ageBand))
         {
             throw new DomainException("Escolha o tipo de quiz e a faixa etária.");
@@ -54,6 +56,12 @@ public sealed record QuestionDraftRequest(
         if (string.IsNullOrWhiteSpace(subject))
         {
             return null;
+        }
+
+        // Texto colado muito acima do teto é recusado antes de ser normalizado e copiado.
+        if (subject.Length > RawSubjectMax)
+        {
+            throw new DomainException($"O assunto tem até {SubjectMax} caracteres.");
         }
 
         // Antes de normalizar: Normalize lança com par substituto quebrado. Depois: a forma KC desdobra variantes de largura.
