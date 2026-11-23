@@ -11,7 +11,7 @@ public static class InfrastructureExtensions
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services)
     {
         services.AddSingleton<IClock, SystemClock>();
-        services.AddSingleton<IEmailSender, FakeEmailSender>();
+        services.AddEmailSender();
         services.AddSingleton<IPushSender, FakePushSender>();
         services.AddScoped<ICurrentUser, AnonymousCurrentUser>();
         services.AddSingleton<IApiSessionValidator, RejectAllSessionValidator>();
@@ -22,6 +22,7 @@ public static class InfrastructureExtensions
         services.AddScoped<ISeeder, PeopleSeeder>();
         services.AddScoped<ISeeder, ContentSeeder>();
         services.AddScoped<ISeeder, HistorySeeder>();
+        services.AddQuestionDraftGeneration();
         return services;
     }
 }

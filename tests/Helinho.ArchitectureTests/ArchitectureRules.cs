@@ -33,6 +33,22 @@ public class ArchitectureRules
         Assert.True(result.IsSuccessful, Describe(result));
     }
 
+    /// <summary>ADR-0004 §4: o SDK do provedor de IA só existe na infraestrutura, atrás da porta.</summary>
+    [Fact]
+    public void So_a_infraestrutura_conhece_o_SDK_do_provedor_de_IA()
+    {
+        string[] sdk = ["Anthropic.AnthropicClient", "Anthropic.Core", "Anthropic.Models", "Anthropic.Exceptions", "Anthropic.Services"];
+        foreach (var assembly in new[] { Domain, Application, Web })
+        {
+            var result = Types.InAssembly(assembly).ShouldNot().HaveDependencyOnAny(sdk).GetResult();
+
+            Assert.True(result.IsSuccessful, Describe(result));
+        }
+
+        // Controle: a regra enxerga o SDK onde ele de fato é usado.
+        Assert.False(Types.InAssembly(typeof(AppDbContext).Assembly).ShouldNot().HaveDependencyOnAny(sdk).GetResult().IsSuccessful);
+    }
+
     [Fact]
     public void Web_nao_usa_DbContext_concreto_nem_Npgsql()
     {

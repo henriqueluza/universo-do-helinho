@@ -1,15 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <!-- Prompts versionados (ADR-0004 §7): o nome lógico é o nome do arquivo, que é a versão. -->
+    <EmbeddedResource Include="Ai\Prompts\*.md" LogicalName="%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Helinho.Application\Helinho.Application.csproj" />
     <ProjectReference Include="..\Helinho.Domain\Helinho.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Anthropic" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Email\Templates\*" />
   </ItemGroup>
 
 </Project>
