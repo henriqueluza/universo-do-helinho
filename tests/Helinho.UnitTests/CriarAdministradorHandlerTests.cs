@@ -125,8 +125,10 @@ public class CriarAdministradorHandlerTests
         public DateTimeOffset UtcNow => Now;
     }
 
-    private sealed class FakeQueue : IJobQueue
+    internal sealed class FakeQueue : IJobQueue
     {
+        public List<Guid> Cancelled { get; } = [];
+
         public FakeGateway? Gateway { get; set; }
 
         public List<(JobRequest Job, bool CommittedBefore)> Requests { get; } = [];
@@ -137,11 +139,22 @@ public class CriarAdministradorHandlerTests
             return Task.FromResult<Guid?>(Guid.NewGuid());
         }
 
-        public Task<int> CancelPendingAsync(string type, Guid subjectId, CancellationToken cancellationToken) => Task.FromResult(0);
+        public Task<int> CancelPendingAsync(string type, Guid subjectId, CancellationToken cancellationToken)
+        {
+            Cancelled.Add(subjectId);
+            return Task.FromResult(1);
+        }
     }
 
-    private sealed class FakeGateway(Unit unit) : IAdminAccountGateway
+    internal sealed class FakeGateway(Unit unit) : IAdminAccountGateway
     {
+        public List<Guid> Rotated { get; } = [];
+
+        /// <summary>Simula a conta que sumiu ou ganhou senha depois de lida.</summary>
+        public bool AccountChanged { get; set; }
+
+        public Exception? CommitError { get; set; }
+
         public List<AdminAccount> Admins { get; } = [];
 
         public HashSet<string> PanelEmails { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -164,6 +177,18 @@ public class CriarAdministradorHandlerTests
             return Task.FromResult<IAdminUnitLock>(new Lock(this));
         }
 
+        public Task<AdminAccount?> FindAdminAsync(Guid accountId, CancellationToken cancellationToken) =>
+            Task.FromResult(Admins.Find(a => a.Id == accountId));
+
+        public Task<bool> RotateSecurityStampAsync(Guid accountId, CancellationToken cancellationToken)
+        {
+            Rotated.Add(accountId);
+            return Task.FromResult(!AccountChanged);
+        }
+
+        public Task<bool> DeleteInvitedAdminAsync(Guid accountId, CancellationToken cancellationToken) =>
+            Task.FromResult(!AccountChanged && Admins.RemoveAll(a => a.Id == accountId) == 1);
+
         public Task<bool> PanelEmailInUseAsync(string email, CancellationToken cancellationToken) =>
             Task.FromResult(PanelEmails.Contains(email));
 
@@ -181,8 +206,8 @@ public class CriarAdministradorHandlerTests
         {
             public Task CommitAsync(CancellationToken cancellationToken)
             {
-                owner.Committed = true;
-                return Task.CompletedTask;
+                owner.Committed = owner.CommitError is null;
+                return owner.CommitError is null ? Task.CompletedTask : Task.FromException(owner.CommitError);
             }
 
             public ValueTask DisposeAsync() => ValueTask.CompletedTask;

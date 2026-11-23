@@ -19,6 +19,20 @@ public sealed class AdminAccountGateway(AppDbContext db, UserManager<AppUser> us
             .Select(a => new AdminAccount(a.Id, a.UserName ?? "", a.Email ?? "", a.UnitId, a.LockoutEnd, a.PasswordHash is not null))
             .ToList();
 
+    public async Task<AdminAccount?> FindAdminAsync(Guid accountId, CancellationToken cancellationToken) =>
+        (await ListAdminsAsync(cancellationToken)).FirstOrDefault(a => a.Id == accountId);
+
+    // Nos dois métodos abaixo o Identity confere o ConcurrencyStamp: se a conta ganhou senha depois de lida, a gravação falha.
+    public async Task<bool> RotateSecurityStampAsync(Guid accountId, CancellationToken cancellationToken) =>
+        await FindInvitedAsync(accountId) is { } user && (await users.UpdateSecurityStampAsync(user)).Succeeded;
+
+    public async Task<bool> DeleteInvitedAdminAsync(Guid accountId, CancellationToken cancellationToken) =>
+        await FindInvitedAsync(accountId) is { } user && (await users.DeleteAsync(user)).Succeeded;
+
+    private async Task<AppUser?> FindInvitedAsync(Guid accountId) =>
+        await users.FindByIdAsync(accountId.ToString()) is { PasswordHash: null } user && await users.IsInRoleAsync(user, RoleNames.Admin)
+            ? user : null;
+
     public async Task<IAdminUnitLock> BeginUnitLockAsync(Guid unitId, CancellationToken cancellationToken) =>
         new UnitLock(db, await db.BeginLockedTransactionAsync($"admin-unit:{unitId}", cancellationToken));
 

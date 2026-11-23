@@ -26,6 +26,9 @@ public interface IAdminInviteJobs
 {
     /// <summary>O convite mais recente de cada conta, sem contar os cancelados. Conta sem registro fica de fora.</summary>
     Task<IReadOnlyDictionary<Guid, InviteJob>> LatestAsync(IReadOnlyCollection<Guid> accountIds, CancellationToken cancellationToken);
+
+    /// <summary>Convites da conta criados desde o instante dado, em qualquer estado (limite por hora, §11.6).</summary>
+    Task<int> CountSinceAsync(Guid accountId, DateTimeOffset since, CancellationToken cancellationToken);
 }
 
 /// <summary>Convite de administrador (ADR-0003 §11.2): o trabalho que vai para a fila e a situação mostrada na lista.</summary>
