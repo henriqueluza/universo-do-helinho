@@ -101,13 +101,13 @@
                 <div class="table-wrap">
                     <table class="table">
                         <caption class="visually-hidden">Seus últimos pedidos de sugestões</caption>
-                        <thead><tr><th scope="col">Pedido</th><th scope="col">Situação</th><th scope="col">Pedido em</th></tr></thead>
+                        <thead><tr><th scope="col">Pedido</th><th scope="col">Situação</th></tr></thead>
                         <tbody>
                             @foreach (var r in Model.Recent)
                             {
                                 var tema = TemaQuiz.Of(r.QuizType);
                                 <tr>
-                                    <th scope="row"><a class="link-btn" asp-page="Pedido" asp-route-jobId="@r.Id">@r.Count @tema.Nome · @Helinho.Web.Pages.Questoes.IndexModel.BandLabel(r.AgeBand)</a></th>
+                                    <th scope="row"><a class="link-btn" asp-page="Pedido" asp-route-jobId="@r.Id">@r.Count @tema.Nome · @Helinho.Web.Pages.Questoes.IndexModel.BandLabel(r.AgeBand)</a><br /><small>Pedido às @IaTexto.LocalTime(r.CreatedAt)</small></th>
                                     <td>
                                         @switch (r.Status)
                                         {
@@ -129,7 +129,6 @@
                                                 break;
                                         }
                                     </td>
-                                    <td>@IaTexto.LocalTime(r.CreatedAt)</td>
                                 </tr>
                             }
                         </tbody>
