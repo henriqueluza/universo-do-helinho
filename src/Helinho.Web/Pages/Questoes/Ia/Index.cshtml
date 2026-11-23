@@ -1,0 +1,140 @@
+@page
+@using Helinho.Domain
+@using Helinho.Domain.Entities
+@using Helinho.Web.Painel
+@model Helinho.Web.Pages.Questoes.Ia.IndexModel
+@{
+    ViewData["Title"] = "Gerar questões com IA";
+    string? Err(string field) => ModelState["Input." + field]?.Errors.FirstOrDefault()?.ErrorMessage;
+    string? Bad(string field) => Err(field) is null ? null : "true";
+    string? Desc(string field, string help = "") => (help + (Err(field) is null ? "" : " Input_" + field + "-erro")).Trim() is { Length: > 0 } d ? d : null;
+}
+<div class="stack">
+    <div>
+        <a class="back" asp-page="/Questoes/Index"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Questões</a>
+        <div class="page-head">
+            <p class="sub">A IA sugere, a equipe decide. Nada gerado chega ao jogo sem aprovação humana.</p>
+        </div>
+    </div>
+
+    @if (Model.Demo)
+    {
+        <div class="note ai"><svg aria-hidden="true"><use href="#i-ai"/></svg><span>@IaTexto.DemoNotice</span></div>
+    }
+
+    @if (Model.QuotaMessage is not null)
+    {
+        <div class="alert" role="alert" tabindex="-1" id="resumo-erros" autofocus>
+            <svg aria-hidden="true"><use href="#i-alert"/></svg>
+            <div><b class="alert-title">Limite de pedidos atingido</b><div>@Model.QuotaMessage</div></div>
+        </div>
+    }
+    else
+    {
+        <partial name="_ResumoErros" />
+    }
+
+    <form class="ai-panel" method="post" novalidate aria-labelledby="t-gerar">
+        <h2 id="t-gerar"><svg aria-hidden="true"><use href="#i-ai"/></svg>Pedir sugestões</h2>
+        <ol class="ai-steps" aria-label="Etapas"><li aria-current="step">Pedir</li><li>Revisar</li><li>Aprovar</li></ol>
+        <div class="form-grid">
+            <div class="field">
+                <label for="Input_QuizType">Tipo de quiz <span class="req">(obrigatório)</span></label>
+                <select id="Input_QuizType" name="Input.QuizType" class="select select-lg" aria-invalid="@Bad("QuizType")" aria-describedby="@Desc("QuizType")">
+                    <option value="">Escolha o tipo</option>
+                    @foreach (var t in Enum.GetValues<QuizType>())
+                    {
+                        <option value="@t" selected="@(t == Model.Input.QuizType)">@TemaQuiz.Of(t).Nome (@TemaQuiz.Of(t).Personagem)</option>
+                    }
+                </select>
+                @if (Err("QuizType") is { } quizError) { <span class="field-error" id="Input_QuizType-erro">@quizError</span> }
+            </div>
+            <div class="field">
+                <label for="Input_AgeBand">Faixa etária <span class="req">(obrigatório)</span></label>
+                <select id="Input_AgeBand" name="Input.AgeBand" class="select select-lg" aria-invalid="@Bad("AgeBand")" aria-describedby="@Desc("AgeBand")">
+                    <option value="">Escolha a faixa</option>
+                    @foreach (var b in Enum.GetValues<AgeBand>())
+                    {
+                        <option value="@b" selected="@(b == Model.Input.AgeBand)">@Helinho.Web.Pages.Questoes.IndexModel.BandLabel(b)</option>
+                    }
+                </select>
+                @if (Err("AgeBand") is { } ageError) { <span class="field-error" id="Input_AgeBand-erro">@ageError</span> }
+            </div>
+            <div class="field">
+                <label for="Input_Count">Quantidade</label>
+                <select id="Input_Count" name="Input.Count" class="select select-lg" aria-invalid="@Bad("Count")" aria-describedby="@Desc("Count")">
+                    @foreach (var n in IaTexto.Quantities)
+                    {
+                        <option value="@n" selected="@(n == Model.Input.Count)">@n questões</option>
+                    }
+                </select>
+                @if (Err("Count") is { } countError) { <span class="field-error" id="Input_Count-erro">@countError</span> }
+            </div>
+            <div class="field">
+                <label for="Input_Subject">Assunto (opcional)</label>
+                <input class="input" id="Input_Subject" name="Input.Subject" value="@Model.Input.Subject" maxlength="@IndexModel.SubjectMax" autocomplete="off"
+                       aria-invalid="@Bad("Subject")" aria-describedby="@Desc("Subject", "Input_Subject-ajuda")" />
+                <small id="Input_Subject-ajuda">Ex.: reciclagem, Olimpíadas, festas juninas. Até 120 caracteres.</small>
+                @if (Err("Subject") is { } subjectError) { <span class="field-error" id="Input_Subject-erro">@subjectError</span> }
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-ai" type="submit"><svg class="fill" aria-hidden="true"><use href="#i-ai"/></svg>Gerar sugestões</button>
+            <span class="hint">Só o tipo, a faixa e o assunto vão à IA. Nenhum dado de aluno.</span>
+        </div>
+    </form>
+
+    <section aria-labelledby="t-pedidos">
+        <div class="panel-head"><h2 id="t-pedidos">Seus pedidos recentes</h2></div>
+        @if (Model.Recent.Count == 0)
+        {
+            <div class="panel panel-pad" id="ia-vazio">
+                <div class="empty">
+                    <b>Nenhum pedido ainda.</b>
+                    <p>Escolha o tipo e a faixa acima e peça as primeiras sugestões. Elas ficam aqui até você revisar.</p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="panel panel-pad">
+                <div class="table-wrap">
+                    <table class="table">
+                        <caption class="visually-hidden">Seus últimos pedidos de sugestões</caption>
+                        <thead><tr><th scope="col">Pedido</th><th scope="col">Situação</th></tr></thead>
+                        <tbody>
+                            @foreach (var r in Model.Recent)
+                            {
+                                var tema = TemaQuiz.Of(r.QuizType);
+                                <tr>
+                                    <th scope="row"><a class="link-btn" asp-page="Pedido" asp-route-jobId="@r.Id">@r.Count @tema.Nome · @Helinho.Web.Pages.Questoes.IndexModel.BandLabel(r.AgeBand)</a><br /><small>Pedido às @IaTexto.LocalTime(r.CreatedAt)</small></th>
+                                    <td>
+                                        @switch (r.Status)
+                                        {
+                                            case AiJobStatus.Pending or AiJobStatus.Processing:
+                                                <span class="tag tag-ai">Gerando</span>
+                                                break;
+                                            case AiJobStatus.Failed:
+                                                <span class="tag tag-bad">Falhou</span>
+                                                break;
+                                            default:
+                                                @if (r.PendingReview > 0)
+                                                {
+                                                    <span class="tag tag-ai">@r.PendingReview esperando revisão</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="tag tag-ok">Revisado</span>
+                                                }
+                                                break;
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </section>
+</div>

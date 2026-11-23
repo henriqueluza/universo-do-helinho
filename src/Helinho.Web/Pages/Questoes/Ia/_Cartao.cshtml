@@ -1,0 +1,52 @@
+@using Helinho.Application.Ai
+@using Helinho.Domain.Entities
+@using Helinho.Web.Painel
+@model (AiDraftJobView Job, AiDraftView Draft)
+@{
+    var (job, draft) = Model;
+    var tema = TemaQuiz.Of(job.QuizType);
+    var letters = new[] { "A", "B", "C", "D" };
+    var pending = draft.Status == AiSuggestionStatus.Pending;
+    var titleId = "sug-" + draft.Id.ToString("N");
+}
+@* Todo texto abaixo veio de IA (não confiável): só a codificação padrão do Razor, nunca Html.Raw. *@
+<article class="rcard @(pending ? "" : "done")" id="@titleId" aria-labelledby="@(titleId)-q">
+    <div class="rcard-head">
+        <span class="tag tag-ai"><svg aria-hidden="true"><use href="#i-ai"/></svg>Sugerida pela IA</span>
+        <span class="tag tag-type @tema.Css"><img src="~/img/@tema.Imagem" width="@tema.Largura" height="@tema.Altura" alt="" />@tema.Nome<span class="visually-hidden"> (personagem @tema.Personagem)</span></span>
+        <span class="tag tag-neutral">@Helinho.Web.Pages.Questoes.IndexModel.BandLabel(job.AgeBand)</span>
+        @switch (draft.Status)
+        {
+            case AiSuggestionStatus.Approved:
+                <span class="tag tag-ok">Aprovada</span>
+                break;
+            case AiSuggestionStatus.Edited:
+                <span class="tag tag-draft">Editada, salva como rascunho</span>
+                break;
+            case AiSuggestionStatus.Discarded:
+                <span class="tag tag-neutral">Descartada</span>
+                break;
+        }
+    </div>
+    <p class="rcard-q" id="@(titleId)-q">@draft.Statement</p>
+    <ol aria-label="Alternativas">
+        @for (var i = 0; i < draft.Options.Count; i++)
+        {
+            var right = i == draft.CorrectIndex;
+            <li class="@(right ? "right" : "")"><b aria-hidden="true">@(i < letters.Length ? letters[i] : "")</b><span>@draft.Options[i]@if (right) { <span class="visually-hidden"> (alternativa certa)</span> }</span></li>
+        }
+    </ol>
+    <p class="why">Explicação: @draft.Explanation</p>
+    @if (pending)
+    {
+        <div class="rcard-actions">
+            <form method="post" asp-page="Pedido" asp-page-handler="Aprovar" asp-route-jobId="@job.Id" asp-route-id="@draft.Id">
+                <button class="btn btn-primary" type="submit"><svg aria-hidden="true"><use href="#i-ok"/></svg>Aprovar<span class="visually-hidden"> sugestão: @draft.Statement</span></button>
+            </form>
+            <a class="btn" asp-page="Editar" asp-route-jobId="@job.Id" asp-route-id="@draft.Id"><svg aria-hidden="true"><use href="#i-edit"/></svg>Editar<span class="visually-hidden"> sugestão: @draft.Statement</span></a>
+            <form method="post" asp-page="Pedido" asp-page-handler="Descartar" asp-route-jobId="@job.Id" asp-route-id="@draft.Id">
+                <button class="btn btn-quiet-bad" type="submit"><svg aria-hidden="true"><use href="#i-x"/></svg>Descartar<span class="visually-hidden"> sugestão: @draft.Statement</span></button>
+            </form>
+        </div>
+    }
+</article>

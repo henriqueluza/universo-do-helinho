@@ -169,16 +169,43 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task Tema_nao_tem_seletor_de_ia()
+    public async Task Seletores_de_ia_vivem_so_na_camada_de_componentes()
     {
         await using var factory = await NewFactoryAsync();
         using var client = factory.CreateAnonymousClient();
 
         var css = await client.GetStringAsync("/css/theme.css", Ct);
 
-        foreach (var forbidden in new[] { ".btn-ai", ".tag-ai", ".note.ai", ".ai-help", ".ai-filled", ".ai-flag", ".ai-panel" })
+        // Sprint 4 (#286): o lilás da IA entra como componente. Telas e movimento seguem sem ele (TemaTelasCssTests).
+        var fora = new System.Text.StringBuilder();
+        var camada = new System.Text.StringBuilder();
+        var nivel = 0;
+        var emComponentes = false;
+        foreach (var linha in css.Split('\n'))
         {
-            Assert.DoesNotContain(forbidden, css);
+            if (nivel == 0 && linha.StartsWith("@layer components {", StringComparison.Ordinal))
+            {
+                emComponentes = true;
+            }
+
+            (emComponentes ? camada : fora).AppendLine(linha);
+            nivel += linha.Count(c => c == '{') - linha.Count(c => c == '}');
+            if (nivel == 0)
+            {
+                emComponentes = false;
+            }
+        }
+
+        foreach (var selector in new[] { ".btn-ai", ".tag-ai", ".note.ai", ".ai-panel", ".rcard" })
+        {
+            Assert.Contains(selector, camada.ToString());
+            Assert.DoesNotContain(selector, fora.ToString());
+        }
+
+        // O criador e a lista (outra frente) também só podem declarar estes dentro de componentes.
+        foreach (var selector in new[] { ".ai-help", ".ai-filled", ".ai-flag" })
+        {
+            Assert.DoesNotContain(selector, fora.ToString());
         }
     }
 
