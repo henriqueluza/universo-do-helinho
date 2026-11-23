@@ -27,6 +27,8 @@ public static partial class IaArea
                 LogRealProviderIgnored(loggers.CreateLogger(typeof(IaArea)));
             }
         });
+        // Casos de uso da IA (ADR-0004 §10.2). A página que os chama fica sob a política Panel.
+        services.AddScoped<RequestAiDrafts>();
         return services;
     }
 

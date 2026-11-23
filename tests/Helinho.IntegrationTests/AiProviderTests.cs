@@ -195,5 +195,7 @@ public class AiProviderTests(PostgresFixture postgres)
 
         Assert.Equal((4, FakeQuestionDraftGenerator.Provider), (batch.Drafts.Count, batch.Usage.Provider));
         Assert.Equal(QuestionDraftFailure.Refused, failure.Reason);
+        using var scope = fake.Services.CreateScope();
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<RequestAiDrafts>()); // Issue #258: o caso de uso está na composição
     }
 }
