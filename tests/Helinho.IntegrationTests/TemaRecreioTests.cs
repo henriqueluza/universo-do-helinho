@@ -168,18 +168,23 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
         Assert.Equal(HttpStatusCode.NotFound, fonte.StatusCode);
     }
 
+    // Sprint 4 (#294): os componentes de IA entram no tema, e o lilás (--ai) continua exclusivo deles.
     [Fact]
-    public async Task Tema_nao_tem_seletor_de_ia()
+    public async Task Tema_tem_os_componentes_de_ia_e_so_neles_usa_o_lilas()
     {
         await using var factory = await NewFactoryAsync();
         using var client = factory.CreateAnonymousClient();
 
         var css = await client.GetStringAsync("/css/theme.css", Ct);
 
-        foreach (var forbidden in new[] { ".btn-ai", ".tag-ai", ".note.ai", ".ai-help", ".ai-filled", ".ai-flag", ".ai-panel" })
+        foreach (var required in new[] { ".btn-ai", ".tag-ai", ".note.ai", ".ai-help", ".ai-filled", ".ai-flag" })
         {
-            Assert.DoesNotContain(forbidden, css);
+            Assert.Contains(required, css);
         }
+
+        var elementosDeIa = new Regex(@"\.btn-ai|\.tag-ai|\.note\.ai|\.ai-|\.rcard|ai-fill");
+        var vazamentos = css.Split('\n').Where(l => l.Contains("var(--ai", StringComparison.Ordinal) && !elementosDeIa.IsMatch(l)).ToList();
+        Assert.Empty(vazamentos);
     }
 
     [Fact]
