@@ -105,4 +105,37 @@ public class AiSchemaTests(PostgresFixture postgres)
         // §9.3: a decisão sobre a sugestão leva o Status lido; a segunda gravação simultânea é recusada pelo banco.
         Assert.True(read.Model.FindEntityType(typeof(AiQuestionSuggestion))?.FindProperty(nameof(AiQuestionSuggestion.Status))?.IsConcurrencyToken);
     }
+
+    /// <summary>Issue #263 (ADR-0004 §9.3): duas pessoas decidem a mesma sugestão; a segunda gravação é recusada inteira.</summary>
+    [Fact]
+    public async Task Segunda_decisao_simultanea_sobre_a_mesma_sugestao_e_recusada_pelo_banco()
+    {
+        await using var db = NewContext();
+        await db.Database.MigrateAsync(Ct);
+        Assert.False(db.Database.HasPendingModelChanges()); // as transições não mudam o modelo
+        var job = new AiGenerationJob(AiJobKind.Batch, QuizType.Cultural, AgeBand.Age8To10, 1, null, User, Now);
+        job.Start(Now.AddSeconds(1));
+        job.Succeed(new AiJobUsage("Fake", "fake-v1", "gerar-questoes.v1", 10, 20, TimeSpan.FromSeconds(1)), new AiJobCounts(1, 1, 0, 0), Now.AddSeconds(2));
+        db.AddRange(job, new AiQuestionSuggestion(job.Id, 0, "Enunciado sintético da IA?", ["Um", "Dois", "Três", "Quatro"], 1, "Explicação sintética."));
+        await db.SaveChangesAsync(Ct);
+
+        await using var first = NewContext();
+        await using var second = NewContext();
+        var mine = await first.AiQuestionSuggestions.SingleAsync(Ct);
+        var theirs = await second.AiQuestionSuggestions.SingleAsync(Ct);
+        mine.Discard(User, Now.AddMinutes(1));
+        await first.SaveChangesAsync(Ct);
+        var question = Question.FromAi(job.QuizType, job.AgeBand, theirs.Statement, theirs.Explanation,
+            [.. theirs.Options.Select((o, i) => (o, i == theirs.CorrectIndex))], job.Id, "gerar-questoes.v1", Now.AddSeconds(2));
+        second.Questions.Add(question);
+        theirs.Approve(Guid.NewGuid(), question.Id, Now.AddMinutes(1));
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync(Ct));
+
+        await using var read = NewContext();
+        var saved = await read.AiQuestionSuggestions.AsNoTracking().SingleAsync(Ct);
+        Assert.Equal((AiSuggestionStatus.Discarded, User, null), (saved.Status, saved.DecidedByUserId, saved.QuestionId));
+        Assert.Equal(0, await read.Questions.CountAsync(Ct)); // a questão da gravação recusada não entrou
+        Assert.Equal((AiJobStatus.Succeeded, 1), await read.AiGenerationJobs.Select(j => new ValueTuple<AiJobStatus, int>(j.Status, j.ValidCount)).SingleAsync(Ct));
+    }
 }
