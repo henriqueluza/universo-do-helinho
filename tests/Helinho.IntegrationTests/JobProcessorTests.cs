@@ -436,5 +436,8 @@ public sealed class JobProcessorTests : IAsyncLifetime
         Assert.False(services.GetRequiredService<IOptions<FilaOptions>>().Value.Worker.Enabled); // §6.4: desligado na fábrica
         Assert.Contains(services.GetServices<IHostedService>(), service => service is JobWorker);
         Assert.IsType<JobProcessor>(services.GetRequiredService<IJobProcessor>());
+        // Issue #297: o host real tem um relógio só. O IClock dos casos de uso lê o TimeProvider do processador.
+        Assert.Same(TimeProvider.System, services.GetRequiredService<TimeProvider>());
+        Assert.IsType<Helinho.Infrastructure.Fakes.SystemClock>(services.GetRequiredService<IClock>());
     }
 }
