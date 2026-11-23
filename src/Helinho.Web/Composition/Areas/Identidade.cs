@@ -9,10 +9,11 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace Helinho.Web.Composition;
 
-/// <summary>Área Identidade: login da API (P1, P2, P4), sessão por token opaco e limite de taxa do login (T3).</summary>
+/// <summary>Área Identidade: login da API (P1, P2, P4), sessão por token opaco, limites de taxa (T3, T12) e links de acesso.</summary>
 public static class IdentidadeArea
 {
     public const string LoginRateLimitPolicy = "api-login";
+    public const string DefinirSenhaRateLimitPolicy = "definir-senha";
 
     public static IServiceCollection AddIdentidade(this IServiceCollection services)
     {
@@ -35,6 +36,12 @@ public static class IdentidadeArea
                         QueueLimit = 0,
                     });
             });
+            // ADR-0003 §11.3: 10 envios a cada 15 minutos por IP. O GET só confere o link e não conta.
+            o.AddPolicy(DefinirSenhaRateLimitPolicy, context => HttpMethods.IsPost(context.Request.Method)
+                ? RateLimitPartition.GetFixedWindowLimiter(
+                    context.Connection.RemoteIpAddress ?? IPAddress.None,
+                    _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 })
+                : RateLimitPartition.GetNoLimiter(IPAddress.None));
         });
         return services;
     }

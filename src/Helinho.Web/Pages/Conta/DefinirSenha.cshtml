@@ -1,0 +1,78 @@
+@page "/conta/definir-senha"
+@model Helinho.Web.Pages.Conta.DefinirSenhaModel
+@{
+    ViewData["Title"] = "Definir senha";
+    Layout = "_Bare";
+    var passError = ModelState["Input.Password"]?.Errors.FirstOrDefault()?.ErrorMessage;
+    var confError = ModelState["Input.Confirmation"]?.Errors.FirstOrDefault()?.ErrorMessage;
+    var formErrors = ModelState[string.Empty]?.Errors.Select(e => e.ErrorMessage).ToList() ?? [];
+}
+@* data-limpar-endereco: o painel.js tira o token da barra de endereço (ADR-0003 §10.3). O token só volta ao HTML no campo oculto. *@
+<main id="conteudo" class="bare-card" tabindex="-1" data-limpar-endereco="@(Model.Atual == DefinirSenhaModel.Etapa.Definida ? null : "")">
+    <span class="face-solo"><img src="~/img/cara-helinho.webp" width="312" height="320" alt="" /></span>
+    @switch (Model.Atual)
+    {
+        case DefinirSenhaModel.Etapa.Definida:
+            <h1 class="page-title">Senha definida</h1>
+            <div class="note ok" role="status">
+                <svg aria-hidden="true"><use href="#i-ok" /></svg>
+                <span>Pronto. A nova senha já vale no próximo acesso.</span>
+            </div>
+            <a class="btn btn-primary btn-lg" href="/entrar">Entrar no painel</a>
+            break;
+        case DefinirSenhaModel.Etapa.LinkInvalido:
+            <h1 class="page-title">Este link não vale mais</h1>
+            <p class="lede">Ele pode ter expirado ou já ter sido usado. Peça um novo link ou fale com a coordenação da sua unidade.</p>
+            <a class="btn btn-primary btn-lg" href="/recuperar-senha">Pedir novo link</a>
+            <a class="link" href="/entrar">Voltar para o login</a>
+            break;
+        default:
+            <h1 class="page-title">Definir senha</h1>
+            <p class="lede">Crie a senha da sua conta. Depois de salvar, este link deixa de valer.</p>
+            <form method="post" asp-page="/Conta/DefinirSenha" novalidate>
+                @if (!ModelState.IsValid)
+                {
+                    <div class="alert" role="alert" tabindex="-1" id="resumo-erros">
+                        <svg aria-hidden="true"><use href="#i-alert" /></svg>
+                        <div>
+                            @foreach (var e in formErrors)
+                            {
+                                <div>@e</div>
+                            }
+                            @if (passError is not null)
+                            {
+                                <div><a href="#Input_Password">@passError</a></div>
+                            }
+                            @if (confError is not null)
+                            {
+                                <div><a href="#Input_Confirmation">@confError</a></div>
+                            }
+                        </div>
+                    </div>
+                }
+                <input type="hidden" asp-for="Usuario" />
+                <input type="hidden" asp-for="Token" />
+                <div class="field">
+                    <label asp-for="Input.Password">Nova senha <span class="req">(obrigatório)</span></label>
+                    <input class="input" asp-for="Input.Password" autocomplete="new-password" autofocus
+                           aria-invalid="@(passError is null ? null : "true")" aria-describedby="@(passError is null ? "senha-dica" : "Input_Password-erro senha-dica")" />
+                    @if (passError is not null)
+                    {
+                        <div id="Input_Password-erro" class="field-error">@passError</div>
+                    }
+                    <small id="senha-dica">Pelo menos 6 caracteres, com letra maiúscula, letra minúscula, número e símbolo.</small>
+                </div>
+                <div class="field">
+                    <label asp-for="Input.Confirmation">Repita a nova senha <span class="req">(obrigatório)</span></label>
+                    <input class="input" asp-for="Input.Confirmation" autocomplete="new-password"
+                           aria-invalid="@(confError is null ? null : "true")" aria-describedby="@(confError is null ? null : "Input_Confirmation-erro")" />
+                    @if (confError is not null)
+                    {
+                        <div id="Input_Confirmation-erro" class="field-error">@confError</div>
+                    }
+                </div>
+                <button class="btn btn-primary btn-lg" type="submit">Salvar senha</button>
+            </form>
+            break;
+    }
+</main>
