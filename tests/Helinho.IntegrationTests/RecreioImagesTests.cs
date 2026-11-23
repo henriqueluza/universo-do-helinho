@@ -21,6 +21,8 @@ public class RecreioImagesTests(PostgresFixture postgres)
         "selo-cem-perguntas", "selo-nivel-10-locked", "selo-visitou-o-atelie-locked",
     ];
 
+    private const string EmailLogo = "fundhas.png";
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
@@ -38,13 +40,26 @@ public class RecreioImagesTests(PostgresFixture postgres)
         }
     }
 
+    /// <summary>#205: a logo dos e-mails é PNG (vários clientes de e-mail não mostram WebP) e vem por URL pública, não como anexo.</summary>
     [Fact]
-    public async Task Pasta_img_tem_so_o_inventario_sem_vila_nem_originais()
+    public async Task Logo_dos_emails_e_servida_como_image_png_sem_login()
+    {
+        await using var factory = new HelinhoWebFactory(postgres);
+        using var client = factory.CreateAnonymousClient();
+
+        using var response = await client.GetAsync($"/img/{EmailLogo}", Ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("image/png", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task Pasta_img_tem_so_o_inventario_e_a_logo_dos_emails_sem_vila_nem_originais()
     {
         await using var factory = new HelinhoWebFactory(postgres);
         // Lista o disco: o WebRootFileProvider responde pelo manifesto do build, não pela pasta.
         var folder = Path.Combine(factory.Services.GetRequiredService<IWebHostEnvironment>().WebRootPath, "img");
 
-        Assert.Equal(Inventory.Select(name => $"{name}.webp").Order(), Directory.EnumerateFiles(folder).Select(Path.GetFileName).Order());
+        Assert.Equal(Inventory.Select(name => $"{name}.webp").Append(EmailLogo).Order(), Directory.EnumerateFiles(folder).Select(Path.GetFileName).Order());
     }
 }
