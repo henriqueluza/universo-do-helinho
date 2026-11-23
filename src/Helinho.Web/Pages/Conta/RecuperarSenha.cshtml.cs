@@ -31,8 +31,8 @@ public sealed class RecuperarSenhaModel(UserManager<AppUser> users, IEmailSender
         if (user?.Email is { } address && await HasPanelRoleAsync(user))
         {
             // Sem token nem link: a redefinição real é outra Issue. O corpo não carrega segredo.
-            await email.SendAsync(address, "Recuperação de senha",
-                "Recebemos um pedido de recuperação de senha para esta conta.", cancellationToken);
+            const string Notice = "Recebemos um pedido de recuperação de senha para esta conta.";
+            await email.SendAsync(new EmailMessage(address, "Recuperação de senha", $"<p>{Notice}</p>", Notice), cancellationToken);
         }
 
         Sent = true;
