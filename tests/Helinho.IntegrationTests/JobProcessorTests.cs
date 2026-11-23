@@ -2,11 +2,14 @@ using System.Collections.Concurrent;
 using Helinho.Application.Abstractions;
 using Helinho.Infrastructure.DependencyInjection;
 using Helinho.Infrastructure.Persistence;
+using Helinho.Web.Composition;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace Helinho.IntegrationTests;
@@ -28,11 +31,13 @@ public sealed class JobProcessorTests : IAsyncLifetime
     private readonly ConcurrentQueue<Call> _calls = new();
     private readonly ConcurrentQueue<string> _abandoned = new();
     private readonly ServiceProvider _services;
+    private readonly PostgresFixture _postgres;
     private Func<Call, Task<JobResult>> _handle = _ => Task.FromResult(Sent);
     private Func<Call, Task> _onAbandoned = call => call.Queue.EnqueueAsync(Request(Follow), call.Token);
 
     public JobProcessorTests(PostgresFixture postgres)
     {
+        _postgres = postgres;
         var connection = new NpgsqlConnectionStringBuilder(postgres.ConnectionString) { Database = $"fila_{Guid.NewGuid():N}" }.ConnectionString;
         var configuration = new ConfigurationBuilder().AddInMemoryCollection([new("ConnectionStrings:Default", connection)]).Build();
         _services = new ServiceCollection()
@@ -420,5 +425,16 @@ public sealed class JobProcessorTests : IAsyncLifetime
 
         Assert.Equal(3, deleted); // dois lotes: 2 e 1
         Assert.Equal(ids[3..].Order(), (await RowsAsync()).Keys.Order()); // o recente, o pendente e o em processamento ficam
+    }
+
+    [Fact]
+    public async Task Host_de_teste_sobe_com_o_trabalhador_desligado_e_o_processador_real()
+    {
+        await using var factory = new HelinhoWebFactory(_postgres);
+        var services = factory.Services; // sobe o host e, com ele, os serviços hospedados
+
+        Assert.False(services.GetRequiredService<IOptions<FilaOptions>>().Value.Worker.Enabled); // §6.4: desligado na fábrica
+        Assert.Contains(services.GetServices<IHostedService>(), service => service is JobWorker);
+        Assert.IsType<JobProcessor>(services.GetRequiredService<IJobProcessor>());
     }
 }
