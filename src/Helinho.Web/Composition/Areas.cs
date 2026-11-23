@@ -5,7 +5,7 @@ public static class Areas
 {
     public static IServiceCollection AddAreas(this IServiceCollection services)
     {
-        services.AddHospedagem().AddIdentidade().AddApiHome().AddApiPerfil().AddApiQuiz()
+        services.AddHospedagem().AddEmail().AddIdentidade().AddApiHome().AddApiPerfil().AddApiQuiz()
             .AddPainelAlunos().AddPainelConteudo().AddPainelEngajamento().AddGestao();
         services.AddIa();
         return services;
