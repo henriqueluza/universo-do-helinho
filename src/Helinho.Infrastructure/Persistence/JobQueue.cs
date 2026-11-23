@@ -34,6 +34,7 @@ public sealed class JobQueue(AppDbContext db, IClock clock) : IJobQueue
             .ToListAsync(cancellationToken);
         // Refiltra em memória: uma instância já cancelada neste contexto ainda está pendente no banco.
         var pending = found.Where(j => j.Status == QueueJobStatus.Pending).ToList();
+        // Cancel libera a chave de idempotência: o reenvio na mesma gravação passa pela conferência de EnqueueAsync (§5.4).
         pending.ForEach(j => j.Cancel(now));
         return pending.Count;
     }
