@@ -18,12 +18,12 @@ public class PanelSessionTests(PostgresFixture postgres)
 
     private sealed class RecordingEmail : IEmailSender
     {
-        public List<(string To, string Subject, string Body)> Sent { get; } = [];
+        public List<EmailMessage> Sent { get; } = [];
 
-        public Task SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken)
+        public Task<EmailSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken)
         {
-            Sent.Add((recipient, subject, body));
-            return Task.CompletedTask;
+            Sent.Add(message);
+            return Task.FromResult(new EmailSendResult(EmailSendStatus.Sent));
         }
     }
 
@@ -179,8 +179,8 @@ public class PanelSessionTests(PostgresFixture postgres)
         Assert.Contains(Confirmation, known);
         Assert.Contains(Confirmation, unknown);
         var sent = Assert.Single(email.Sent);
-        Assert.Equal(address, sent.To);
-        Assert.DoesNotContain("token", sent.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(address, sent.Recipient);
+        Assert.DoesNotContain("token", sent.HtmlBody + sent.TextBody, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
