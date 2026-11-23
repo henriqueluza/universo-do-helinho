@@ -28,6 +28,7 @@ public sealed class NovoModel(CriarAdministradorHandler criar) : PageModel
         switch (result.Status)
         {
             case CriarAdministradorStatus.Created:
+                TempData[nameof(IndexModel.Aviso)] = "Administrador criado. O convite está na fila de envio.";
                 return Redirect("/Administradores");
             case CriarAdministradorStatus.InvalidUnit:
                 ModelState.AddModelError("Input.UnitId", "Selecione uma unidade válida.");
