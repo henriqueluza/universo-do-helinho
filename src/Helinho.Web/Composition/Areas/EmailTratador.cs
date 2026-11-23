@@ -16,10 +16,11 @@ public static class EmailTratadorArea
 
     public static IServiceCollection AddEmailTratador(this IServiceCollection services)
     {
-        // A base vem só de App:PublicBaseUrl (§10.3), pelas mesmas opções que a subida valida com Brevo.
+        // A base vem só de App:PublicBaseUrl (§10.3), pelas mesmas opções que a subida valida com Brevo. Pelo monitor, como
+        // a área de e-mail: IOptions criaria uma segunda instância, e o aviso de "Brevo ignorado" sairia duas vezes.
         services.AddEmailTemplates(provider => new EmailTemplateSettings(
             PublicBaseUrl.Parse(
-                provider.GetRequiredService<IOptions<EmailOptions>>().Value.PublicBaseUrl,
+                provider.GetRequiredService<IOptionsMonitor<EmailOptions>>().CurrentValue.PublicBaseUrl,
                 provider.GetRequiredService<IHostEnvironment>().IsDevelopment()),
             Footer(provider, "Email:Organization", DefaultOrganization),
             Footer(provider, "Email:Contact", DefaultContact)));
