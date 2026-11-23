@@ -277,7 +277,7 @@ Como não há destinatário nem corpo na fila, não há o que anonimizar. O que 
 
 - **Linhas em estado final são apagadas 30 dias depois de `FinishedAt`** (`PROPOSTA`; C14 não traz regra institucional). O prazo cobre a situação nas telas ("convite enviado em…"), a chegada tardia de um webhook e a investigação de um problema relatado.
 - A limpeza roda no próprio worker, uma vez por dia, em lotes.
-- **Fora da fila, um endereço com prazo curto:** `Student.PreviousGuardianEmail` guarda o endereço anterior do responsável só até o aviso de troca terminar, no máximo 24 horas (seção 9). A limpeza diária também apaga a coluna dos alunos sem aviso pendente.
+- **Fora da fila, um endereço com prazo curto:** `Student.PreviousGuardianEmail` guarda o endereço anterior do responsável só até o aviso de troca terminar, no máximo 24 horas (seção 9).
 - Linhas em `Pending` ou `Processing` não são apagadas: terminam por sucesso, falha ou `ExpiresAt`.
 - **Nada do conteúdo vai para log.** O log do worker tem id, tipo, tentativa, classe do resultado, código HTTP e duração.
 - **A retenção também precisa ser configurada na Brevo**, senão os 30 dias daqui não valem do lado de lá. Por padrão ela guarda os registros dos e-mails transacionais **sem prazo**; a regra de retenção aceita de 1 a 24 meses, e 1 mês é o mínimo (F25). Os registros têm endereço do destinatário, assunto, etiquetas e eventos: é dado do responsável, e por tabela da criança, num fornecedor. O runbook configura **1 mês** e **"Never store previews"** antes do primeiro envio; a prévia guardaria o corpo inteiro, com o primeiro nome do aluno, a matrícula e o link. O artigo se contradiz sobre o padrão das prévias (diz que são guardadas sem prazo por padrão e, mais abaixo, que "Never store previews" já vem selecionada), então o passo é conferir na tela, não supor. Faz parte da D9.
@@ -316,7 +316,7 @@ RETURNING *;
 - A tentativa é contada ao pegar, então uma queda no meio do envio também conta. A única devolução é a da suspensão, feita na gravação final (seção 6.3); nenhum outro caminho diminui o contador.
 - A forma de executar `UPDATE … RETURNING` pelo EF Core é confirmada no Context7 pela Issue do worker.
 
-Como `Web` não pode usar o `AppDbContext` nem Npgsql, o processamento fica em `Helinho.Infrastructure`, atrás de uma porta `IJobProcessor` em `Application`. O `BackgroundService` em si é uma classe pequena em `Helinho.Web` (área nova `Composition/Areas/Fila.cs`), que só chama a porta em laço: o projeto Web é quem tem o hosting. Cada tipo de trabalho tem um tratador (`IJobHandler`) que devolve sucesso, repetir, falhar ou suspender.
+Como `Web` não pode usar o `AppDbContext` nem Npgsql, o processamento fica em `Helinho.Infrastructure`, atrás de uma porta `IJobProcessor` em `Application`. O `BackgroundService` em si é uma classe pequena em `Helinho.Web` (área nova `Composition/Areas/Fila.cs`), que só chama a porta em laço: o projeto Web é quem tem o hosting. Cada tipo de trabalho é atendido por um registro de tratador (`IJobHandler`), que devolve sucesso, repetir, falhar ou suspender. O laço é por registro: a mesma classe pode ser registrada mais de uma vez, com tipos diferentes, e cada registro tem a própria captura e o próprio laço (é o caso do e-mail, seção 15).
 
 ### 6.2 Repetição: política por tipo
 
@@ -339,14 +339,14 @@ Teto de tentativas, espera, lote, tempo por item e posse são **do tratador**, d
 
 401, 402 e 403 não melhoram repetindo e também não são defeito da mensagem: a chave está errada, a conta ainda não foi validada ou os créditos do dia acabaram. O worker:
 
-- devolve o trabalho para `Pending` **sem consumir a tentativa**, com `NextAttemptAt` em 15 minutos e `LastError` com o código;
+- devolve o trabalho para `Pending` **sem consumir a tentativa**, com `NextAttemptAt` em `pauseFor` (15 minutos no erro de conta; até a hora seguinte no teto diário, seção 15) e `LastError` com o código;
 - pausa **o laço daquele tratador** até lá; os outros tratadores têm laço próprio e continuam;
 - registra um log em `Error`, que é o gatilho de alerta;
 - o trabalho só falha de vez quando passar de `ExpiresAt`.
 
 **Como a tentativa é devolvida.** A tentativa foi somada ao pegar (seção 6.1). A devolução acontece na gravação final da seção 6.6, a mesma que muda o `Status`: `Attempts` passa a ser o valor recebido menos 1, com a guarda de posse de sempre (`Status = 'Processing'` e `Attempts` igual ao recebido). Se a posse foi perdida, nada é gravado, nem a devolução. A captura seguinte soma 1 de novo, e o tratador recebe o mesmo número da tentativa suspensa (`JobContext.Attempts`).
 
-Diminuir o contador não abre brecha na guarda de posse. Só quem ainda tem a posse consegue gravar a devolução. Um processo que perdeu a posse ficou com um número menor que o de quem pegou o trabalho depois dele, e a linha só volta a esse número em `Pending`, nunca em `Processing`; a guarda continua recusando a gravação atrasada. Testes obrigatórios na Issue 8a: suspender e pegar de novo mantém `Attempts`; um processo com a posse vencida não grava nada, nem depois de uma suspensão gravada por quem pegou o trabalho depois dele.
+Diminuir o contador não abre brecha na guarda de posse, com uma condição. Só quem ainda tem a posse consegue gravar a devolução. Um processo que perdeu a posse segura um número menor que o de quem pegou o trabalho depois dele; a linha volta a esse número menor só em `Pending`, nunca em `Processing`, e a guarda continua recusando a gravação atrasada. Depois de uma suspensão, a captura seguinte recebe o mesmo número da suspensa, então o número deixa de ser único por captura. **Condição: a gravação final nunca é repetida.** Se o commit falhar ou a resposta dele se perder, o processador não tenta de novo; o item fica como está e reaparece pelo prazo de posse. Repetir a gravação de uma suspensão já confirmada, depois de outro processo ter pegado o trabalho com o mesmo número, tomaria a posse desse outro processo. Por isso o processador não usa repetição automática do EF nessa gravação (hoje o `AppDbContext` não liga `EnableRetryOnFailure`, `src/Helinho.Infrastructure/DependencyInjection/DomainPersistenceExtensions.cs:13-14`). Testes obrigatórios na Issue 8a: suspender e pegar de novo mantém `Attempts`; um processo com a posse vencida não grava nada, nem depois de uma suspensão gravada por quem pegou o trabalho depois dele; falha no commit da gravação final não gera segunda tentativa de gravar.
 
 O teto diário (seção 15) usa o mesmo resultado e o mesmo mecanismo para adiar sem gastar tentativa. Por causa dele o e-mail tem dois registros do mesmo tratador, cada um com o próprio laço; num 401, 402 ou 403 cada registro suspende ao receber o próprio erro, o segundo com no máximo uma chamada a mais à Brevo.
 
@@ -369,7 +369,7 @@ Alternativa descartada: mandar 401 e 402 direto para `Failed`. Uma chave colada 
 | Peça | E-mail (Sprint 3) | IA (Sprint 4, ADR-0004 seção 10.2) |
 |---|---|---|
 | `Type` | `email.*` | `ai.question-drafts` |
-| `Payload` | quase vazio (versão e motivo) | `{"v":1,"aiJobId":"<id do pedido>"}` **e mais nada**. Tipo de quiz, faixa, quantidade e assunto ficam no registro do pedido (`AiGenerationJobs`), não na fila: o assunto é texto livre e pode trazer um nome |
+| `Payload` | quase vazio (versão e motivo; na redefinição, também o resumo do carimbo, seção 11.1) | `{"v":1,"aiJobId":"<id do pedido>"}` **e mais nada**. Tipo de quiz, faixa, quantidade e assunto ficam no registro do pedido (`AiGenerationJobs`), não na fila: o assunto é texto livre e pode trazer um nome |
 | `SubjectId` | usuário ou aluno | quem pediu |
 | Tratador | resolve destinatário, gera token, renderiza, envia | lê o pedido, chama `IQuestionDraftGenerator` fora de transação e deixa as sugestões no contexto; o processador grava tudo junto com a conclusão (seção 6.6) |
 | Resultados que o tratador devolve | sucesso, repetir, falhar e suspender, conforme a seção 4.2 | **só sucesso ou falha.** 429 e 5xx são repetidos dentro do adaptador de IA, no máximo duas vezes e dentro do prazo; 401, 402 e limite de gasto falham com o motivo, sem suspensão |
@@ -579,7 +579,7 @@ Não existe hoje. A lista de campos obrigatórios confirmada pela contratante (C
 - **Não sai na API do jogo.** Nenhum DTO muda.
 - Validação: formato de e-mail, até 254 caracteres, sem caractere de controle. Seed com endereços sintéticos em `helinho.example`.
 - **Trocar o endereço tem efeito de segurança** (seção 11.4): troca o carimbo da conta do aluno, cancela acessos pendentes e avisa o endereço anterior.
-- **Coluna de apoio `Student.PreviousGuardianEmail`**, `varchar(254)`, anulável, na mesma migração. Guarda o endereço anterior só enquanto o aviso de troca não termina, porque a fila não guarda destinatário (D2). É apagada pela gravação final do aviso, em sucesso ou falha, e pelo gancho de encerramento da fila em `expired` e `max_attempts` (seção 6.7). Com o `ExpiresAt` de 24 horas do aviso, o endereço anterior não fica mais de um dia no banco. Como última defesa, a limpeza diária do worker (seção 5.6) apaga a coluna dos alunos sem aviso pendente.
+- **Coluna de apoio `Student.PreviousGuardianEmail`**, `varchar(254)`, anulável, na mesma migração. Guarda o endereço anterior só enquanto o aviso de troca não termina, porque a fila não guarda destinatário (D2). É apagada pela gravação final do aviso, em sucesso ou falha, e pelo gancho de encerramento da fila em `expired` e `max_attempts` (seção 6.7). Com o `ExpiresAt` de 24 horas do aviso, o endereço anterior não fica mais de um dia no banco. O gancho só muda a coluna: uma falha do banco derruba a gravação inteira, e o trabalho volta pelo prazo de posse, com o gancho chamado de novo. O aviso nunca é cancelado (`CancelPending` só cancela `email.student-access`), então não há caminho que termine o aviso sem apagar a coluna. Tudo isso é da Issue 11.
 - **Ciclo de vida:** os dois campos seguem o registro do aluno. Hoje não há exclusão nem anonimização de aluno no painel; a política de retenção e exclusão dos dados do aluno é do ADR de dado real (`ADR-0001-stack.md:171`), e quando ela existir os dois campos saem junto com o resto do cadastro.
 - **Migração própria**, a segunda da sprint, depois da migração da fila (duas migrações em paralelo disputam o mesmo snapshot do modelo).
 
@@ -639,12 +639,12 @@ Todos passam pela fila. Nenhum leva senha.
 
 **O limite silencioso não pode deixar o dono sem link (T20).** Quem sabe o e-mail de um master ou administrador consegue fazer 3 pedidos por hora sem estourar o limite por IP. Se esses pedidos esgotassem a cota sem que nada chegasse ao dono, o pedido dele seria descartado em silêncio. A regra de contagem impede isso:
 
-- **Só contam redefinições com link vivo:** trabalhos `email.password-reset` da conta em `Pending`, `Processing` ou `Succeeded`, criados na última hora **e** depois da última troca de carimbo que a fila registra para a conta (aviso de senha alterada, seção 11.3, ou convite, seção 11.2). `Failed` e `Cancelled` não contam, nem link cujo carimbo já mudou.
+- **Só contam redefinições com link vivo:** trabalhos `email.password-reset` da conta em `Pending`, `Processing` ou `Succeeded`, criados na última hora **e** com o carimbo de segurança que a conta tem agora. Para isso o `Payload` da redefinição leva o resumo do carimbo da hora em que o pedido foi feito, o mesmo resumo que a chave do aviso de senha alterada já usa (seção 5.4); não é token, nem dado cadastral, nem permite gerar link. Qualquer troca de carimbo, venha de onde vier, tira da conta os pedidos anteriores. `Failed` e `Cancelled` não contam.
 - **A janela nunca passa da validade do token.** A janela conta da criação do trabalho; a validade, de quando o token é gerado, no envio, que vem depois. Com as duas em 1 hora, todo trabalho que conta ou ainda está a caminho ou já entregou ao dono um link que vale pelo menos até sair da janela. O código lê a janela da mesma opção que define a validade do provedor de redefinição: se a D4 encurtar a validade, a janela encolhe junto.
-- **Consequência:** todo pedido descartado pelo limite tem antes dele um link que funciona, na caixa do dono ou a caminho. Os pedidos de terceiros entregam links ao dono, não a quem pediu. O que sobra é o incômodo de até 3 e-mails por hora não pedidos (T12).
+- **Consequência, com o envio funcionando:** todo pedido descartado pelo limite tem antes dele um link que funciona, já aceito pela Brevo para o endereço do dono ou a caminho. Os pedidos de terceiros entregam links ao dono, não a quem pediu. O que sobra é o incômodo de até 3 e-mails por hora não pedidos (T12). "Aceito pela Brevo" não é "entregue": se o endereço do dono devolve a mensagem, ele não recebe nada, com ou sem o limite (o webhook da seção 12 mostra isso).
 - **O e-mail de redefinição diz isso:** que o pedido pode não ter sido feito pela pessoa, que nada muda na conta sem o link e até que horas o link vale. Quem quer trocar a senha usa qualquer um dos que recebeu.
-- Trabalho parado em `Pending` por suspensão ou pelo teto diário conta até vencer (`ExpiresAt` de 30 minutos, seção 6.2) e então vira `Failed`. Nesse intervalo nenhum e-mail sai para ninguém (seção 13.1); não é efeito do limite.
-- Teste obrigatório na Issue 10, com relógio falso: depois de três pedidos de terceiros, o quarto é descartado e existe link vivo para a conta; com os três em `Failed`, ou depois de uma troca de senha, o pedido seguinte é enfileirado.
+- **Com o envio parado** (suspensão, falha da Brevo em nova tentativa ou teto diário), um trabalho em `Pending` conta até vencer (`ExpiresAt` de 30 minutos, seção 6.2) e então vira `Failed`. Nesse intervalo o pedido do dono pode ser descartado sem link a caminho. A garantia acima não vale aí, mas o efeito é o da própria parada: enquanto ela dura, o e-mail do dono também não sairia. Quando o envio volta, ou os trabalhos de terceiros ainda válidos entregam o link ao dono, ou já venceram e deixaram de contar; no pior caso o dono pede de novo depois da parada. O atacante não controla a parada.
+- Teste obrigatório na Issue 10, com relógio falso: depois de três pedidos de terceiros, o quarto é descartado e existe link vivo para a conta; com os três em `Failed`, ou depois de qualquer troca de carimbo, o pedido seguinte é enfileirado.
 
 Alternativa descartada: enfileirar sempre, com o endereço digitado no trabalho, e descobrir no worker se a conta existe. Guardaria endereços digitados por anônimos e deixaria qualquer um encher a tabela.
 
@@ -682,13 +682,13 @@ A política de senha em vigor é a padrão do Identity: 6 caracteres, com maiús
 - **Sem aprovação não envia**, conferido ao enfileirar e de novo ao enviar. Sem `GuardianEmail`, o botão explica o que falta.
 - **O link segue o estado da conta do aluno, conferido no envio, não ao enfileirar.** Conta **sem senha**: provedor de convite, 72 horas (primeiro acesso). Conta **com senha**: provedor de redefinição, 1 hora, e o e-mail diz que é uma troca de senha. Sem isso, o botão emitiria para um endereço editável um link de troca de senha de 72 horas, mais longo que o da própria redefinição. O botão mostra o que vai sair: **Enviar acesso** ou **Enviar troca de senha**. Teste obrigatório: com senha, o token gerado só vale no provedor de 1 hora.
 - **Trocar o `GuardianEmail` tem efeito de segurança**, aplicado pelo caso de uso que salva o aluno (`SaveStudent`), na mesma transação, sempre que havia endereço anterior e o novo é diferente:
-  - troca o carimbo de segurança da conta do aluno (pela porta `IStudentAccounts`, que já existe) e cancela os acessos pendentes dela (`IJobQueue.CancelPending`): link já enviado ao endereço anterior deixa de valer. Isso também corrige o caso do endereço digitado errado (T16). As sessões do jogo não caem: o token da API não depende do carimbo (`src/Helinho.Infrastructure/Identidade/ApiSessionValidator.cs:10-24`);
+  - troca o carimbo de segurança da conta do aluno (a porta `IStudentAccounts`, que hoje só tem `StageAsync`, ganha um método para isso na Issue 11) e cancela os acessos pendentes dela (`IJobQueue.CancelPending`): link já enviado ao endereço anterior deixa de valer. Isso também corrige o caso do endereço digitado errado (T16). As sessões do jogo não caem: o token da API não depende do carimbo (`src/Helinho.Infrastructure/Identidade/ApiSessionValidator.cs:10-24`);
   - enfileira um aviso **para o endereço anterior** (`email.guardian-email-changed`): primeiro nome do aluno, data da troca e "se não reconhece a troca, procure a unidade". Sem o endereço novo e sem matrícula;
   - a fila continua sem destinatário (D2): o endereço anterior fica em `Student.PreviousGuardianEmail` (seção 9) só até o aviso terminar. Se já houver aviso pendente, a coluna não é sobrescrita e nenhum aviso novo é enfileirado: o aviso vai para quem tinha o endereço antes da primeira troca;
   - a troca e o envio ficam no log de auditoria sem dado pessoal (id de quem fez e id do aluno), como já previa a T13. Testes obrigatórios: carimbo trocado, acesso pendente cancelado e aviso enfileirado para o endereço anterior; primeiro preenchimento (sem endereço anterior) não gera aviso.
 - **Só alunos da própria unidade.** O caso de uso consulta pelo filtro de unidade que já existe (ADR-0001, T1); aluno de outra unidade responde como inexistente (404). Teste obrigatório.
 - **Conteúdo mínimo:** primeiro nome do aluno, a matrícula (necessária para entrar no jogo) e o link. Sem sobrenome, turma, unidade ou documento.
-- Limite: 3 por hora por aluno. Validade do link: 72 horas.
+- Limite: 3 por hora por aluno. Validade do link: 72 horas sem senha; 1 hora com senha.
 
 ### 11.5 Aviso de bloqueio de conta
 
@@ -798,7 +798,7 @@ Ameaças novas desta sprint, na numeração do ADR-0001 (T1 a T6):
 | T17 | O token passa pelo redirecionador de cliques da Brevo e fica guardado no fornecedor enquanto vale | 8.4: uso único, validade curta, `GET` sem efeito, rastreamento anônimo, prévias desligadas, retenção de 1 mês, acesso ao painel da Brevo restrito; plano B sem segredo na URL. Risco residual aceito só com a D13 e a D17 |
 | T18 | O link legítimo aponta para um domínio que não é o institucional: a pessoa desconfia do e-mail certo, ou aprende a confiar em link estranho | 8.4: botão com texto de ação, endereço do site por extenso, conferência na barra do navegador depois de abrir, caminho sem clicar; subdomínio de marca quando houver DNS |
 | T19 | O envio para sozinho: chave desativada por 90 dias sem uso, ou bloqueio de IP que se liga depois de 30 dias | 13.1: suspensão sem perder a fila, log `Error`, lembretes e conferências do runbook |
-| T20 | Negar a recuperação ao dono da conta: quem sabe o e-mail de um master ou administrador esgota o limite por conta, e o pedido do dono é descartado em silêncio | 11.1: só contam redefinições com link vivo, e a janela do limite nunca passa da validade do token; todo pedido descartado tem antes dele um link que funciona, na caixa do dono ou a caminho. O e-mail diz até que horas o link vale; cada descarte deixa log `Warning` com o id da conta. Sobra o incômodo de até 3 e-mails por hora (T12) |
+| T20 | Negar a recuperação ao dono da conta: quem sabe o e-mail de um master ou administrador esgota o limite por conta, e o pedido do dono é descartado em silêncio | 11.1: só contam redefinições com link vivo (carimbo atual da conta), e a janela do limite nunca passa da validade do token; com o envio funcionando, todo pedido descartado tem antes dele um link que funciona, aceito pela Brevo para o endereço do dono ou a caminho. Com o envio parado a garantia não vale, e o efeito é o da própria parada (11.1). O e-mail diz até que horas o link vale; cada descarte deixa log `Warning` com o id da conta. Sobra o incômodo de até 3 e-mails por hora (T12) |
 
 Fica para o ADR de dado real (ADR-0001 §7): contrato de tratamento de dados com a Brevo, transferência internacional (os dados passam pela Brevo e pela Railway, fora do Brasil), as respostas do suporte da Brevo sobre os links (seção 8.4) e a página de política de privacidade citada no rodapé dos e-mails. A retenção na Brevo deixou de ser pendência de ADR futuro: é passo do runbook desde o primeiro envio (seção 5.6).
 
@@ -842,7 +842,7 @@ Se a conta da Brevo for usada também para outros envios da contratante, eles co
 | D1 | Formato da fila | **Uma tabela genérica `QueueJobs`** (5.1) | `email_outbox` + tabela irmã para IA (5.2) |
 | D2 | O que fica gravado | **Só referências; token gerado no envio** (5.3) | corpo renderizado com o link em repouso |
 | D3 | Erros de conta (401, 402, 403) | **Suspender sem gastar tentativa** (6.3) | falha direta, como os outros 4xx |
-| D4 | Validade dos links | **Convite e acesso do aluno 72 h; redefinição 1 h** (`PROPOSTA`) | 24 h para tudo (padrão do Identity) |
+| D4 | Validade dos links | **Convite e primeiro acesso do aluno 72 h; redefinição 1 h, inclusive o novo envio para aluno que já tem senha (11.4)** (`PROPOSTA`) | 24 h para tudo (padrão do Identity) |
 | D5 | E-mail do responsável | **Obrigatório no formulário, anulável no banco, não único, nunca login** (`PROPOSTA`, seção 9) | esperar a resposta do Marcos antes de migrar |
 | D6 | Quem define a senha do aluno | **O responsável, pelo link** (`PROPOSTA`, 11.4) | o administrador define uma senha provisória |
 | D7 | Plano da Brevo e teto diário | **Gratuito com `Email__DailyLimit=300` do nosso lado em homologação; pago antes de carga real** (15). Pesam na escolha: a cota, o selo "Sent with Brevo" em todo e-mail do gratuito e o fato de nenhum plano abaixo do Enterprise desligar a reescrita dos links | sem teto na aplicação, confiando na fila da Brevo: um link de redefinição de 1 h venceria parado nela |
@@ -885,7 +885,7 @@ D4, D5, D6, D7, D9, D12, D14 e D17 **dependem ainda do Marcos**; as perguntas es
 | # | Issue | Tipo | Depende de |
 |---|---|---|---|
 | 0 | ADR-0003 (esta, #176) | docs | — |
-| 1 | Fila: entidade `QueueJob`, **migração**, porta `IJobQueue` (enfileirar com idempotência e cancelar pendentes) e os contratos das seções 6.6 e 6.7 (`IJobHandler`, `JobContext`, `JobPolicy`, `JobResult`, `IAbandonedJobHandler`) (aberta: #223) | feat | D1, D2, D15 e D16; PR #120 mergeado (mesmo snapshot do modelo) |
+| 1 | Fila: entidade `QueueJob`, **migração**, porta `IJobQueue` (enfileirar com idempotência e cancelar pendentes) e os contratos das seções 6.6 e 6.7 (`IJobHandler`, `JobContext`, `JobPolicy`, `JobResult`, `IAbandonedJobHandler`) (abertas: #223, a tabela e a porta, e #234, os contratos do tratador) | feat | D1, D2, D15 e D16; PR #120 mergeado (mesmo snapshot do modelo) |
 | 2 | `Student.GuardianEmail` e `Student.PreviousGuardianEmail` (seção 9): **migração**, campo no formulário do aluno, validação, seed sintético | feat | D5; Issue 1 (ordem das migrações); PR #158 (formulário de Alunos no tema Recreio) |
 | 3 | `BrevoEmailSender`, opções validadas na subida, registro `Fake`/`Brevo` na área `Email`, nova assinatura da porta; testes com `HttpMessageHandler` falso (abertas: #204 e #209) | feat | ADR aprovado |
 | 4 | Renderizador, modelos HTML e texto dos quatro e-mails, layout comum, importação do `fundhas.png` (abertas: #205 e #207). O texto e os links dos modelos seguem a seção 8.4 | feat | D10; para o texto final, D17 |
@@ -896,7 +896,7 @@ D4, D5, D6, D7, D9, D12, D14 e D17 **dependem ainda do Marcos**; as perguntas es
 | 8b | Tratador de e-mail: resolve o destinatário, gera o token, renderiza, envia, classifica a resposta da Brevo e aplica o teto diário (dois registros, urgentes e demais, seção 15) | feat | 1, 3, 4, 5, 8a; D7 |
 | 9 | Convite de administrador: criar sem senha, situações, reenviar, limite, cancelar convite | feat | 1, 4, 5, 8b; D11; PR #166 |
 | 10 | Redefinição real em `RecuperarSenha` (fila, resposta idêntica, piso de tempo, limites, com o limite por conta contando só links vivos), aviso de senha alterada e, no modelo de redefinição da Issue 4, a frase com a validade do link (11.1) | feat | 1, 4, 5, 8b, 13 |
-| 11 | Acesso do aluno: botão, gatilho na aprovação, segregação por unidade, link pelo estado da conta (72 h sem senha, 1 h com senha) e efeitos da troca de `GuardianEmail` (carimbo, cancelamento, aviso ao endereço anterior, com o quinto modelo de e-mail) (11.4) | feat | 1, 2, 4, 5, 8b; D6 e D12 |
+| 11 | Acesso do aluno: botão, gatilho na aprovação, segregação por unidade, link pelo estado da conta (72 h sem senha, 1 h com senha) e efeitos da troca de `GuardianEmail` (carimbo, por método novo em `IStudentAccounts`; cancelamento; aviso ao endereço anterior, com o quinto modelo de e-mail; apagar `PreviousGuardianEmail` na gravação final do aviso e no gancho `IAbandonedJobHandler`) (9, 11.4) | feat | 1, 2, 4, 5, 8b; D6 e D12 |
 | 12 | Webhook da Brevo (quatro eventos, cabeçalho próprio) e "e-mail não entregue" nas telas | feat | 1, 3, 6; D18; as telas, depois de 9 e 11 |
 | 13 | Correção: contas com e-mail repetido quebram `FindByEmailAsync` no login e na recuperação (**já aberta: #184**, sem `agent:authorized`) | fix | — |
 | 14 | Caixa de saída de desenvolvimento | feat | 3; D8 |
@@ -907,7 +907,7 @@ Ondas: **1** em paralelo — Issues 1, 3, 4, 5, 6, 7 e 13 (a 2 e a 8a entram log
 
 A antiga Issue 8 foi dividida em duas. O worker genérico (8a) cresceu com os ajustes do ADR-0004 e não depende de nada de e-mail; o tratador de e-mail (8b) é o que depende do adaptador, dos modelos e dos tokens. **A Sprint 4 só precisa das Issues 1 e 8a**: pode começar o tratador de IA sem esperar os e-mails.
 
-A Issue 13 (#184) é defeito que já existe na `main` e independe da sprint; está aqui porque a Issue 10 esbarra nele. As Issues 3, 4 e 7 foram abertas pelo coordenador antes do aceite; depois do aceite de 22/11/2026 foram abertas a 1 (#223), a 6 (#229) e a 8a (#228). As demais ainda não existem.
+A Issue 13 (#184) é defeito que já existe na `main` e independe da sprint; está aqui porque a Issue 10 esbarra nele. As Issues 3, 4 e 7 foram abertas pelo coordenador antes do aceite; depois do aceite de 22/11/2026 foram abertas a 1 (dividida em #223 e #234), a 6 (#229) e a 8a (#228). As demais ainda não existem.
 
 ## 19. Alternativas descartadas
 
