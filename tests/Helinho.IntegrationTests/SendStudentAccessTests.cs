@@ -3,6 +3,7 @@ using Helinho.Application.Abstractions;
 using Helinho.Application.Painel;
 using Helinho.Domain;
 using Helinho.Domain.Entities;
+using Helinho.Infrastructure.Identidade;
 using Helinho.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -90,7 +91,7 @@ public class SendStudentAccessTests(PostgresFixture postgres) : IAsyncLifetime
             .Options, user);
 
     private StudentAccessRequests Requests(AppDbContext db, IJobQueue? queue = null) =>
-        new(queue ?? new JobQueue(db, _clock), new StudentAccessJobs(db), _clock);
+        new(queue ?? new JobQueue(db, _clock), new StudentAccessJobs(db), new StudentAccounts(db), _clock);
 
     private async Task<SendStudentAccessResult> SendAsync(Guid studentId, ICurrentUser? user = null, ICurrentUser? contextUser = null)
     {

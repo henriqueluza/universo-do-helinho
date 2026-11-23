@@ -110,12 +110,14 @@ public class AcessoAlunoTelaTests(PostgresFixture postgres, AcessoAlunoTelaTests
     private async Task<HttpClient> AdminAsync(Guid? unitId = null) =>
         (await shared.GetAsync(postgres)).CreateFormClientAs(RoleNames.Admin, unitId ?? shared.UnitId);
 
-    private static async Task<HttpResponseMessage> PostAsync(HttpClient client, Guid studentId, string tokenPage)
+    private static Task<HttpResponseMessage> PostAsync(HttpClient client, Guid studentId, string tokenPage) =>
+        PostFormAsync(client, $"/Alunos/Editar/{studentId}{Handler}", tokenPage, []);
+
+    private static async Task<HttpResponseMessage> PostFormAsync(HttpClient client, string url, string tokenPage, Dictionary<string, string> fields)
     {
         var page = await client.GetStringAsync(tokenPage, Ct);
-        var token = Regex.Match(page, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
-        return await client.PostAsync($"/Alunos/Editar/{studentId}{Handler}",
-            new FormUrlEncodedContent(new Dictionary<string, string> { ["__RequestVerificationToken"] = token }), Ct);
+        fields["__RequestVerificationToken"] = Regex.Match(page, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
+        return await client.PostAsync(url, new FormUrlEncodedContent(fields), Ct);
     }
 
     private async Task<int> JobsAsync(Guid studentId, string? setStatus = null)
@@ -186,9 +188,8 @@ public class AcessoAlunoTelaTests(PostgresFixture postgres, AcessoAlunoTelaTests
         Assert.Matches("<span class=\"tag tag-draft\" id=\"acesso-situacao\">Na fila desde \\d{2}/\\d{2}/\\d{4} &#xE0;s \\d{2}:\\d{2}</span>", queued);
         Assert.DoesNotContain("role=\"status\"", reloaded, StringComparison.Ordinal); // o aviso é só da resposta ao envio
 
-        var audit = Assert.Single(shared.LogLines(), line => line.Contains("enfileirado", StringComparison.Ordinal));
         var userId = client.DefaultRequestHeaders.GetValues(TestAuthHandler.UserHeader).Single();
-        Assert.Equal($"Acesso do aluno {shared.NoPassword} enfileirado pelo usuário {userId}.", audit);
+        Assert.Single(shared.LogLines(), line => line == $"Acesso do aluno {shared.NoPassword} enfileirado pelo usuário {userId}.");
         Assert.DoesNotContain(shared.LogLines(), line => Regex.IsMatch(line, "tela01|Aluno Sintético|TELA-01"));
 
         // A situação acompanha o trabalho na fila (estados gravados pelo trabalhador; aqui, direto no banco).
@@ -205,6 +206,38 @@ public class AcessoAlunoTelaTests(PostgresFixture postgres, AcessoAlunoTelaTests
             Assert.Equal(status == "Failed", html.Contains("id=\"acesso-falhou\"", StringComparison.Ordinal));
             Assert.Contains(">Enviar acesso</button>", html, StringComparison.Ordinal); // dá para enviar de novo
         }
+    }
+
+    [Fact]
+    public async Task Cadastrar_aluno_ja_aprovado_enfileira_o_acesso_e_registra_a_auditoria()
+    {
+        using var client = await AdminAsync();
+
+        var response = await PostFormAsync(client, "/Alunos/Novo", "/Alunos/Novo", new()
+        {
+            ["Input.FullName"] = "Caio Gatilho Sintético",
+            ["Input.Rg"] = "33.333.333-3",
+            ["Input.Cpf"] = "529.982.247-25",
+            ["Input.Address"] = "Rua Sintética, 3",
+            ["Input.BirthDate"] = "2017-03-01",
+            ["Input.ClassName"] = "5A",
+            ["Input.GuardianName"] = "Responsável Fictício",
+            ["Input.GuardianEmail"] = "gatilho.responsavel@example.org",
+            ["Input.GuardianApproved"] = "true",
+        });
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Guid studentId;
+        await using (var scope = (await shared.GetAsync(postgres)).Services.CreateAsyncScope())
+        {
+            studentId = await scope.ServiceProvider.GetRequiredService<AppDbContext>().Students.IgnoreQueryFilters()
+                .Where(s => s.FullName == "Caio Gatilho Sintético").Select(s => s.Id).SingleAsync(Ct);
+        }
+
+        var userId = client.DefaultRequestHeaders.GetValues(TestAuthHandler.UserHeader).Single();
+        Assert.Equal(1, await JobsAsync(studentId));
+        Assert.Contains($"Acesso do aluno {studentId} enfileirado pelo usuário {userId}.", shared.LogLines());
+        Assert.DoesNotContain(shared.LogLines(), line => Regex.IsMatch(line, "gatilho\\.responsavel|Caio Gatilho"));
     }
 
     [Fact]

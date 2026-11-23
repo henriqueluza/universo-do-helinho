@@ -74,7 +74,7 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         await using var db = NewContext(new FakeUser(RoleNames.Admin, _unitA.Id));
 
-        var result = await SaveStudent.CreateAsync(db, new FakeUser(RoleNames.Admin, _unitA.Id), new FixedClock(), new StudentAccounts(db), Valid(approved: true), ct);
+        var result = await SaveStudent.CreateAsync(db, new FakeUser(RoleNames.Admin, _unitA.Id), new FixedClock(), new StudentAccounts(db), Requests(db), Valid(approved: true), ct);
 
         Assert.True(result.Succeeded);
         await using var read = NewContext(new FakeUser(RoleNames.Master, null));
@@ -94,10 +94,10 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
         await using var db = NewContext(new FakeUser(RoleNames.Admin, _unitA.Id));
         var user = new FakeUser(RoleNames.Admin, _unitA.Id);
 
-        var empty = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), new StudentForm(null, " ", null, "", null, null, null, null, false), ct);
-        var badCpf = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Valid() with { Cpf = "529.982.247-24" }, ct);
-        var young = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Valid() with { BirthDate = new DateOnly(2021, 1, 1) }, ct);
-        var old = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Valid() with { BirthDate = new DateOnly(2010, 1, 1) }, ct);
+        var empty = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Requests(db), new StudentForm(null, " ", null, "", null, null, null, null, false), ct);
+        var badCpf = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Requests(db), Valid() with { Cpf = "529.982.247-24" }, ct);
+        var young = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Requests(db), Valid() with { BirthDate = new DateOnly(2021, 1, 1) }, ct);
+        var old = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Requests(db), Valid() with { BirthDate = new DateOnly(2010, 1, 1) }, ct);
 
         Assert.Equal(
             AllFields.Order(),
@@ -115,7 +115,7 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
         await using var db = NewContext(new FakeUser(RoleNames.Admin, _unitA.Id));
 
         var result = await SaveStudent.CreateAsync(
-            db, new FakeUser(RoleNames.Admin, _unitA.Id), new FixedClock(), new StudentAccounts(db),
+            db, new FakeUser(RoleNames.Admin, _unitA.Id), new FixedClock(), new StudentAccounts(db), Requests(db),
             Valid() with { Cpf = "123.456.789-00", Rg = new string('9', 40) }, ct);
 
         Assert.All(result.Errors.Values, m =>
@@ -136,9 +136,9 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
         var secretRg = "77.888.999-X";
         var accounts = new StudentAccounts(db);
 
-        var invalid = await SaveStudent.CreateAsync(db, user, new FixedClock(), accounts, Valid() with { Cpf = "123.456.789-00", Rg = secretRg }, ct);
-        var created = await SaveStudent.CreateAsync(db, user, new FixedClock(), accounts, Valid() with { Rg = secretRg }, ct);
-        var edited = await SaveStudent.UpdateAsync(db, new FixedClock(), created.StudentId!.Value, Valid(approved: true) with { Rg = secretRg }, ct);
+        var invalid = await SaveStudent.CreateAsync(db, user, new FixedClock(), accounts, Requests(db), Valid() with { Cpf = "123.456.789-00", Rg = secretRg }, ct);
+        var created = await SaveStudent.CreateAsync(db, user, new FixedClock(), accounts, Requests(db), Valid() with { Rg = secretRg }, ct);
+        var edited = await SaveStudent.UpdateAsync(db, new FixedClock(), Requests(db), created.StudentId!.Value, Valid(approved: true) with { Rg = secretRg }, ct);
 
         Assert.False(invalid.Succeeded);
         Assert.True(created.Succeeded);
@@ -164,7 +164,7 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
 
         foreach (var email in new[] { "sem-arroba", "Maria Souza <maria@example.org>", "maria@example.org, outra@example.org", tooLong })
         {
-            var result = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Valid() with { GuardianEmail = email }, ct);
+            var result = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Requests(db), Valid() with { GuardianEmail = email }, ct);
 
             var error = Assert.Single(result.Errors);
             Assert.Equal("GuardianEmail", error.Key);
@@ -182,9 +182,9 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
         var user = new FakeUser(RoleNames.Admin, _unitA.Id);
         await using var db = NewContext(user);
 
-        var first = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Valid() with { GuardianEmail = Email }, ct);
+        var first = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Requests(db), Valid() with { GuardianEmail = Email }, ct);
         var sibling = await SaveStudent.CreateAsync(
-            db, user, new FixedClock(), new StudentAccounts(db), Valid() with { FullName = "Bia Souza", GuardianEmail = $" {Email} " }, ct);
+            db, user, new FixedClock(), new StudentAccounts(db), Requests(db), Valid() with { FullName = "Bia Souza", GuardianEmail = $" {Email} " }, ct);
 
         Assert.True(first.Succeeded);
         Assert.True(sibling.Succeeded); // irmãos: o mesmo responsável
@@ -209,8 +209,8 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
         await using var db = NewContext(new FakeUser(RoleNames.Admin, _unitB.Id));
 
         var legacy = await SaveStudent.LoadAsync(db, _studentB, ct); // o Caio foi criado sem e-mail do responsável
-        var missing = await SaveStudent.UpdateAsync(db, new FixedClock(), _studentB, Valid() with { GuardianEmail = null }, ct);
-        var saved = await SaveStudent.UpdateAsync(db, new FixedClock(), _studentB, Valid() with { GuardianEmail = "novo.responsavel@example.org" }, ct);
+        var missing = await SaveStudent.UpdateAsync(db, new FixedClock(), Requests(db), _studentB, Valid() with { GuardianEmail = null }, ct);
+        var saved = await SaveStudent.UpdateAsync(db, new FixedClock(), Requests(db), _studentB, Valid() with { GuardianEmail = "novo.responsavel@example.org" }, ct);
 
         Assert.Null(legacy!.GuardianEmail);
         Assert.Equal(["GuardianEmail"], missing!.Errors.Keys);
@@ -227,7 +227,7 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         await using var db = NewContext(new FakeUser(RoleNames.Master, null));
 
-        var result = await SaveStudent.CreateAsync(db, new FakeUser(RoleNames.Master, null), new FixedClock(), new StudentAccounts(db), Valid(), ct);
+        var result = await SaveStudent.CreateAsync(db, new FakeUser(RoleNames.Master, null), new FixedClock(), new StudentAccounts(db), Requests(db), Valid(), ct);
 
         Assert.False(result.Succeeded);
         Assert.Contains("Unidade", result.Errors.Keys);
@@ -239,16 +239,16 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var user = new FakeUser(RoleNames.Admin, _unitA.Id);
         await using var db = NewContext(user);
-        var created = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Valid(), ct);
+        var created = await SaveStudent.CreateAsync(db, user, new FixedClock(), new StudentAccounts(db), Requests(db), Valid(), ct);
 
-        var edited = await SaveStudent.UpdateAsync(db, new FixedClock(), created.StudentId!.Value,
+        var edited = await SaveStudent.UpdateAsync(db, new FixedClock(), Requests(db), created.StudentId!.Value,
             Valid(approved: true) with { FullName = "Ana Souza Lima", ClassName = "5A" }, ct);
 
         Assert.True(edited!.Succeeded);
         await using var read = NewContext(user);
         var form = await SaveStudent.LoadAsync(read, created.StudentId.Value, ct);
         Assert.Equal(("Ana Souza Lima", "5A", true), (form!.FullName, form.ClassName, form.GuardianApproved));
-        var invalid = await SaveStudent.UpdateAsync(db, new FixedClock(), created.StudentId.Value, Valid() with { Cpf = "000" }, ct);
+        var invalid = await SaveStudent.UpdateAsync(db, new FixedClock(), Requests(db), created.StudentId.Value, Valid() with { Cpf = "000" }, ct);
         Assert.Equal(["Cpf"], invalid!.Errors.Keys);
     }
 
@@ -259,7 +259,7 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
         await using var db = NewContext(new FakeUser(RoleNames.Admin, _unitA.Id));
 
         Assert.Null(await SaveStudent.LoadAsync(db, _studentB, ct));
-        Assert.Null(await SaveStudent.UpdateAsync(db, new FixedClock(), _studentB, Valid(), ct));
+        Assert.Null(await SaveStudent.UpdateAsync(db, new FixedClock(), Requests(db), _studentB, Valid(), ct));
     }
 
     [Fact]
@@ -303,6 +303,9 @@ public class StudentFormTests(PostgresFixture postgres) : IAsyncLifetime
 
         Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
     }
+
+    private static StudentAccessRequests Requests(AppDbContext db) =>
+        new(new JobQueue(db, new FixedClock()), new StudentAccessJobs(db), new StudentAccounts(db), new FixedClock());
 
     private AppDbContext NewContext(ICurrentUser user, ILoggerFactory? loggerFactory = null)
     {
