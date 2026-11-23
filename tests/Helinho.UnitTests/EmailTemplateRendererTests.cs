@@ -34,7 +34,8 @@ public class EmailTemplateRendererTests
             "Defina a sua senha em até 72 horas para entrar no painel.", "Marina Teste", "Unidade Norte (fictícia)", "72 horas"),
         new EmailScenario(
             new PasswordResetEmail(UserId, Token, TimeSpan.FromHours(1)), true,
-            "Use o link em até 1 hora para criar uma nova senha.", "vale por 1 hora e"),
+            "Use o link em até 1 hora para criar uma nova senha.", "vale por 1 hora, contada do envio desta mensagem, e só pode ser usado uma vez.",
+            "use o link de qualquer uma delas: quando um é usado, os outros deixam de valer.", "a sua senha continua a mesma"),
         new EmailScenario(
             new PasswordChangedEmail("Marina Teste"), false,
             "Se não foi você, avise a FUNDHAS.", "Marina Teste", "Se foi você, não precisa fazer nada."),
