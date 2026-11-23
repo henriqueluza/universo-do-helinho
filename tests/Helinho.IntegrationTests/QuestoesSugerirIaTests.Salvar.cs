@@ -13,6 +13,9 @@ namespace Helinho.IntegrationTests;
 /// <summary>Issues #288 e #295: confirmação, falhas, cota e o salvar com origem IA do Sugerir (ADR-0004 §9.3 e §15). Arquivo da segunda entrega (Issue #303).</summary>
 public partial class QuestoesSugerirIaTests
 {
+    [GeneratedRegex("name=\"AiJobId\" value=\"([^\"]+)\"")]
+    private static partial Regex JobPattern();
+
     [Fact]
     public async Task Com_texto_ja_digitado_pede_confirmacao_e_so_troca_com_ela()
     {
@@ -71,5 +74,68 @@ public partial class QuestoesSugerirIaTests
         Assert.Contains("ai-filled", first.Html, StringComparison.Ordinal);
         Assert.Equal(1, shared.Generator.Calls);
         Assert.Contains("Você chegou ao limite de sugestões da IA por hoje. Tente mais tarde.", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Salvar_com_o_pedido_do_Sugerir_grava_origem_IA_e_sem_ele_ou_de_outra_pessoa_nasce_da_equipe()
+    {
+        var factory = await StartAsync(draft: Draft("Qual é a pergunta salva com origem IA no teste?"));
+        using var ana = factory.CreateClientAs(RoleNames.Admin, name: "Ana");
+        using var bia = factory.CreateClientAs(RoleNames.Admin, name: "Bia");
+        var suggested = await PostAsync(ana, Sugerir, Form());
+        var jobId = JobPattern().Match(suggested.Raw).Groups[1].Value;
+
+        Dictionary<string, string> Save(string statement, string? job)
+        {
+            var fields = Form(statement);
+            fields["Input.OptionA"] = "Um";
+            fields["Input.OptionB"] = "Dois";
+            fields["Input.OptionC"] = "Três";
+            fields["Input.OptionD"] = "Quatro";
+            fields["Input.Correct"] = "2";
+            fields["Input.Explanation"] = "Explicação.";
+            if (job is not null)
+            {
+                fields["AiJobId"] = job;
+            }
+
+            return fields;
+        }
+
+        var viaAi = await PostAsync(ana, Url, Save("Qual é a pergunta salva com origem IA no teste?", jobId));
+        var semPedido = await PostAsync(ana, Url, Save("Qual é a pergunta da equipe sem pedido?", null));
+        var deOutraPessoa = await PostAsync(bia, Url, Save("Qual é a pergunta da equipe com pedido alheio?", jobId));
+
+        Assert.All(new[] { viaAi.Status, semPedido.Status, deOutraPessoa.Status }, s => Assert.Equal(HttpStatusCode.Redirect, s));
+        await using var scope = factory.Services.CreateAsyncScope();
+        var questions = await scope.ServiceProvider.GetRequiredService<AppDbContext>().Questions.AsNoTracking().ToListAsync(Ct);
+        var ai = questions.Single(q => q.Statement.Contains("origem IA", StringComparison.Ordinal));
+        Assert.Equal((QuestionOrigin.Ai, QuestionStatus.Draft, Guid.Parse(jobId)), (ai.Origin, ai.Status, ai.AiJobId.GetValueOrDefault()));
+        Assert.Equal(QuestionOrigin.Team, questions.Single(q => q.Statement.Contains("sem pedido", StringComparison.Ordinal)).Origin);
+        Assert.Equal(QuestionOrigin.Team, questions.Single(q => q.Statement.Contains("pedido alheio", StringComparison.Ordinal)).Origin);
+    }
+
+    [Fact]
+    public async Task Ao_editar_questao_existente_nao_ha_Sugerir_e_o_handler_responde_404()
+    {
+        var factory = await StartAsync(draft: Draft("Qual é a pergunta que não deve ser pedida ao editar?"));
+        Guid id;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var question = new Question(QuizType.Cultural, AgeBand.Age6To7, "Qual é a questão existente do teste de edição?", "Explicação.", [("A", true), ("B", false), ("C", false), ("D", false)]);
+            db.Questions.Add(question);
+            await db.SaveChangesAsync(Ct);
+            id = question.Id;
+        }
+
+        using var client = factory.CreateClientAs(RoleNames.Admin);
+        var page = await client.GetStringAsync($"{Url}/{id}", Ct);
+        var token = TokenPattern().Match(page).Groups[1].Value;
+        var post = await client.PostAsync($"{Url}/{id}?handler=Sugerir", new FormUrlEncodedContent(new Dictionary<string, string> { ["__RequestVerificationToken"] = token }), Ct);
+
+        Assert.DoesNotContain("ai-help", page, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.NotFound, post.StatusCode);
+        Assert.Equal(0, shared.Generator.Calls);
     }
 }
