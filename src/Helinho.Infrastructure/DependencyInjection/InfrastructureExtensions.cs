@@ -22,7 +22,6 @@ public static class InfrastructureExtensions
         services.AddScoped<ISeeder, PeopleSeeder>();
         services.AddScoped<ISeeder, ContentSeeder>();
         services.AddScoped<ISeeder, HistorySeeder>();
-        services.AddQuestionDraftGeneration();
         return services;
     }
 }

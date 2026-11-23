@@ -7,7 +7,6 @@ public static class Areas
     {
         services.AddHospedagem().AddIdentidade().AddApiHome().AddApiPerfil().AddApiQuiz()
             .AddPainelAlunos().AddPainelConteudo().AddPainelEngajamento().AddGestao();
-        services.AddIa();
         return services;
     }
 
