@@ -11,7 +11,7 @@ public partial class PanelIconesTests(PostgresFixture postgres)
     [
         "i-dash", "i-alunos", "i-unid", "i-adm", "i-quest", "i-event", "i-miss", "i-desemp", "i-alert", "i-x",
         "i-go", "i-menu", "i-star", "i-spark", "i-up", "i-down", "i-table", "i-clock", "i-target", "i-play",
-        "i-moon", "i-plus", "i-back", "i-ok", "i-info", "i-lock",
+        "i-moon", "i-plus", "i-back", "i-ok", "i-info", "i-lock", "i-ai", "i-edit",
     ];
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
