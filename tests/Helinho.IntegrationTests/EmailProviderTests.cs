@@ -92,6 +92,7 @@ public class EmailProviderTests(PostgresFixture postgres)
     [Theory]
     [InlineData("Brevo", "Brevo:ApiKey", "")]
     [InlineData("Brevo", "Brevo:ApiKey", "chave com espaco")]
+    [InlineData("Brevo", "Brevo:ApiKey", "chave\r\ninjetada: valor")]
     [InlineData("Brevo", "Brevo:SenderEmail", "")]
     [InlineData("Brevo", "Brevo:SenderEmail", "Nome <nao-responda@example.org>")]
     [InlineData("Brevo", "Brevo:SenderEmail", "nao-e-email")]
