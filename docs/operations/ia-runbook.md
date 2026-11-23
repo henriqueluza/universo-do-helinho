@@ -79,7 +79,7 @@ O modelo vem **sempre** de `Ai__Model`; o código não tem nome de modelo.
 - **Exemplo de 22/11/2026:** `claude-haiku-5-5` (Claude Haiku 5.5, lançado em 07/10/2026, aposentadoria "não antes de 07/10/2027", ADR-0004 §6.1). Esse é um valor **datado**, não uma instrução.
 - **No dia de ligar:** abra a página de modelos da Anthropic (`https://platform.claude.com/docs/en/about-claude/models/overview`), confira o identificador exato do Haiku atual e use-o letra por letra.
 - **Nunca use apelido `latest`** nem identificador que termine em `latest`: o Terraform recusa no `plan`, e o modelo trocaria sozinho sob a aplicação. Modelos são aposentados; a troca é mudança de configuração, anotada.
-- O modelo que respondeu fica gravado em cada pedido (quando a tela e a migração existirem), então dá para saber depois qual rodou.
+- O modelo que respondeu fica gravado em cada pedido (a tabela `AiGenerationJobs` existe; falta a tela que grava), então dá para saber depois qual rodou.
 
 ## 3. Ligar pelo Terraform
 
@@ -228,7 +228,7 @@ O runbook descreve o que **vale hoje**. Para não prometer o que o código não 
 | Validador e analisador da saída (#236, #246) | Fora da branch padrão | Sem eles o adaptador não entra |
 | Adaptador da Anthropic, repetição, registro na porta (#249, #251, #250) | Escritos, fora da branch padrão; **nunca falaram com a API real** | A primeira chamada real é o teste de fumaça deste runbook, quando a UI existir |
 | Variáveis `Ai__*` no Terraform (PR #233) | Aprovado, **não mesclado** | O passo 3 só funciona depois do merge |
-| **Migração** `AddAiQuestionDrafts` (`AiGenerationJobs`, `AiQuestionSuggestions`, proveniência em `Question`, #257) | Escrita; vale no próximo deploy | As tabelas existem, mas nada grava nelas ainda: sem casos de uso, não há registro de uso, cota nem sugestões |
+| **Migração** `AddAiQuestionDrafts` (`AiGenerationJobs`, `AiQuestionSuggestions`, proveniência em `Question`, #257) | No PR da #257; entra no pre-deploy `migrate` do primeiro deploy depois do merge | As tabelas existem, mas nada grava nelas ainda: sem casos de uso, não há registro de uso, cota nem sugestões |
 | **Casos de uso** (`RequestAiDrafts`, tratador na fila, aprovar, descartar, editar, "Sugerir") | Não existem | Cotas ainda **não são cobradas**; os limites da seção 5 são só configuração |
 | **Fila** (`QueueJobs`) e worker (ADR-0003, #223 e #228) | Não existem | Sem a fila, nada chama o gerador |
 | **Telas `/questoes/ia`**, selo "IA", filtro de origem, botão "Gerar com IA", filtro 404 com `Off` | Em construção | A conferência de ponta a ponta ([4.2](#42-quando-a-ui-entrar-a-completar)) e a mensagem de cada motivo na tela serão escritas quando a UI entrar |
