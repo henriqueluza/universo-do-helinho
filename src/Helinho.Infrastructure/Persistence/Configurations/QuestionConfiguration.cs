@@ -15,10 +15,6 @@ internal sealed class QuestionConfiguration : IEntityTypeConfiguration<Question>
         b.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
         b.Property(x => x.Statement).HasMaxLength(500);
         b.Property(x => x.Explanation).HasMaxLength(1000);
-        // Proveniência (ADR-0004 §9.2). As linhas que já existiam recebem Team pelo padrão da coluna.
-        b.Property(x => x.Origin).HasConversion<string>().HasMaxLength(20).HasDefaultValue(QuestionOrigin.Team);
-        b.Property(x => x.PromptVersion).HasMaxLength(Question.PromptVersionMax);
-        b.HasOne<AiGenerationJob>().WithMany().HasForeignKey(x => x.AiJobId).OnDelete(DeleteBehavior.Restrict);
         b.HasMany(x => x.Options).WithOne().HasForeignKey(o => o.QuestionId).OnDelete(DeleteBehavior.Cascade);
         b.Navigation(x => x.Options).UsePropertyAccessMode(PropertyAccessMode.Field);
     }

@@ -59,6 +59,21 @@ Aplicar migração e gravar dados sintéticos são passos separados. Os dois com
 | `LoginRateLimit` | `10` | Requisições a `/api/login` por IP por janela |
 | `LoginRateWindow` | `00:01:00` | Janela do limite de taxa |
 
+## Envio de e-mail: `Fake` ou Brevo
+
+O padrão é `Email__Provider=Fake`: nenhum e-mail sai e o log registra só o fato do envio. Com `Email__Provider=Brevo`, o envio usa a API transacional da Brevo e a aplicação **não sobe** se faltar alguma destas variáveis (a mensagem de erro nomeia a variável, nunca o valor):
+
+| Variável | Regra com `Brevo` |
+|---|---|
+| `Brevo__ApiKey` | obrigatória; segredo, só por variável de ambiente |
+| `Brevo__SenderEmail` | obrigatório; e-mail válido de um remetente verificado na Brevo |
+| `Brevo__SenderName` | obrigatório; até 70 caracteres |
+| `App__PublicBaseUrl` | obrigatória; URL `https` absoluta, sem caminho nem query |
+
+Qualquer outro valor em `Email__Provider` também derruba a subida. Em `Development` o provedor é sempre `Fake`, mesmo com `Email__Provider=Brevo` no ambiente; a aplicação avisa no log que ignorou a configuração. Decisões no ADR-0003 (`docs/architecture/ADR-0003-emails-brevo.md`).
+
+**Caixa de saída de desenvolvimento.** Em `Development`, entre como master e abra `/Dev/CaixaDeSaida`: a página lista os últimos 20 e-mails que o envio `Fake` recebeu (destinatário, assunto, hora, texto e HTML), para abrir um link de convite ou de redefinição sem a Brevo. As mensagens ficam só na memória e somem quando a aplicação reinicia. Fora de `Development` a rota não existe (404) e o `Fake` não guarda nada.
+
 ## Atrás do proxy (Railway): HTTPS, HSTS e IP do cliente
 
 A Railway termina o TLS e entrega a requisição em HTTP ao contêiner. Fora de `Development` (`ASPNETCORE_ENVIRONMENT` diferente de `Development`) a aplicação sempre:
@@ -103,10 +118,11 @@ A IA sugere rascunhos de questões e a equipe decide (ADR-0004). **O padrão é 
 A homologação roda na Railway e é descrita pelo Terraform de `infra/railway/`. **Só o Henrique** cria token, roda `terraform plan` e `apply` e publica; agentes e o CI não fazem deploy.
 
 - Passo a passo (token, `apply`, primeiro deploy, rollback, backup, rotação e destruição): [`docs/operations/railway-runbook.md`](docs/operations/railway-runbook.md)
+- Envio real de e-mails (conta Brevo, domínio, remetente, chave de API e variáveis na Railway): [`docs/operations/brevo-runbook.md`](docs/operations/brevo-runbook.md)
 - O que está no ar, URLs e usuários sintéticos de teste (sem senha): [`docs/operations/ambientes.md`](docs/operations/ambientes.md)
 - Decisão de hospedagem e custos: `docs/architecture/ADR-0002-hospedagem-railway.md` e `docs/operations/custos.md`
 
-Publicar uma versão: merge na `main` e, no painel da Railway, serviço `helinho-web` → `Cmd+K` → **Deploy Latest Commit**. Push na `main` não publica sozinho. Produção está desligada.
+Publicar uma versão: merge na `main`. Em homologação o auto-deploy está ligado (decisão D3, 22/11/2026): a Railway publica sozinha, **sem esperar build nem testes** (risco aceito só para homologação; ver o [runbook](docs/operations/railway-runbook.md#81-o-que-dispara-um-deploy-e-como-conferir)). Produção está desligada.
 
 ## Como testar
 

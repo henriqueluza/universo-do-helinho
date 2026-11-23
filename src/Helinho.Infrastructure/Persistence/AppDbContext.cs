@@ -61,10 +61,6 @@ public partial class AppDbContext(DbContextOptions<AppDbContext> options, ICurre
 
     public DbSet<PushToken> PushTokens => Set<PushToken>();
 
-    public DbSet<AiGenerationJob> AiGenerationJobs => Set<AiGenerationJob>();
-
-    public DbSet<AiQuestionSuggestion> AiQuestionSuggestions => Set<AiQuestionSuggestion>();
-
     /// <summary>Chaves do Data Protection (ADR-0002 §9). Infraestrutura: fora de <see cref="IAppDbContext"/>, de DTOs e de rotas.</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 

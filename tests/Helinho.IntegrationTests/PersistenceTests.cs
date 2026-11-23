@@ -36,11 +36,10 @@ public class PersistenceTests(PostgresFixture postgres)
 
         Assert.False(db.Database.HasPendingModelChanges());
         // Exceções ao schema congelado: AddDataProtectionKeys (Issue #103, ADR-0002 §9); AddQueueJobs (Issue #223, ADR-0003 §5)
-        // e AddStudentGuardianEmail (Issue #235, ADR-0003 §9), decisões D1, D5 e D15 aceitas em 22/11/2026;
-        // AddAiQuestionDrafts (Issue #257, ADR-0004 §9.2): a migração única da IA, D2 e D5 aceitas em 22/11/2026.
+        // e AddStudentGuardianEmail (Issue #235, ADR-0003 §9), decisões D1, D5 e D15 aceitas em 22/11/2026.
         Assert.Equal(
             ["20261110034535_InitialCreate", "20261119015853_AddDataProtectionKeys", "20261122233915_AddQueueJobs",
-                "20261123003244_AddStudentGuardianEmail", "20261123011145_AddAiQuestionDrafts"],
+                "20261123003244_AddStudentGuardianEmail"],
             db.Database.GetMigrations());
     }
 
