@@ -94,7 +94,8 @@ public sealed record QuestionDraftRequest(
         }
     });
 
-    private static bool IsSeparatorOrHidden(char c) => char.IsControl(c) || char.IsWhiteSpace(c)
+    /// <summary>Controle, espaço de qualquer tipo, invisível ou de direção, substituto, uso privado ou não atribuído. Também usado pelo montador.</summary>
+    public static bool IsSeparatorOrHidden(char c) => char.IsControl(c) || char.IsWhiteSpace(c)
         || char.GetUnicodeCategory(c) is UnicodeCategory.Format or UnicodeCategory.Surrogate
             or UnicodeCategory.PrivateUse or UnicodeCategory.OtherNotAssigned;
 
