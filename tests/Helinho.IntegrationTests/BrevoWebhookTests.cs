@@ -5,7 +5,6 @@ using Helinho.Application.Email;
 using Helinho.Infrastructure.Persistence;
 using Helinho.Web.Composition;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -16,9 +15,8 @@ using Microsoft.Extensions.Options;
 namespace Helinho.IntegrationTests;
 
 /// <summary>
-/// Issue #265: rota do webhook da Brevo (ADR-0003 §12, D18) com o segredo configurado. Dados sintéticos; nenhuma chamada
-/// à Brevo. A gravação em si é coberta na #277. As chamadas sem IP próprio dividem a mesma cota de 60 por minuto: a
-/// classe inteira faz bem menos que isso.
+/// Issue #265: rota do webhook da Brevo (ADR-0003 §12, D18) com o segredo configurado; a gravação é coberta na #277.
+/// Dados sintéticos. As chamadas sem IP próprio dividem a cota de 60 por minuto: a classe faz bem menos que isso.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host shared) : IClassFixture<BrevoWebhookTests.Host>
@@ -66,19 +64,9 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
         public ValueTask DisposeAsync() => _factory?.DisposeAsync() ?? ValueTask.CompletedTask;
     }
 
-    /// <summary>Corpo sem <c>Content-Length</c>, como numa requisição em pedaços.</summary>
-    private sealed class SemTamanho(byte[] bytes) : HttpContent
-    {
-        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) => stream.WriteAsync(bytes).AsTask();
-
-        protected override bool TryComputeLength(out long length) => (length = 0) != 0;
-    }
-
-    private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
-
     /// <summary>Corpo como o da Brevo, com os campos que a rota não pode gravar nem logar.</summary>
-    private static StringContent Evento(string nome, string messageId) => Json(
-        $$"""{"event":"{{nome}}","message-id":"{{messageId}}","email":"responsavel@example.com","subject":"Assunto sintético","reason":"motivo-sintetico"}""");
+    private static StringContent Evento(string nome, string messageId) => new(
+        $$"""{"event":"{{nome}}","message-id":"{{messageId}}","email":"responsavel@example.com","subject":"Assunto sintético","reason":"motivo-sintetico"}""", Encoding.UTF8, "application/json");
 
     /// <summary>Trabalho de e-mail já enviado; o <c>ExternalId</c>, que é do trabalhador gravar, vai direto no banco.</summary>
     private async Task<(Guid Job, string MessageId)> TrabalhoEnviadoAsync()
@@ -108,7 +96,8 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
             request.Headers.Add(BrevoWebhookArea.SecretHeader, segredo);
         }
 
-        using var response = await (await shared.GetAsync(postgres)).CreateClient().SendAsync(request, Ct);
+        // Cliente sem o tratador de redirecionamento, que copia o corpo e recalcula o Content-Length.
+        using var response = await (await shared.GetAsync(postgres)).CreateDefaultClient().SendAsync(request, Ct);
 
         Assert.Equal(esperado, response.StatusCode);
         Assert.Empty(await response.Content.ReadAsStringAsync(Ct));
@@ -132,40 +121,38 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
         Assert.Null(await RetornoAsync(outro));
     }
 
+    /// <summary>Evento fora da lista, id desconhecido e JSON de outro formato: 200. O que não é JSON: 400. Nada é gravado.</summary>
     [Theory]
-    [InlineData("""{"event":"delivered","message-id":"ID"}""")]
-    [InlineData("""{"event":"soft_bounce","message-id":"ID"}""")]
-    [InlineData("""{"event":"hard_bounce","message-id":"desconhecido-ID"}""")]
-    [InlineData("""{"event":"hard_bounce","message-id":7}""")]
-    [InlineData("""{"event":["hard_bounce"],"message-id":"ID"}""")]
-    [InlineData("""[{"event":"hard_bounce","message-id":"ID"}]""")]
-    [InlineData("{}")]
-    public async Task Evento_fora_da_lista_corpo_de_outro_formato_e_message_id_desconhecido_respondem_200_sem_efeito(string corpo)
+    [InlineData(HttpStatusCode.OK, """{"event":"delivered","message-id":"ID"}""")]
+    [InlineData(HttpStatusCode.OK, """{"event":"soft_bounce","message-id":"ID"}""")]
+    [InlineData(HttpStatusCode.OK, """{"event":"hard_bounce","message-id":"desconhecido-ID"}""")]
+    [InlineData(HttpStatusCode.OK, """{"event":"hard_bounce","message-id":7}""")]
+    [InlineData(HttpStatusCode.OK, """{"event":["hard_bounce"],"message-id":"ID"}""")]
+    [InlineData(HttpStatusCode.OK, """[{"event":"hard_bounce","message-id":"ID"}]""")]
+    [InlineData(HttpStatusCode.OK, "{}")]
+    [InlineData(HttpStatusCode.BadRequest, "")]
+    [InlineData(HttpStatusCode.BadRequest, "event=hard_bounce&message-id=ID")]
+    [InlineData(HttpStatusCode.BadRequest, """{"event":"hard_bounce","message-id":"ID" """)]
+    public async Task Corpo_sem_efeito_responde_200_se_e_JSON_e_400_se_nao_e_e_nada_e_gravado(HttpStatusCode esperado, string corpo)
     {
         var (job, messageId) = await TrabalhoEnviadoAsync();
 
-        await ChamarAsync(HttpStatusCode.OK, Json(corpo.Replace("ID", messageId, StringComparison.Ordinal)), Secret);
+        // Vai como text/plain: a rota não depende do Content-Type, que a Brevo não documenta (ADR-0003 §17).
+        await ChamarAsync(esperado, new StringContent(corpo.Replace("ID", messageId, StringComparison.Ordinal)), Secret);
 
         Assert.Null(await RetornoAsync(job));
     }
 
-    [Theory]
-    [InlineData("ausente")]
-    [InlineData("outro")]
-    [InlineData("sem o último caractere")]
-    [InlineData("com um caractere a mais")]
-    public async Task Segredo_ausente_ou_errado_responde_401_sem_corpo_e_nada_e_gravado(string caso)
+    [Fact]
+    public async Task Segredo_ausente_ou_errado_responde_401_sem_corpo_e_nada_e_gravado()
     {
-        var segredo = caso switch
-        {
-            "ausente" => null,
-            "outro" => $"{Guid.NewGuid():N}",
-            "sem o último caractere" => Secret[..^1],
-            _ => Secret + "0",
-        };
         var (job, messageId) = await TrabalhoEnviadoAsync();
+        string?[] errados = [null, $"{Guid.NewGuid():N}", Secret[..^1], Secret + "0"]; // ausente, outro, um caractere a menos, um a mais
 
-        await ChamarAsync(HttpStatusCode.Unauthorized, Evento(EmailFeedback.HardBounce, messageId), segredo);
+        foreach (var segredo in errados)
+        {
+            await ChamarAsync(HttpStatusCode.Unauthorized, Evento(EmailFeedback.HardBounce, messageId), segredo);
+        }
 
         Assert.Null(await RetornoAsync(job));
     }
@@ -176,30 +163,15 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
     public async Task Corpo_acima_de_64_KB_responde_413_com_ou_sem_Content_Length_e_no_limite_exato_passa(bool comTamanho)
     {
         var (job, messageId) = await TrabalhoEnviadoAsync();
-        HttpContent Corpo(int bytes)
-        {
-            var conteudo = Encoding.UTF8.GetBytes($$"""{"event":"blocked","message-id":"{{messageId}}"}""".PadRight(bytes));
-            return comTamanho ? new ByteArrayContent(conteudo) : new SemTamanho(conteudo);
-        }
+        // Content-Length anulado de propósito: o corpo segue em pedaços, e só a leitura descobre o tamanho.
+        var evento = $$"""{"event":"blocked","message-id":"{{messageId}}"}""";
+        ByteArrayContent Corpo(int bytes) => new(Encoding.UTF8.GetBytes(evento.PadRight(bytes))) { Headers = { ContentLength = comTamanho ? bytes : null } };
 
         await ChamarAsync(HttpStatusCode.RequestEntityTooLarge, Corpo(BrevoWebhookArea.MaxBodyBytes + 1), Secret);
         Assert.Null(await RetornoAsync(job));
 
         await ChamarAsync(HttpStatusCode.OK, Corpo(BrevoWebhookArea.MaxBodyBytes), Secret);
         Assert.Equal(EmailFeedback.Blocked, await RetornoAsync(job));
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("event=hard_bounce&message-id=ID")]
-    [InlineData("""{"event":"hard_bounce","message-id":"ID" """)]
-    public async Task Corpo_que_nao_e_JSON_responde_400_sem_detalhe_e_nada_e_gravado(string corpo)
-    {
-        var (job, messageId) = await TrabalhoEnviadoAsync();
-
-        await ChamarAsync(HttpStatusCode.BadRequest, Json(corpo.Replace("ID", messageId, StringComparison.Ordinal)), Secret);
-
-        Assert.Null(await RetornoAsync(job));
     }
 
     [Fact]
@@ -222,20 +194,19 @@ public class BrevoWebhookTests(PostgresFixture postgres, BrevoWebhookTests.Host 
     public async Task A_61a_chamada_do_mesmo_IP_no_minuto_responde_429_antes_de_conferir_o_segredo()
     {
         var server = (await shared.GetAsync(postgres)).Server;
-        var ip = IPAddress.Parse("203.0.113.61"); // faixa de documentação; cota própria, separada da dos outros testes
         async Task<int> ChamarSemSegredoAsync() => (await server.SendAsync(context =>
         {
-            context.Request.Method = HttpMethods.Post;
+            context.Request.Method = HttpMethod.Post.Method;
             context.Request.Path = BrevoWebhookArea.Route;
-            context.Connection.RemoteIpAddress = ip;
+            context.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.61"); // IP de documentação, com cota própria
         }, Ct)).Response.StatusCode;
 
         for (var chamada = 1; chamada <= BrevoWebhookArea.CallsPerMinute; chamada++)
         {
-            Assert.Equal(StatusCodes.Status401Unauthorized, await ChamarSemSegredoAsync());
+            Assert.Equal((int)HttpStatusCode.Unauthorized, await ChamarSemSegredoAsync());
         }
 
-        Assert.Equal(StatusCodes.Status429TooManyRequests, await ChamarSemSegredoAsync());
+        Assert.Equal((int)HttpStatusCode.TooManyRequests, await ChamarSemSegredoAsync());
     }
 
     [Fact]
@@ -255,9 +226,8 @@ public class BrevoWebhookConfiguracaoTests(PostgresFixture postgres)
     public async Task Sem_segredo_configurado_a_rota_nao_existe()
     {
         await using var factory = new HelinhoWebFactory(postgres);
-        using var content = new StringContent("{}");
 
-        using var response = await factory.CreateClient().PostAsync(new Uri(BrevoWebhookArea.Route, UriKind.Relative), content, TestContext.Current.CancellationToken);
+        using var response = await factory.CreateClient().PostAsync(new Uri(BrevoWebhookArea.Route, UriKind.Relative), null, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
