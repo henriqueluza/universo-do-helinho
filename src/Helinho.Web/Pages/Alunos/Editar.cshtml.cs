@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Helinho.Web.Pages.Alunos;
 
-public sealed partial class EditarModel(
+public sealed class EditarModel(
     IAppDbContext db, ICurrentUser user, IClock clock, StudentAccessRequests requests, IStudentAccounts accounts, ILogger<EditarModel> logger)
     : StudentFormPage
 {
@@ -33,10 +33,15 @@ public sealed partial class EditarModel(
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
-        var result = await SaveStudent.UpdateAsync(db, clock, Id, Input.ToForm(), cancellationToken);
+        var result = await SaveStudent.UpdateAsync(db, clock, requests, Id, Input.ToForm(), cancellationToken);
         if (result is null)
         {
             return NotFound();
+        }
+
+        if (result.AccessQueued)
+        {
+            StudentAccessAudit.AccessQueued(logger, Id, user.UserId);
         }
 
         if (result.Succeeded)
@@ -60,7 +65,7 @@ public sealed partial class EditarModel(
 
         if (result == SendStudentAccessResult.Queued)
         {
-            LogAcessoEnfileirado(logger, Id, user.UserId);
+            StudentAccessAudit.AccessQueued(logger, Id, user.UserId);
             TempData[AccessQueuedKey] = true;
         }
 
@@ -82,8 +87,4 @@ public sealed partial class EditarModel(
         Access = access;
         return true;
     }
-
-    // Auditoria (ADR-0003 §11.4, T13): só ids, nunca nome, matrícula ou endereço.
-    [LoggerMessage(Level = LogLevel.Information, Message = "Acesso do aluno {StudentId} enfileirado pelo usuário {UserId}.")]
-    private static partial void LogAcessoEnfileirado(ILogger logger, Guid studentId, Guid? userId);
 }

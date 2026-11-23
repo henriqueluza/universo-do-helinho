@@ -14,7 +14,7 @@ public enum StudentAccessRequest
 /// Pedidos de acesso do aluno na fila (ADR-0003 §11.4). Só referências (§5.3): o tratador resolve o destinatário, escolhe
 /// o link pelo estado da conta e confere de novo a aprovação na hora de enviar. Nada aqui salva: quem chama grava junto (§5.5).
 /// </summary>
-public sealed class StudentAccessRequests(IJobQueue queue, IStudentAccessJobs jobs, IClock clock)
+public sealed class StudentAccessRequests(IJobQueue queue, IStudentAccessJobs jobs, IStudentAccounts accounts, IClock clock)
 {
     public const int HourlyLimit = 3;
 
@@ -39,4 +39,12 @@ public sealed class StudentAccessRequests(IJobQueue queue, IStudentAccessJobs jo
         var request = new JobRequest(EmailJobTypes.StudentAccess, studentId, new JobPayload(), ExpiresIn, key);
         return await queue.EnqueueAsync(request, cancellationToken) is null ? StudentAccessRequest.AlreadyQueued : StudentAccessRequest.Queued;
     }
+
+    /// <summary>
+    /// Gatilho da aprovação (D12): só para conta <b>sem senha</b>. Quem já tem senha e teve a aprovação desmarcada e marcada
+    /// de novo não recebe e-mail; se precisar, o administrador usa o botão. Devolve se o pedido entrou no contexto.
+    /// </summary>
+    public async Task<bool> StageOnApprovalAsync(Guid studentId, Guid userId, CancellationToken cancellationToken) =>
+        !await accounts.HasPasswordAsync(userId, cancellationToken)
+        && await StageAsync(studentId, cancellationToken) == StudentAccessRequest.Queued;
 }
