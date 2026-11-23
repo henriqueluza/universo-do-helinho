@@ -26,8 +26,10 @@ public sealed class JobProcessorTests : IAsyncLifetime
     private readonly Recorder _log = new();
     private readonly SaveCounter _saves = new();
     private readonly ConcurrentQueue<Call> _calls = new();
+    private readonly ConcurrentQueue<string> _abandoned = new();
     private readonly ServiceProvider _services;
     private Func<Call, Task<JobResult>> _handle = _ => Task.FromResult(Sent);
+    private Func<Call, Task> _onAbandoned = call => call.Queue.EnqueueAsync(Request(Follow), call.Token);
 
     public JobProcessorTests(PostgresFixture postgres)
     {
@@ -47,7 +49,7 @@ public sealed class JobProcessorTests : IAsyncLifetime
 
     private sealed record Call(JobContext Job, FakeHandler Handler, AppDbContext Db, IJobQueue Queue, CancellationToken Token);
 
-    private sealed class FakeHandler(JobProcessorTests test, IServiceProvider scope, string[] types) : IJobHandler
+    private sealed class FakeHandler(JobProcessorTests test, IServiceProvider scope, string[] types) : IJobHandler, IAbandonedJobHandler
     {
         public IReadOnlyCollection<string> Types => types;
 
@@ -58,6 +60,12 @@ public sealed class JobProcessorTests : IAsyncLifetime
             var call = NewCall(job, cancellationToken);
             test._calls.Enqueue(call);
             return test._handle(call);
+        }
+
+        public Task OnAbandonedAsync(JobContext job, string reason, CancellationToken cancellationToken)
+        {
+            test._abandoned.Enqueue(reason);
+            return test._onAbandoned(NewCall(job, cancellationToken));
         }
 
         private Call NewCall(JobContext job, CancellationToken token) =>
@@ -155,7 +163,8 @@ public sealed class JobProcessorTests : IAsyncLifetime
         Assert.All(captured, state => Assert.Equal("Processing|1||||12:02:00", state));
         Assert.Equal(3, _calls.Select(c => c.Db).Distinct().Count()); // escopo próprio por item
         var rows = await RowsAsync();
-        Assert.StartsWith("Cancelled|0|", State(rows[ids[3]]), StringComparison.Ordinal); // o cancelado nunca é capturado
+        Assert.StartsWith("Cancelled|0|", State(rows[ids[3]]), StringComparison.Ordinal); // o cancelado nunca é capturado...
+        Assert.Empty(_abandoned); // ...nem passa pelo gancho
         Assert.All(ids[4..], id => Assert.StartsWith("Pending|0|", State(rows[id]), StringComparison.Ordinal)); // tipos de outra raia
     }
 
@@ -180,6 +189,71 @@ public sealed class JobProcessorTests : IAsyncLifetime
         Assert.Equal([1, 1], batches.Select(b => b.Captured));
         Assert.Equal(ids.Order(), _calls.Select(c => c.Job.Id).Order()); // cada trabalho foi entregue uma vez só
         Assert.All((await RowsAsync()).Values, j => Assert.StartsWith("Succeeded|1|", State(j), StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Trabalho_de_processo_que_morreu_reaparece_depois_do_prazo_de_posse_com_a_tentativa_contada()
+    {
+        var id = (await EnqueueAsync(Request()))[0];
+        using var abort = new CancellationTokenSource();
+        _handle = async call =>
+        {
+            await abort.CancelAsync(); // a janela de parada do host acabou no meio do item
+            return call.Token.IsCancellationRequested ? throw new OperationCanceledException(call.Token) : Sent;
+        };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => PassAsync(abort: abort));
+        Assert.Equal("Processing|1||||12:02:00", await StateAsync(id)); // nada foi gravado
+
+        _handle = _ => Task.FromResult(Sent);
+        _time.Advance(TimeSpan.FromSeconds(119));
+        Assert.Equal(0, (await PassAsync()).Captured);
+        _time.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(1, (await PassAsync()).Captured);
+        Assert.Equal([1, 2], _calls.Select(c => c.Job.Attempts));
+    }
+
+    [Fact]
+    public async Task Sinal_de_parada_deixa_o_item_em_curso_terminar_e_nao_comeca_o_seguinte()
+    {
+        var ids = await EnqueueAsync(Request(), Request());
+        using var stopping = new CancellationTokenSource();
+        _handle = async call =>
+        {
+            await stopping.CancelAsync();
+            Assert.False(call.Token.IsCancellationRequested); // o sinal de parada, sozinho, não cancela o item
+            return Sent;
+        };
+
+        await PassAsync(stopping: stopping);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => PassAsync(stopping: stopping)); // nenhum lote novo
+
+        Assert.Equal("Succeeded|1||msg-1|12:00|12:02:00", await StateAsync(ids[0]));
+        Assert.Equal("Processing|1||||12:02:00", await StateAsync(ids[1])); // reaparece pelo prazo de posse
+    }
+
+    [Fact]
+    public async Task Tempo_maximo_do_item_cancela_o_token_e_a_excecao_do_tratador_vira_repetir_sem_salvar_o_contexto()
+    {
+        var id = (await EnqueueAsync(Request()))[0];
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _handle = async call =>
+        {
+            await call.Queue.EnqueueAsync(Request(Follow), call.Token);
+            entered.SetResult();
+            await Task.Delay(Timeout.Infinite, call.Token); // só o token do item acorda o tratador
+            return Sent;
+        };
+
+        var pass = PassAsync();
+        await entered.Task;
+        _time.Advance(Email.ItemTimeout);
+        await pass;
+
+        var row = (await RowsAsync())[id];
+        Assert.StartsWith("Pending|1|handler_exception|", State(row), StringComparison.Ordinal);
+        Assert.InRange(row.NextAttemptAt, _time.GetUtcNow().AddSeconds(48), _time.GetUtcNow().AddSeconds(72)); // 1 minuto, ±20%
+        Assert.Equal(0, await FollowUpsAsync());
+        Assert.Contains(_log.Lines, l => l.Text.EndsWith("exceção TaskCanceledException.", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -247,6 +321,30 @@ public sealed class JobProcessorTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Posse_vencida_nao_grava_nada_nem_depois_de_uma_suspensao_gravada_por_quem_pegou_depois()
+    {
+        var id = (await EnqueueAsync(Request()))[0];
+        _handle = async _ =>
+        {
+            if (_calls.Count == 2)
+            {
+                return new JobResult.Suspend("http_401", TimeSpan.FromMinutes(15)); // quem pegou depois, com a tentativa 2
+            }
+
+            _time.Advance(Email.Lease); // a posse do primeiro venceu no meio do tratador
+            await PassAsync();
+            Assert.Equal("Pending|1|http_401|||12:17:00", await StateAsync(id)); // o mesmo número do primeiro, mas pendente
+            return Sent;
+        };
+
+        await PassAsync();
+
+        Assert.Equal([1, 2], _calls.Select(c => c.Job.Attempts));
+        Assert.Equal("Pending|1|http_401|||12:17:00", await StateAsync(id));
+        Assert.Contains(_log.Lines, l => l.Text.Contains("lease_lost", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Falha_na_gravacao_final_nao_e_repetida_e_o_item_reaparece_pelo_prazo_de_posse()
     {
         var id = (await EnqueueAsync(Request()))[0];
@@ -268,5 +366,43 @@ public sealed class JobProcessorTests : IAsyncLifetime
         _time.Advance(Email.Lease);
         await PassAsync();
         Assert.Equal("Succeeded|2||msg-1|12:02|12:04:00", await StateAsync(id));
+    }
+
+    [Fact]
+    public async Task Fila_encerra_o_vencido_e_o_que_passou_do_teto_e_grava_o_que_o_gancho_deixou_junto_com_o_Failed()
+    {
+        var ids = await EnqueueAsync(Request(hours: 1), Request(), Request());
+        await SqlAsync($"""UPDATE "QueueJobs" SET "Attempts" = 8 WHERE "Id" = {ids[1]}"""); // o processo morreu na última tentativa
+        await SqlAsync($"""UPDATE "QueueJobs" SET "Attempts" = 7 WHERE "Id" = {ids[2]}""");
+        _handle = _ => Task.FromResult<JobResult>(new JobResult.Retry("http_500"));
+        _time.Advance(TimeSpan.FromHours(1));
+
+        await PassAsync();
+
+        Assert.Equal(ids[2], Assert.Single(_calls).Job.Id); // só o que ainda tinha tentativa chegou ao tratador
+        Assert.Equal(["expired", "max_attempts", "max_attempts"], _abandoned);
+        Assert.Equal("Failed|1|expired||13:00|13:02:00", await StateAsync(ids[0]));
+        Assert.Equal("Failed|9|max_attempts||13:00|13:02:00", await StateAsync(ids[1]));
+        Assert.Equal("Failed|8|max_attempts||13:00|13:02:00", await StateAsync(ids[2]));
+        Assert.Equal(3, await FollowUpsAsync()); // o gancho não salva: sai na mesma gravação do Failed
+    }
+
+    [Fact]
+    public async Task Gancho_que_lanca_excecao_nao_impede_o_Failed_e_nada_do_contexto_dele_e_salvo()
+    {
+        var id = (await EnqueueAsync(Request(hours: 1)))[0];
+        _onAbandoned = async call =>
+        {
+            await call.Queue.EnqueueAsync(Request(Follow), call.Token);
+            throw new InvalidOperationException("mensagem sintética que não pode ir para o log");
+        };
+        _time.Advance(TimeSpan.FromHours(1));
+
+        await PassAsync();
+
+        Assert.Equal("Failed|1|expired||13:00|13:02:00", await StateAsync(id));
+        Assert.Equal(0, await FollowUpsAsync());
+        Assert.Contains(_log.Lines, l => l.Text.EndsWith("exceção InvalidOperationException.", StringComparison.Ordinal)); // o tipo, nunca a mensagem
+        Assert.DoesNotContain(_log.Lines, l => l.Text.Contains("sintética", StringComparison.Ordinal));
     }
 }
