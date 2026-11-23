@@ -8,12 +8,13 @@ using Helinho.Domain.Entities;
 using Helinho.Infrastructure.Email;
 using Helinho.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Helinho.IntegrationTests;
 
 /// <summary>
-/// Tratador de e-mail (#271, ADR-0003 item 8b) no host real: Identity, banco e provedores de token de verdade; só o
+/// Tratador de e-mail (#271 e #272, ADR-0003 item 8b) no host real: Identity, banco e provedores de token de verdade; só o
 /// envio é um capturador. O escopo é o do trabalhador, sem usuário de painel. Contas e alunos sintéticos.
 /// </summary>
 [Collection(PostgresCollection.Name)]
@@ -93,14 +94,45 @@ public partial class EmailTratadorTests(PostgresFixture postgres, EmailTratadorT
     private static partial Regex Link();
 
     [Fact]
-    public async Task Host_resolve_um_tratador_para_cada_tipo_de_email_sem_repeticao()
+    public async Task Host_tem_dois_registros_do_tratador_que_dividem_os_tipos_de_email_sem_repeticao()
     {
-        var types = await ComAsync(services => Task.FromResult(
-            services.GetServices<IJobHandler>().SelectMany(h => h.Types).Where(t => t.StartsWith("email.", StringComparison.Ordinal)).Order().ToList()));
+        var handlers = await ComAsync(services => Task.FromResult(services.GetServices<IJobHandler>().OfType<EmailJobHandler>().ToList()));
+        var types = handlers.SelectMany(h => h.Types).Order().ToList();
 
+        Assert.Equal(2, handlers.Count); // §15: urgentes e demais
         Assert.Equal(
             [EmailJobTypes.AdminInvite, EmailJobTypes.GuardianEmailChanged, EmailJobTypes.PasswordChanged, EmailJobTypes.PasswordReset, EmailJobTypes.StudentAccess],
             types);
+    }
+
+    [Fact]
+    public async Task Teto_diario_conta_so_os_emails_enviados_dentro_da_janela()
+    {
+        // Datas longe das dos outros testes da classe, que dividem o banco.
+        var now = new DateTimeOffset(2031, 1, 10, 12, 0, 0, TimeSpan.Zero);
+        (string Type, string Status, int HoursAgo)[] rows =
+        [
+            (EmailJobTypes.StudentAccess, "Succeeded", 1), (EmailJobTypes.PasswordReset, "Succeeded", 23), // contam
+            (EmailJobTypes.StudentAccess, "Succeeded", 25), (EmailJobTypes.AdminInvite, "Failed", 1),
+            (EmailJobTypes.AdminInvite, "Pending", 0), ("ai.question-drafts", "Succeeded", 1),
+        ];
+
+        var sent = await ComAsync(async services =>
+        {
+            var db = services.GetRequiredService<AppDbContext>();
+            foreach (var (type, status, hoursAgo) in rows)
+            {
+                var job = new QueueJob(new JobRequest(type, Guid.NewGuid(), new JobPayload(), TimeSpan.FromHours(24)), now.AddHours(-hoursAgo));
+                db.QueueJobs.Add(job);
+                await db.SaveChangesAsync(Ct);
+                DateTimeOffset? finished = status == "Pending" ? null : now.AddHours(-hoursAgo);
+                await db.Database.ExecuteSqlAsync($"""UPDATE "QueueJobs" SET "Status" = {status}, "FinishedAt" = {finished} WHERE "Id" = {job.Id}""", Ct);
+            }
+
+            return await services.GetRequiredService<IEmailDailyCount>().SentSinceAsync(now.AddHours(-24), Ct);
+        });
+
+        Assert.Equal(2, sent);
     }
 
     [Fact]

@@ -11,7 +11,9 @@ namespace Helinho.Infrastructure.Email;
 /// resultado da fila (§4.2). Não grava nada e não loga: destinatário, token e link não saem daqui.
 /// <paramref name="renderer"/> é nulo quando não há base pública (<c>App:PublicBaseUrl</c>) para montar os links.
 /// </summary>
-public sealed class EmailJobHandler(IEmailSubjects subjects, EmailTemplateRenderer? renderer, IEmailSender sender, IClock clock) : IJobHandler
+public sealed class EmailJobHandler(
+    EmailLane lane, EmailDailyLimit dailyLimit, IEmailSubjects subjects, EmailTemplateRenderer? renderer, IEmailSender sender, IClock clock)
+    : IJobHandler
 {
     public const string BaseUrlMissing = "base_url_missing";
     public const string SubjectMissing = "subject_missing";
@@ -32,11 +34,8 @@ public sealed class EmailJobHandler(IEmailSubjects subjects, EmailTemplateRender
         MaxAttempts: 8, MinBackoff: TimeSpan.FromMinutes(1), MaxBackoff: TimeSpan.FromMinutes(60),
         BatchSize: 10, ItemTimeout: BrevoEmailSender.RequestTimeout, Lease: TimeSpan.FromMinutes(2));
 
-    public IReadOnlyCollection<string> Types { get; } =
-    [
-        EmailJobTypes.AdminInvite, EmailJobTypes.PasswordReset, EmailJobTypes.PasswordChanged,
-        EmailJobTypes.StudentAccess, EmailJobTypes.GuardianEmailChanged,
-    ];
+    /// <summary>Os tipos da raia deste registro (§15): urgentes ou demais.</summary>
+    public IReadOnlyCollection<string> Types => lane.Types;
 
     public JobPolicy Policy => EmailPolicy;
 
@@ -46,6 +45,12 @@ public sealed class EmailJobHandler(IEmailSubjects subjects, EmailTemplateRender
         {
             // Problema de configuração, não da mensagem: como no erro de conta (§6.3), espera sem gastar tentativa.
             return new JobResult.Suspend(BaseUrlMissing, AccountPause);
+        }
+
+        // §15: o teto segura a mensagem antes de ler a conta e de gerar o token, para o link não vencer parado.
+        if (await dailyLimit.PauseForAsync(lane, cancellationToken) is { } pause)
+        {
+            return new JobResult.Suspend(EmailDailyLimit.Code, pause);
         }
 
         var subject = job.SubjectId is { } id ? await FindAsync(job.Type, id, cancellationToken) : null;
