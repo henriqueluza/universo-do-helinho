@@ -13,7 +13,7 @@ Só dados sintéticos fora da produção. Nenhum exemplo traz chave, e-mail ou d
 
 **O que falta.**
 1. **A chave da Anthropic e o aval da contratante** (ADR-0004 D8, o Marcos). Chegam depois. Hoje a homologação sobe em `Fake` (sugestões fictícias) e a produção em `Off`.
-2. **O resto do produto:** migração, casos de uso e telas. Ver [O que ainda não existe](#o-que-ainda-não-existe). Ligar `Anthropic` agora **não produz nenhuma questão**: não há tela nem fila que chame o gerador.
+2. **O resto do produto:** casos de uso e telas (a migração já existe, #257). Ver [O que ainda não existe](#o-que-ainda-não-existe). Ligar `Anthropic` agora **não produz nenhuma questão**: não há tela nem fila que chame o gerador.
 
 **A ordem das ações, quando a chave chegar:**
 
@@ -228,7 +228,7 @@ O runbook descreve o que **vale hoje**. Para não prometer o que o código não 
 | Validador e analisador da saída (#236, #246) | Fora da branch padrão | Sem eles o adaptador não entra |
 | Adaptador da Anthropic, repetição, registro na porta (#249, #251, #250) | Escritos, fora da branch padrão; **nunca falaram com a API real** | A primeira chamada real é o teste de fumaça deste runbook, quando a UI existir |
 | Variáveis `Ai__*` no Terraform (PR #233) | Aprovado, **não mesclado** | O passo 3 só funciona depois do merge |
-| **Migração** (`AiGenerationJobs`, `AiQuestionSuggestions`, proveniência em `Question`) | Não existe | Sem tabelas, não há registro de uso, cota nem sugestões |
+| **Migração** `AddAiQuestionDrafts` (`AiGenerationJobs`, `AiQuestionSuggestions`, proveniência em `Question`, #257) | Escrita; vale no próximo deploy | As tabelas existem, mas nada grava nelas ainda: sem casos de uso, não há registro de uso, cota nem sugestões |
 | **Casos de uso** (`RequestAiDrafts`, tratador na fila, aprovar, descartar, editar, "Sugerir") | Não existem | Cotas ainda **não são cobradas**; os limites da seção 5 são só configuração |
 | **Fila** (`QueueJobs`) e worker (ADR-0003, #223 e #228) | Não existem | Sem a fila, nada chama o gerador |
 | **Telas `/questoes/ia`**, selo "IA", filtro de origem, botão "Gerar com IA", filtro 404 com `Off` | Em construção | A conferência de ponta a ponta ([4.2](#42-quando-a-ui-entrar-a-completar)) e a mensagem de cada motivo na tela serão escritas quando a UI entrar |
