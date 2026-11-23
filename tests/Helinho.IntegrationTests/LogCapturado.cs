@@ -10,8 +10,7 @@ public sealed class LogCapturado : ILoggerProvider, ILogger
 
     public ILogger CreateLogger(string categoryName) => this;
 
-    public IDisposable? BeginScope<TState>(TState state)
-        where TState : notnull => null;
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
     public bool IsEnabled(LogLevel logLevel) => true;
 
@@ -24,7 +23,5 @@ public sealed class LogCapturado : ILoggerProvider, ILogger
         }
     }
 
-    public void Dispose()
-    {
-    }
+    public void Dispose() => Linhas.Clear();
 }

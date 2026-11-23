@@ -57,6 +57,7 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [InlineData("[data-ready-hint]")]
     [InlineData("[data-limpar-endereco]")] // definir senha (#240): tira o token da barra de endereço
     [InlineData("history.replaceState(null, '', location.pathname)")]
+    [InlineData("/[?&]token=/i.test(location.search)")] // só mexe no endereço que traz o token
     public async Task Painel_js_mantem_os_modulos_da_preview(string marcador)
     {
         var body = await GetBodyAsync();

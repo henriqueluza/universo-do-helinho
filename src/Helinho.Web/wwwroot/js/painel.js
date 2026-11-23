@@ -368,7 +368,7 @@ const calmo = () => reduz.matches;
 // Link de acesso (definir senha): tira o token da barra de endereço depois de carregar, para ele não ficar
 // no histórico do navegador (ADR-0003 §10.3). O formulário já leva o token em campo oculto.
 (() => {
-  if (!document.querySelector('[data-limpar-endereco]') || !location.search) return;
+  if (!document.querySelector('[data-limpar-endereco]') || !/[?&]token=/i.test(location.search)) return;
   try { history.replaceState(null, '', location.pathname); } catch (_) { /* sem History API: o endereço fica como veio */ }
 })();
 })();

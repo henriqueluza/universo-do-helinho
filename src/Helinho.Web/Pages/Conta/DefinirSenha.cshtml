@@ -8,7 +8,7 @@
     var formErrors = ModelState[string.Empty]?.Errors.Select(e => e.ErrorMessage).ToList() ?? [];
 }
 @* data-limpar-endereco: o painel.js tira o token da barra de endereço (ADR-0003 §10.3). O token só volta ao HTML no campo oculto. *@
-<main id="conteudo" class="bare-card" tabindex="-1" data-limpar-endereco="@(Model.Atual == DefinirSenhaModel.Etapa.Definida ? null : "")">
+<main id="conteudo" class="bare-card" tabindex="-1" data-limpar-endereco>
     <span class="face-solo"><img src="~/img/cara-helinho.webp" width="312" height="320" alt="" /></span>
     @switch (Model.Atual)
     {
@@ -54,7 +54,7 @@
                 <input type="hidden" asp-for="Token" />
                 <div class="field">
                     <label asp-for="Input.Password">Nova senha <span class="req">(obrigatório)</span></label>
-                    <input class="input" asp-for="Input.Password" autocomplete="new-password" autofocus
+                    <input class="input" asp-for="Input.Password" autocomplete="new-password" autofocus="@(passError is not null || confError is null)"
                            aria-invalid="@(passError is null ? null : "true")" aria-describedby="@(passError is null ? "senha-dica" : "Input_Password-erro senha-dica")" />
                     @if (passError is not null)
                     {
@@ -64,7 +64,7 @@
                 </div>
                 <div class="field">
                     <label asp-for="Input.Confirmation">Repita a nova senha <span class="req">(obrigatório)</span></label>
-                    <input class="input" asp-for="Input.Confirmation" autocomplete="new-password"
+                    <input class="input" asp-for="Input.Confirmation" autocomplete="new-password" autofocus="@(passError is null && confError is not null)"
                            aria-invalid="@(confError is null ? null : "true")" aria-describedby="@(confError is null ? null : "Input_Confirmation-erro")" />
                     @if (confError is not null)
                     {

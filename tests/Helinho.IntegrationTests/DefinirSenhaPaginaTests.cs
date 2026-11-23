@@ -2,16 +2,14 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Helinho.Application.Identidade;
 using Helinho.Infrastructure.Persistence;
-using Helinho.Web.Composition;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 namespace Helinho.IntegrationTests;
 
 /// <summary>Página /conta/definir-senha (#240, ADR-0003 §10.3 e §11.3). Contas e endereços de IP sintéticos.</summary>
 [Collection(PostgresCollection.Name)]
-public partial class DefinirSenhaPaginaTests(PostgresFixture postgres, DefinirSenhaPaginaTests.Host shared) : IClassFixture<DefinirSenhaPaginaTests.Host>
+public partial class DefinirSenhaPaginaTests(PostgresFixture postgres, DefinirSenhaLinkTests.Host shared) : IClassFixture<DefinirSenhaLinkTests.Host>
 {
     private const string Pagina = "/conta/definir-senha";
     private const string SenhaNova = "Nova-Sintetica-7";
@@ -21,29 +19,7 @@ public partial class DefinirSenhaPaginaTests(PostgresFixture postgres, DefinirSe
     [GeneratedRegex("name=\"(__RequestVerificationToken|Usuario|Token)\"[^>]*value=\"([^\"]*)\"")]
     private static partial Regex CampoOculto();
 
-    /// <summary>Um host para a classe inteira (#215). Confia no cabeçalho de IP do proxy: cada teste usa um IP próprio e não divide o limite de taxa.</summary>
-    public sealed class Host : IAsyncDisposable
-    {
-        private HelinhoWebFactory? _factory;
-
-        public LogCapturado Logs { get; } = new();
-
-        internal async Task<HelinhoWebFactory> GetAsync(PostgresFixture postgres)
-        {
-            if (_factory is null)
-            {
-                var factory = new HelinhoWebFactory(postgres, configure: s => s
-                    .AddSingleton<ILoggerProvider>(Logs).Configure<ProxyOptions>(o => o.TrustForwardedHeaders = true));
-                await factory.EnsureDatabaseAsync();
-                _factory = factory;
-            }
-
-            return _factory;
-        }
-
-        public ValueTask DisposeAsync() => _factory?.DisposeAsync() ?? ValueTask.CompletedTask;
-    }
-
+    /// <summary>O host confia no cabeçalho de IP do proxy: cada teste usa um IP próprio e não divide o limite de taxa.</summary>
     private async Task<HttpClient> ClienteAsync(string ip)
     {
         var client = (await shared.GetAsync(postgres)).CreateAnonymousClient();
@@ -121,7 +97,6 @@ public partial class DefinirSenhaPaginaTests(PostgresFixture postgres, DefinirSe
         Assert.True(final.Headers.CacheControl?.NoStore);
         Assert.Contains("Senha definida", sucesso);
         Assert.Contains("href=\"/entrar\"", sucesso);
-        Assert.DoesNotContain("data-limpar-endereco", sucesso);
         Assert.Contains(LinkInvalido, (await AbrirAsync(client, link)).Html);
         Assert.Contains(LinkInvalido, (await EnviarAsync(client, formulario, "Outra-Sintetica-3")).Html);
 

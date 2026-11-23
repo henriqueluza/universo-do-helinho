@@ -1,9 +1,11 @@
 using System.Text;
 using Helinho.Application.Identidade;
 using Helinho.Infrastructure.Persistence;
+using Helinho.Web.Composition;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Helinho.IntegrationTests;
 
@@ -15,16 +17,22 @@ public class DefinirSenhaLinkTests(PostgresFixture postgres, DefinirSenhaLinkTes
     private const string SenhaNova = "Nova-Sintetica-7";
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    /// <summary>Um host para a classe inteira (#215: cada host deixa observadores de arquivo); cada teste cria as próprias contas.</summary>
+    /// <summary>
+    /// Um host para a classe inteira (#215: cada host deixa observadores de arquivo); cada teste cria as próprias contas.
+    /// Guarda os logs e confia no cabeçalho de IP do proxy, para os testes da página (#240) usarem um IP por teste.
+    /// </summary>
     public sealed class Host : IAsyncDisposable
     {
         private HelinhoWebFactory? _factory;
+
+        public LogCapturado Logs { get; } = new();
 
         internal async Task<HelinhoWebFactory> GetAsync(PostgresFixture postgres)
         {
             if (_factory is null)
             {
-                var factory = new HelinhoWebFactory(postgres);
+                var factory = new HelinhoWebFactory(postgres, configure: s => s
+                    .AddSingleton<ILoggerProvider>(Logs).Configure<ProxyOptions>(o => o.TrustForwardedHeaders = true));
                 await factory.EnsureDatabaseAsync();
                 _factory = factory;
             }

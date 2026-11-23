@@ -17,12 +17,7 @@ namespace Helinho.Web.Pages.Conta;
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class DefinirSenhaModel(DefinirSenhaHandler handler) : PageModel
 {
-    public enum Etapa
-    {
-        Formulario,
-        LinkInvalido,
-        Definida,
-    }
+    public enum Etapa { Formulario, LinkInvalido, Definida }
 
     [BindProperty(SupportsGet = true)]
     public string? Usuario { get; set; }
