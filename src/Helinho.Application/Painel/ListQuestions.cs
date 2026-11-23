@@ -5,9 +5,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Helinho.Application.Painel;
 
-public sealed record QuestionListQuery(QuizType? QuizType, AgeBand? AgeBand, QuestionStatus? Status, int Page);
+public sealed record QuestionListQuery(QuizType? QuizType, AgeBand? AgeBand, QuestionStatus? Status, int Page, QuestionOrigin? Origin = null);
 
-public sealed record QuestionRow(Guid Id, string Statement, QuizType QuizType, AgeBand AgeBand, QuestionStatus Status);
+/// <param name="AiEdited">Origem IA com edição humana depois (<c>AiEditedAt</c>): o selo mostra "editada".</param>
+public sealed record QuestionRow(
+    Guid Id, string Statement, QuizType QuizType, AgeBand AgeBand, QuestionStatus Status,
+    QuestionOrigin Origin = QuestionOrigin.Team, bool AiEdited = false);
 
 public sealed record QuestionListResult(IReadOnlyList<QuestionRow> Items, int Total, int Page, int TotalPages);
 
@@ -36,6 +39,11 @@ public static class ListQuestions
             questions = questions.Where(q => q.Status == status);
         }
 
+        if (query.Origin is { } origin)
+        {
+            questions = questions.Where(q => q.Origin == origin);
+        }
+
         var total = await questions.CountAsync(cancellationToken);
         var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)PageSize));
         var page = Math.Clamp(query.Page, 1, totalPages);
@@ -43,10 +51,10 @@ public static class ListQuestions
         var rows = await questions
             .OrderBy(q => q.QuizType).ThenBy(q => q.AgeBand).ThenBy(q => q.Statement).ThenBy(q => q.Id)
             .Skip((page - 1) * PageSize).Take(PageSize)
-            .Select(q => new { q.Id, q.Statement, q.QuizType, q.AgeBand, q.Status })
+            .Select(q => new { q.Id, q.Statement, q.QuizType, q.AgeBand, q.Status, q.Origin, Edited = q.AiEditedAt != null })
             .ToListAsync(cancellationToken);
 
-        var items = rows.Select(r => new QuestionRow(r.Id, Summarize(r.Statement), r.QuizType, r.AgeBand, r.Status)).ToList();
+        var items = rows.Select(r => new QuestionRow(r.Id, Summarize(r.Statement), r.QuizType, r.AgeBand, r.Status, r.Origin, r.Edited)).ToList();
         return new QuestionListResult(items, total, page, totalPages);
     }
 
