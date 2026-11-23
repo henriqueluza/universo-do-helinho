@@ -28,6 +28,10 @@ public sealed partial class AnthropicQuestionDraftGenerator(
 
     private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(30);
 
+    /// <summary>Teto de saída: uma base mais uma parcela por questão pedida, para o lote não sair cortado.</summary>
+    private const int BaseMaxTokens = 1024;
+    private const int MaxTokensPerQuestion = 800;
+
     // Quatro propriedades obrigatórias, não um vetor: o esquema da API não aceita minItems nem maxItems de 4 (ADR-0004 §6.3).
     private static readonly Dictionary<string, JsonElement> OutputSchema = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
         """
@@ -67,7 +71,7 @@ public sealed partial class AnthropicQuestionDraftGenerator(
         var parameters = new MessageCreateParams
         {
             Model = settings.Model,
-            MaxTokens = 1024 + (800 * request.Count),
+            MaxTokens = BaseMaxTokens + (MaxTokensPerQuestion * request.Count),
             System = prompt.SystemText,
             Messages = [new UserMessageParam { Content = prompt.UserText }],
             OutputConfig = new OutputConfig { Effort = Effort.Low, Format = new JsonOutputFormat { Schema = OutputSchema } },
@@ -160,6 +164,8 @@ public sealed partial class AnthropicQuestionDraftGenerator(
         AnthropicUnauthorizedException or AnthropicForbiddenException or AnthropicNotFoundException => QuestionDraftFailure.Misconfigured,
         _ when IsSpendLimit(failure) => QuestionDraftFailure.ProviderUnavailable,
         AnthropicRateLimitException => QuestionDraftFailure.RateLimited,
+        // 408 e 409 são passageiros (o SDK os repetiria): indisponibilidade, não configuração errada.
+        AnthropicRequestTimeoutException or AnthropicConflictException => QuestionDraftFailure.ProviderUnavailable,
         Anthropic4xxException => QuestionDraftFailure.Misconfigured,
         AnthropicInvalidDataException or JsonException => QuestionDraftFailure.InvalidOutput,
         _ => QuestionDraftFailure.ProviderUnavailable,

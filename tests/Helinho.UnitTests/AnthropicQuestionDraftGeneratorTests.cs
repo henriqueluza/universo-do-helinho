@@ -33,6 +33,7 @@ public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
     {
         public Queue<Func<CancellationToken, Task<HttpResponseMessage>>> Responses { get; } = new();
         public List<(HttpRequestMessage Request, string Body)> Requests { get; } = [];
+        public TimeSpan Latency { get; set; }
 
         public void Enqueue(HttpStatusCode status, string body, params (string Name, string Value)[] headers) => Responses.Enqueue(_ =>
         {
@@ -49,6 +50,11 @@ public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add((request, request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken)));
+            if (Latency > TimeSpan.Zero)
+            {
+                await Task.Delay(Latency, cancellationToken);
+            }
+
             return await Responses.Dequeue()(cancellationToken);
         }
     }
@@ -109,8 +115,10 @@ public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
     public async Task Sucesso_devolve_os_rascunhos_e_o_uso_e_envia_so_o_prompt_do_montador_com_o_modelo_configurado()
     {
         _http.Enqueue(HttpStatusCode.OK, Message());
+        _http.Latency = TimeSpan.FromMilliseconds(60);
         // As variáveis do SDK não valem: endereço e chave são os passados na construção do cliente (ADR-0004 §6.2).
         Environment.SetEnvironmentVariable("ANTHROPIC_BASE_URL", "https://desvio.example.org");
+        Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", "chave-de-ambiente-sintetica");
         Environment.SetEnvironmentVariable("ANTHROPIC_AUTH_TOKEN", "token-de-ambiente-sintetico");
         QuestionDraftBatch batch;
         try
@@ -120,6 +128,7 @@ public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
         finally
         {
             Environment.SetEnvironmentVariable("ANTHROPIC_BASE_URL", null);
+            Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", null);
             Environment.SetEnvironmentVariable("ANTHROPIC_AUTH_TOKEN", null);
         }
 
@@ -127,6 +136,8 @@ public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
         Assert.Equal(("Enunciado gerado sintético?", 1), (draft.Statement, draft.CorrectIndex));
         Assert.Equal(("Anthropic", "modelo-sintetico-que-respondeu", 1234, 567, "req_sintetico", "gerar-questoes.v1"),
             (batch.Usage.Provider, batch.Usage.Model, batch.Usage.InputTokens, batch.Usage.OutputTokens, batch.Usage.ProviderRequestId, batch.PromptVersion));
+        // A duração cobre a chamada: a resposta falsa demora 60 ms (folga de 10 ms para a granularidade do relógio).
+        Assert.InRange(batch.Usage.Duration, TimeSpan.FromMilliseconds(50), TimeSpan.FromSeconds(30));
 
         var (request, body) = Assert.Single(_http.Requests);
         var prompt = QuestionPromptBuilder.Build(Request(count: 3));
@@ -141,6 +152,8 @@ public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
         Assert.Equal(("json_schema", "low"), (root.GetProperty("output_config").GetProperty("format").GetProperty("type").GetString(),
             root.GetProperty("output_config").GetProperty("effort").GetString()));
         Assert.Equal($"Bearer {ApiKey}", request.Headers.Authorization?.ToString());
+        string[] fromEnvironment = ["chave-de-ambiente-sintetica", "token-de-ambiente-sintetico"];
+        Assert.All(fromEnvironment, value => Assert.DoesNotContain(request.Headers, h => h.Value.Any(v => v.Contains(value, StringComparison.Ordinal))));
         // Nada além do necessário: sem ferramentas, sem amostragem, sem streaming, sem identificador de usuário.
         string[] allowed = ["model", "max_tokens", "system", "messages", "output_config"];
         Assert.Empty(root.EnumerateObject().Select(p => p.Name).Except(allowed));
@@ -193,13 +206,22 @@ public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.Unauthorized, "authentication_error", QuestionDraftFailure.Misconfigured)]
-    [InlineData(HttpStatusCode.Forbidden, "permission_error", QuestionDraftFailure.Misconfigured)]
-    [InlineData(HttpStatusCode.NotFound, "not_found_error", QuestionDraftFailure.Misconfigured)]
-    [InlineData(HttpStatusCode.BadRequest, "invalid_request_error", QuestionDraftFailure.Misconfigured)]
-    public async Task Erro_que_nao_melhora_repetindo_falha_na_primeira_tentativa(HttpStatusCode status, string type, QuestionDraftFailure expected)
+    [InlineData(HttpStatusCode.Unauthorized, "authentication_error", null, QuestionDraftFailure.Misconfigured)]
+    [InlineData(HttpStatusCode.Forbidden, "permission_error", null, QuestionDraftFailure.Misconfigured)]
+    [InlineData(HttpStatusCode.NotFound, "not_found_error", null, QuestionDraftFailure.Misconfigured)]
+    [InlineData(HttpStatusCode.BadRequest, "invalid_request_error", null, QuestionDraftFailure.Misconfigured)]
+    [InlineData(HttpStatusCode.RequestEntityTooLarge, "request_too_large", null, QuestionDraftFailure.Misconfigured)]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "invalid_request_error", null, QuestionDraftFailure.Misconfigured)]
+    // 408 e 409 o SDK repetiria por padrão: são passageiros, não configuração errada. Aqui também não são repetidos.
+    [InlineData(HttpStatusCode.RequestTimeout, "timeout_error", null, QuestionDraftFailure.ProviderUnavailable)]
+    [InlineData(HttpStatusCode.Conflict, "conflict_error", null, QuestionDraftFailure.ProviderUnavailable)]
+    // O 429 de teto de gasto não é limite de taxa. O 429 comum e os 5xx saíram desta lista: são os únicos repetidos (abaixo).
+    [InlineData(HttpStatusCode.TooManyRequests, "rate_limit_error", "enforced_spend_limit_reached", QuestionDraftFailure.ProviderUnavailable)]
+    public async Task Erro_do_provedor_que_nao_melhora_repetindo_vira_o_motivo_fechado_em_uma_tentativa(
+        HttpStatusCode status, string type, string? errorCode, QuestionDraftFailure expected)
     {
-        _http.Enqueue(status, Error(type));
+        // Nem com retry-after na resposta: o que não é 429 de limite de taxa nem 5xx tem uma tentativa só.
+        _http.Enqueue(status, Error(type, errorCode), ("retry-after", "7"));
 
         Assert.Equal(expected, await FailureAsync());
         Assert.Single(_http.Requests);
@@ -250,15 +272,6 @@ public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
         Assert.Equal([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)], _waits);
     }
 
-    [Fact]
-    public async Task Teto_de_gasto_e_um_429_que_nao_e_repetido()
-    {
-        _http.Enqueue(HttpStatusCode.TooManyRequests, Error("rate_limit_error", "enforced_spend_limit_reached"));
-
-        Assert.Equal(QuestionDraftFailure.ProviderUnavailable, await FailureAsync());
-        Assert.Single(_http.Requests);
-    }
-
     [Theory]
     [InlineData(HttpStatusCode.InternalServerError, "api_error")]
     [InlineData((HttpStatusCode)529, "overloaded_error")]
@@ -281,6 +294,17 @@ public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
 
         Assert.Single((await Generator().GenerateAsync(Request(), Ct)).Drafts);
         Assert.Equal(2, _http.Requests.Count);
+    }
+
+    [Fact]
+    public async Task Erro_de_conexao_vira_ProviderUnavailable_em_uma_tentativa()
+    {
+        _http.Responses.Enqueue(_ => throw new HttpRequestException("falha de conexão sintética"));
+        _http.Responses.Enqueue(_ => throw new HttpRequestException("falha de conexão sintética"));
+
+        Assert.Equal(QuestionDraftFailure.ProviderUnavailable, await FailureAsync());
+        Assert.Single(_http.Requests);
+        Assert.Empty(_waits);
     }
 
     [Fact]
