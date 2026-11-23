@@ -4,6 +4,7 @@ using Helinho.Application.Abstractions;
 using Helinho.Domain;
 using Helinho.Infrastructure.Fakes;
 using Helinho.Infrastructure.Persistence;
+using Helinho.Web.Composition;
 using Helinho.Web.Pages.Dev;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
@@ -135,6 +136,9 @@ public class CaixaDeSaidaForaDeDevTests(PostgresFixture postgres)
     public async Task Em_Production_a_rota_responde_404_para_master_e_anonimo_e_o_fake_nao_guarda_mensagem()
     {
         await using var factory = new HelinhoWebFactory(postgres).WithWebHostBuilder(b => b.UseEnvironment(Environments.Production));
+        // O migrate do pre-deploy (ADR-0002 §7.3): o token antiforgery de /entrar é protegido com as chaves da tabela
+        // DataProtectionKeys (§9); sem o esquema, a página de controle não renderiza.
+        Assert.Equal(0, await SeedCommand.RunDatabaseCommandAsync(factory.Services, ["migrate"], TextWriter.Null, Ct));
         // https desde o cliente: fora de Development, http é redirecionado antes de chegar à rota.
         WebApplicationFactoryClientOptions https = new() { AllowAutoRedirect = false, BaseAddress = new Uri("https://painel.example.org") };
         using var anonimo = factory.CreateClient(https);
