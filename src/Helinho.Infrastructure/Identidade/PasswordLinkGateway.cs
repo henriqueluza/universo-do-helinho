@@ -22,7 +22,7 @@ public sealed partial class PasswordLinkGateway(UserManager<AppUser> users, ILog
 
         // O link já foi conferido acima. ResetPasswordAsync é o caminho público que valida a política, grava o hash e
         // troca o carimbo numa gravação só, com ou sem senha anterior; ele pede um token do provedor de redefinição,
-        // gerado aqui e usado na hora. Dois envios simultâneos do mesmo link: o segundo falha no carimbo já trocado.
+        // gerado aqui e usado na hora. Dois envios simultâneos do mesmo link: o segundo perde na gravação (ConcurrencyFailure).
         var result = await users.ResetPasswordAsync(user, await users.GeneratePasswordResetTokenAsync(user), newPassword);
         if (result.Succeeded)
         {
