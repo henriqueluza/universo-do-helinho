@@ -4,6 +4,8 @@ Registro do que está publicado e de como acessar. Quem mantém é o Henrique, d
 
 **Regras deste arquivo:** nenhuma senha, token, chave, id de workspace ou dado pessoal. Só URL, nomes, datas e onde cada segredo está guardado. Os campos `<a preencher>` são preenchidos no [Passo 7 do runbook](railway-runbook.md#passo-7--url-para-o-desenvolvedor-unity-e-registro-do-ambiente).
 
+**Hoje existe um único ambiente: a homologação** (decisão D1 do Henrique, 22/11/2026). Depois de subir tudo ela fica parada para o desenvolvedor Unity testar ([como manter estável](railway-runbook.md#deixar-a-homologação-parada-para-o-teste-do-jogo)). A produção é etapa posterior; o que falta está em [O que falta para ligar a produção](#o-que-falta-para-ligar-a-produção).
+
 | | Homologação | Produção |
 |---|---|---|
 | Situação | `<a preencher: no ar desde DD/MM/AAAA>` | **Desligada.** Não existe na Railway |
@@ -35,7 +37,7 @@ Registro do que está publicado e de como acessar. Quem mantém é o Henrique, d
 | Seed | Ligado (`Seed__Enabled=true`); roda no pre-deploy `migrate` |
 | E-mail e IA | `Email__Provider=Fake`, `Ai__Provider=Fake` |
 | Sessões do painel | `<a preencher: persistem entre deploys (decisão D4, opção A, com o PR da Issue #103) ou caem a cada deploy (D4 aberta ou opção D)>` |
-| Publicação | Manual: painel da Railway → `helinho-web` → `Cmd+K` → **Deploy Latest Commit** (`auto_deploy = false`) |
+| Publicação | **Automática** a cada merge na `main` (`auto_deploy = true` no `terraform.tfvars`, decisão D3 do Henrique em 22/11/2026). **Wait for CI não espera build nem testes** (o `validate` só roda em `pull_request`); risco aceito só para homologação. Como voltar atrás: [runbook, 8.2](railway-runbook.md#82-rollback-para-o-deploy-anterior) |
 | Infraestrutura como código | `infra/railway/` (Terraform); `plan` e `apply` só pelo Henrique |
 | Estado do Terraform | Local, na máquina do Henrique, fora do git, com backup cifrado ([runbook, 8.9](railway-runbook.md#89-onde-fica-o-estado-do-terraform)) |
 | Decisão de hospedagem | [`ADR-0002`](../architecture/ADR-0002-hospedagem-railway.md) |
@@ -80,7 +82,7 @@ Como todos os usuários têm a mesma senha, quem recebe a credencial de um aluno
 | Alerta de gasto por e-mail | `<a preencher: valor e data, ou "não configurado">` |
 | Limite rígido de gasto do workspace | `<a preencher: "não configurado" ou valor decidido pelo Igor>` |
 | Agenda de backup do volume do `Postgres` | `<a preencher: "não configurada" ou diária/semanal/mensal>` |
-| Auto-deploy | Desligado pelo watch pattern do Terraform. `<a preencher se usou o plano B: botão Disable no painel>` |
+| Auto-deploy | Ligado (`auto_deploy = true`). `<a preencher: Wait for CI ligado em DD/MM/AAAA, conferido no runbook 5.8>`. Para congelar: [runbook](railway-runbook.md#deixar-a-homologação-parada-para-o-teste-do-jogo) |
 
 ### Registro de mudanças
 
@@ -93,6 +95,15 @@ Uma linha por `apply`, rotação, restore ou destruição. Sem segredo.
 ## Produção
 
 **Desligada.** O código do Terraform já aceita a chave `producao` em `ambientes`, mas ela não está definida, e nenhum recurso de produção existe na Railway. Não há URL, banco nem credencial de produção.
+
+### O que falta para ligar a produção
+
+Pendências de decisão e de código, além da lista do ADR-0002 §5.2 abaixo:
+
+- **Issue #225:** rodar o `validate` também no commit que chega à `main`. Sem ela o Wait for CI não espera build nem testes. O Henrique aceitou isso só em homologação (22/11/2026); em produção é **pré-requisito**.
+- **Issue #222:** primeiro master sem o seed. Em produção o seed é proibido, então é preciso outro jeito de criar o primeiro master.
+- **D1 do ADR-0002:** hoje aceita na opção A (só homologação). Ligar a produção é decisão nova do Henrique.
+- **`auto_deploy` por ambiente:** a variável é única no Terraform; o `true` da homologação não pode valer para a produção (ADR-0002 §7.5).
 
 Antes de ligar (ADR-0002 §5.2):
 
