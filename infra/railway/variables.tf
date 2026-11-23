@@ -128,7 +128,9 @@ variable "variaveis_web" {
     condition     = contains(["Off", "Fake", "Anthropic"], coalesce(var.variaveis_web.Ai__Provider, "Off"))
     error_message = "Ai__Provider aceita Off, Fake ou Anthropic."
   }
-  # As quatro validações abaixo repetem no `plan` o que a aplicação recusa na subida (EmailOptions e AiOptions).
+  # As quatro validações abaixo repetem no `plan` o que a aplicação recusa na subida: EmailOptions.Errors() (remetente
+  # que seja e-mail, nome com até 70 caracteres, URL https absoluta sem caminho) e as AiOptions do ADR-0004 §14. De
+  # propósito o `plan` é mais estrito: confere o formato mesmo com Fake e recusa barra final e maiúscula na URL.
   validation {
     condition = (var.variaveis_web.Brevo__SenderEmail == "" ? var.variaveis_web.Email__Provider != "Brevo" :
     can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.variaveis_web.Brevo__SenderEmail)))
@@ -150,6 +152,7 @@ variable "variaveis_web" {
     can(regex("^[A-Za-z0-9][A-Za-z0-9._-]*$", var.variaveis_web.Ai__Model)) && !endswith(var.variaveis_web.Ai__Model, "latest"))
     error_message = "Ai__Provider = \"Anthropic\" exige Ai__Model com o identificador exato do modelo, sem apelido \"latest\"."
   }
+  # Faixa [mínimo, máximo] de cada inteiro. O `regex` só casa inteiro sem sinal; o que não casa cai no `false` do `try`.
   validation {
     condition = alltrue([
       for nome, faixa in {
@@ -157,7 +160,9 @@ variable "variaveis_web" {
         Ai__TimeoutSeconds     = [5, 300]
         Ai__DailyQuotaPerAdmin = [1, 10000]
         Ai__DailyGlobalLimit   = [1, 100000]
-      } : var.variaveis_web[nome] == "" || try(tonumber(regex("^[0-9]{1,6}$", var.variaveis_web[nome])) >= faixa[0] && tonumber(var.variaveis_web[nome]) <= faixa[1], false)
+        } : var.variaveis_web[nome] == "" || try(
+        tonumber(regex("^[0-9]{1,6}$", var.variaveis_web[nome])) >= faixa[0] && tonumber(var.variaveis_web[nome]) <= faixa[1],
+      false)
     ])
     error_message = "Use inteiros sem sinal: Email__DailyLimit de 0 a 100000 (0 = sem teto), Ai__TimeoutSeconds de 5 a 300, Ai__DailyQuotaPerAdmin de 1 a 10000 e Ai__DailyGlobalLimit de 1 a 100000. Vazio = não enviada (vale o padrão da aplicação)."
   }

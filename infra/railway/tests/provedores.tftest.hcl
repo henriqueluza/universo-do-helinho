@@ -143,7 +143,18 @@ run "recusa_brevo_sem_remetente" {
   command = plan
 
   variables {
-    variaveis_web = { Email__Provider = "Brevo", App__PublicBaseUrl = "https://painel.example.org" }
+    variaveis_web = { Email__Provider = "Brevo", Brevo__SenderName = "Remetente sintético", App__PublicBaseUrl = "https://painel.example.org" }
+    brevo_api_key = "chave-sintetica"
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_brevo_sem_nome_do_remetente" {
+  command = plan
+
+  variables {
+    variaveis_web = { Email__Provider = "Brevo", Brevo__SenderEmail = "nao-responda@example.org", App__PublicBaseUrl = "https://painel.example.org" }
     brevo_api_key = "chave-sintetica"
   }
 
@@ -217,6 +228,36 @@ run "recusa_cota_de_ia_zerada" {
 
   variables {
     variaveis_web = { Ai__DailyQuotaPerAdmin = "0" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_teto_global_de_ia_zerado" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__DailyGlobalLimit = "0" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_teto_global_de_ia_acima_da_faixa" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__DailyGlobalLimit = "100001" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_teto_de_email_acima_da_faixa" {
+  command = plan
+
+  variables {
+    variaveis_web = { Email__DailyLimit = "100001" }
   }
 
   expect_failures = [var.variaveis_web]

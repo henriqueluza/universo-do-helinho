@@ -24,7 +24,7 @@ module "ambiente" {
   seed_enabled           = each.value.seed_enabled
   seed_password          = each.value.seed_enabled ? var.seed_password : null
   variaveis_web = merge(var.variaveis_web, {
-    Ai__Provider = coalesce(var.variaveis_web.Ai__Provider, local.ai_provider_padrao[each.key])
+    Ai__Provider = coalesce(var.variaveis_web.Ai__Provider, lookup(local.ai_provider_padrao, each.key, "Off"))
   })
   segredos_web = {
     Brevo__ApiKey        = var.brevo_api_key

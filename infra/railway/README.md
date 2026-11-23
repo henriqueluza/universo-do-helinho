@@ -173,7 +173,7 @@ Hoje o e-mail sobe em `Fake` e nada é enviado. Para ligar o envio real (ADR-000
 4. `terraform plan` e `terraform apply`. O `apply` muda `railway_variable_collection.web` e **reimplanta o serviço web** (L4); a aplicação valida as opções na subida.
 5. Confira com `terraform output ambientes`: `provedor_email = "Brevo"` e `Brevo__ApiKey` na lista de variáveis.
 
-`Email__DailyLimit` já vai com `300`, o teto do plano gratuito (D7); ao contratar um plano pago, mude para o novo teto ou `"0"`. `variaveis_web` é um objeto só: mantenha no mesmo bloco as chaves que já tiver preenchido.
+`Email__DailyLimit` já vai com `300`, o teto do plano gratuito (D7); ao contratar um plano pago, mude para o novo teto. **`"0"` tira o teto do nosso lado:** o volume, e o custo num plano pago, passam a depender só da Brevo. `variaveis_web` é um objeto só: mantenha no mesmo bloco as chaves que já tiver preenchido.
 
 **Webhook (opcional, depois).** Gere um segredo de 32 caracteres ou mais (por exemplo `openssl rand -hex 32`), exporte-o em `TF_VAR_brevo_webhook_secret` do mesmo jeito e aplique. Na Brevo, cadastre-o como cabeçalho próprio `X-Helinho-Webhook-Secret` do webhook (ADR-0003 §12). Sem a variável, a rota do webhook não existe na aplicação.
 
@@ -204,7 +204,7 @@ Hoje a IA sobe em `Fake` na homologação (sugestões fictícias, sem chave) e e
 
 O valor explícito de `Ai__Provider` vale para todos os ambientes do mesmo estado. Prazo e cotas já vão com os padrões da D6 (`90`, `60`, `300`). Para desligar a IA: `Ai__Provider = "Off"`, que não exige chave.
 
-As duas chaves ficam em texto no estado do Terraform (seção [Estado](#estado)).
+As duas chaves ficam em texto no estado do Terraform (seção [Estado](#estado)). **Antes de ligar a Brevo ou a Anthropic em produção, o estado precisa estar em backend cifrado e com acesso restrito**, separado por ambiente (ADR-0002 §5.2 e §10.3).
 
 ## Domínio próprio
 
@@ -241,6 +241,8 @@ Com `auto_deploy = true` a lista fica vazia e todo push em `main` implanta. Ativ
 ## Produção
 
 `producao` existe no código e nasce desligada: o padrão de `ambientes` só tem `homologacao`. Acrescentar a chave `producao` cria um segundo projeto Railway (`helinho-producao`) com o mesmo módulo. Antes disso o ADR-0002 §5.2 exige ADR próprio para dado real, resposta sobre região e fornecedores, teto de gasto e estado do Terraform separado por ambiente. O seed é recusado em produção.
+
+Provedores em produção: a IA nasce em `Off`. **O e-mail nasce em `Fake` e o Terraform não barra isso:** com `Fake`, convite e redefinição de senha não chegam a ninguém (ADR-0003 §7). Ligue a Brevo antes de abrir a produção a usuários.
 
 ## Limitações do provider comunitário e contornos
 
