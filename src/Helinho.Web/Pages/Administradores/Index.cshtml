@@ -3,18 +3,24 @@
 @{
     ViewData["Title"] = "Administradores";
 }
-<div class="card-panel">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <p class="muted mb-0">@Model.Rows.Count administrador(es) cadastrado(s)</p>
-        <a class="btn btn-primary" href="/Administradores/Novo">Novo administrador</a>
+<div class="page-head">
+    <div><p class="sub">@Model.Rows.Count administrador(es) cadastrado(s)</p></div>
+    <div class="page-actions">
+        <a class="btn btn-primary" href="/Administradores/Novo"><svg aria-hidden="true"><use href="#i-plus" /></svg>Novo administrador</a>
     </div>
+</div>
+<section class="panel panel-pad" aria-label="Administradores">
     @if (Model.Rows.Count == 0)
     {
-        <p class="mb-0">Nenhum administrador cadastrado. Crie o primeiro com “Novo administrador”.</p>
+        <div class="empty">
+            <img src="~/img/cara-helinho.webp" alt="" width="117" height="120" />
+            <b>Nenhum administrador cadastrado.</b>
+            <p>Crie o primeiro com “Novo administrador”.</p>
+        </div>
     }
     else
     {
-        <div class="table-responsive">
+        <div class="table-wrap">
             <table class="table">
                 <thead>
                     <tr><th scope="col">Usuário</th><th scope="col">E-mail</th><th scope="col">Unidade</th><th scope="col">Situação</th></tr>
@@ -23,14 +29,14 @@
                     @foreach (var r in Model.Rows)
                     {
                         <tr>
-                            <td>@r.UserName</td>
+                            <th scope="row">@r.UserName</th>
                             <td>@r.Email</td>
                             <td>@r.UnitName</td>
-                            <td>@(r.Active ? "Ativo" : "Inativo")</td>
+                            <td><span class="tag @(r.Active ? "tag-ok" : "tag-neutral")">@(r.Active ? "Ativo" : "Inativo")</span></td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
     }
-</div>
+</section>

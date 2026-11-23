@@ -1,55 +1,63 @@
 @model Helinho.Web.Pages.Alunos.StudentFormPage
 @{
-    var campos = new (string Name, string Label, string? Value, string Type, string Autocomplete)[]
+    var campos = new (string Name, string Label, string? Value, string Type, string? InputMode, bool Full)[]
     {
-        ("FullName", "Nome completo", Model.Input.FullName, "text", "off"),
-        ("BirthDate", "Data de nascimento", Model.Input.BirthDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), "date", "off"),
-        ("Rg", "RG", Model.Input.Rg, "text", "off"),
-        ("Cpf", "CPF", Model.Input.Cpf, "text", "off"),
-        ("Address", "Endereço", Model.Input.Address, "text", "off"),
-        ("GuardianName", "Nome do responsável", Model.Input.GuardianName, "text", "off"),
-        ("ClassName", "Turma", Model.Input.ClassName, "text", "off"),
+        ("FullName", "Nome completo", Model.Input.FullName, "text", null, true),
+        ("BirthDate", "Data de nascimento", Model.Input.BirthDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), "date", null, false),
+        ("ClassName", "Turma", Model.Input.ClassName, "text", null, false),
+        ("Rg", "RG", Model.Input.Rg, "text", null, false),
+        ("Cpf", "CPF", Model.Input.Cpf, "text", "numeric", false),
+        ("Address", "Endereço", Model.Input.Address, "text", null, true),
+        ("GuardianName", "Nome do responsável", Model.Input.GuardianName, "text", null, true),
     };
     var erros = campos.Where(c => Model.Error(c.Name) is not null).ToList();
 }
-<form method="post" novalidate class="card-panel form-aluno">
+<div class="page-head">
+    <p class="sub">Todos os campos são obrigatórios. Unidade: <b>@(Model.UnitName ?? "—")</b>.</p>
+</div>
+<form method="post" novalidate class="panel panel-pad form">
     @if (Model.Error("Unidade") is { } unidadeErro)
     {
-        <div class="alert alert-danger" role="alert">@unidadeErro</div>
+        <div class="alert" role="alert"><svg aria-hidden="true"><use href="#i-alert"/></svg><span>@unidadeErro</span></div>
     }
     @if (erros.Count > 0)
     {
-        <div class="alert alert-danger" role="alert" tabindex="-1" id="resumo-erros">
-            <p class="fw-semibold mb-1">Corrija os campos abaixo:</p>
-            <ul class="mb-0">
-                @foreach (var c in erros)
+        <div class="alert" role="alert" tabindex="-1" id="resumo-erros">
+            <svg aria-hidden="true"><use href="#i-alert"/></svg>
+            <div>
+                <p class="alert-title">Corrija os campos abaixo:</p>
+                <ul>
+                    @foreach (var c in erros)
+                    {
+                        <li><a href="#Input_@c.Name">@c.Label: @Model.Error(c.Name)</a></li>
+                    }
+                </ul>
+            </div>
+        </div>
+    }
+    <div class="form-grid">
+        @foreach (var c in campos)
+        {
+            var erro = Model.Error(c.Name);
+            <div class="field@(c.Full ? " full" : "")">
+                <label for="Input_@c.Name">@c.Label</label>
+                <input class="input" id="Input_@c.Name" name="Input.@c.Name" type="@c.Type" inputmode="@c.InputMode"
+                       value="@c.Value" autocomplete="off" required
+                       aria-invalid="@(erro is null ? null : "true")" aria-describedby="@(erro is null ? null : $"Input_{c.Name}-erro")" />
+                @if (erro is not null)
                 {
-                    <li><a href="#Input_@c.Name">@c.Label: @Model.Error(c.Name)</a></li>
+                    <small id="Input_@(c.Name)-erro" class="field-error">@erro</small>
                 }
-            </ul>
-        </div>
-    }
-    <p class="muted">Todos os campos são obrigatórios. Unidade: <strong>@(Model.UnitName ?? "—")</strong>.</p>
-    @foreach (var c in campos)
-    {
-        var erro = Model.Error(c.Name);
-        <div class="mb-3">
-            <label class="form-label" for="Input_@c.Name">@c.Label</label>
-            <input class="form-control @(erro is null ? "" : "is-invalid")" id="Input_@c.Name" name="Input.@c.Name" type="@c.Type"
-                   value="@c.Value" autocomplete="@c.Autocomplete" required
-                   aria-invalid="@(erro is null ? null : "true")" aria-describedby="@(erro is null ? null : $"Input_{c.Name}-erro")" />
-            @if (erro is not null)
-            {
-                <div id="Input_@(c.Name)-erro" class="form-text text-negative">@erro</div>
-            }
-        </div>
-    }
-    <div class="form-check mb-3">
-        <input class="form-check-input" type="checkbox" id="Input_GuardianApproved" name="Input.GuardianApproved" value="true" checked="@Model.Input.GuardianApproved" />
-        <label class="form-check-label" for="Input_GuardianApproved">Responsável aprovou o cadastro (desmarcado = pendente)</label>
+            </div>
+        }
+        <label class="check full" for="Input_GuardianApproved">
+            <input type="checkbox" id="Input_GuardianApproved" name="Input.GuardianApproved" value="true" checked="@Model.Input.GuardianApproved" />
+            Responsável aprovou o cadastro (desmarcado = pendente)
+        </label>
     </div>
-    <div class="dash-selects">
+    <div class="note info"><svg aria-hidden="true"><use href="#i-lock"/></svg><span>RG, CPF e endereço aparecem só aqui. A lista e o desempenho nunca mostram esses dados.</span></div>
+    <div class="form-actions">
         <button class="btn btn-primary" type="submit">Salvar</button>
-        <a class="btn btn-outline-secondary" href="@Url.Page("/Alunos/Index")">Cancelar</a>
+        <a class="btn" href="@Url.Page("/Alunos/Index")">Cancelar</a>
     </div>
 </form>

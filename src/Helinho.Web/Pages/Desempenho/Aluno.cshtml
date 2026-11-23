@@ -1,59 +1,88 @@
 @page "{id:guid}"
+@using Helinho.Web.Painel
 @model Helinho.Web.Pages.Desempenho.AlunoModel
 @{
     ViewData["Title"] = Model.Student.FullName;
     var s = Model.Student;
 }
-<p><a href="@Url.Page("/Desempenho/Index")">← Voltar ao desempenho</a></p>
-<section class="card-panel mb-4" aria-labelledby="resumo-titulo">
-    <h2 id="resumo-titulo" class="fs-5">@s.FullName</h2>
-    <p class="muted mb-3">@s.UnitName · Turma @s.ClassName@(s.Band is null ? "" : $" · {Helinho.Web.Pages.Alunos.IndexModel.BandLabel(s.Band)} anos")</p>
-    <p class="mb-0" id="aluno-nivel">
-        <span class="fw-semibold" style="font-size: var(--fs-kpi); font-variant-numeric: tabular-nums">@s.Xp XP</span>
-        · Nível @s.Level — @s.LevelName
-        <span class="muted">(próximo nível em @s.NextLevelXp XP)</span>
-    </p>
-</section>
+<div>
+    <a class="back" href="@Url.Page("/Desempenho/Index")"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Voltar ao desempenho</a>
+    <section class="profile panel panel-pad" aria-label="Resumo do aluno">
+        <span class="av-xl" aria-hidden="true">@AlunoModel.Initials(s.FullName)</span>
+        <p class="meta">@s.UnitName · Turma @s.ClassName@(s.Band is null ? "" : $" · {Helinho.Web.Pages.Alunos.IndexModel.BandLabel(s.Band)} anos")</p>
+        <div class="level" id="aluno-nivel">
+            <small>Nível @s.Level — @s.LevelName</small>
+            <b>@s.Xp XP</b>
+            <span class="meter" aria-hidden="true"><i style="width: @(AlunoModel.XpPercent(s.Xp, s.NextLevelXp))%"></i></span>
+            <small>Próximo nível em @s.NextLevelXp XP</small>
+        </div>
+    </section>
+</div>
 
-<section class="card-panel mb-4" aria-labelledby="acertos-titulo">
-    <h2 id="acertos-titulo" class="fs-5">Acertos por tipo de quiz</h2>
-    @if (s.Answered == 0)
-    {
-        <p class="muted mb-0" id="aluno-sem-respostas">Este aluno ainda não respondeu nenhuma pergunta.</p>
-    }
-    else
-    {
-        <table class="table mb-0">
-            <caption class="visually-hidden">Acertos por tipo de quiz</caption>
-            <thead><tr><th scope="col">Tipo</th><th scope="col" class="text-end">Respostas</th><th scope="col" class="text-end">Acertos</th><th scope="col" class="text-end">Aproveitamento</th></tr></thead>
-            <tbody>
-                @foreach (var t in s.Scores)
+<div class="split">
+    <section class="panel panel-pad" aria-labelledby="acertos-titulo">
+        <div class="panel-head"><h2 id="acertos-titulo">Acertos por tipo de quiz</h2></div>
+        @if (s.Answered == 0)
+        {
+            <p class="muted" id="aluno-sem-respostas">Este aluno ainda não respondeu nenhuma pergunta.</p>
+        }
+        else
+        {
+            <div class="table-wrap"><table class="table">
+                <caption class="visually-hidden">Acertos por tipo de quiz</caption>
+                <thead><tr><th scope="col">Tipo</th><th scope="col" class="num">Respostas</th><th scope="col" class="num">Acertos</th><th scope="col">Aproveitamento</th></tr></thead>
+                <tbody>
+                    @foreach (var t in s.Scores)
+                    {
+                        var tema = TemaQuiz.Of(t.Type);
+                        var pct = AlunoModel.CorrectPercent(t.Answered, t.Correct);
+                        <tr>
+                            <td><span class="tag tag-type @tema.Css"><img src="~/img/@tema.Imagem" alt="" width="@tema.Largura" height="@tema.Altura" />@tema.Nome · @tema.Personagem</span></td>
+                            <td class="num">@t.Answered</td>
+                            <td class="num">@t.Correct</td>
+                            <td>
+                                @if (t.Answered == 0)
+                                {
+                                    <span>—</span>
+                                }
+                                else
+                                {
+                                    <span class="meter meter-inline @tema.Css" aria-hidden="true"><i style="width: @(pct)%"></i></span>
+                                    <span>@(pct)%</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table></div>
+        }
+    </section>
+
+    <section class="panel panel-pad" aria-labelledby="conquistas-titulo">
+        <div class="panel-head"><h2 id="conquistas-titulo">Conquistas desbloqueadas</h2></div>
+        @if (s.Badges.Count == 0)
+        {
+            <p class="muted" id="aluno-sem-conquistas">Nenhuma conquista desbloqueada ainda.</p>
+        }
+        else
+        {
+            <div class="badges">
+                @foreach (var b in s.Badges)
                 {
-                    <tr>
-                        <td>@AlunoModel.TypeLabel(t.Type)</td>
-                        <td class="text-end">@t.Answered</td>
-                        <td class="text-end">@t.Correct</td>
-                        <td class="text-end">@(t.Answered == 0 ? "—" : $"{100 * t.Correct / t.Answered}%")</td>
-                    </tr>
+                    <div class="badge-card">
+                        @if (AlunoModel.BadgeImage(b.Title) is { } art)
+                        {
+                            <img src="@art.Src" alt="Selo @b.Title" width="96" height="@art.Height" />
+                        }
+                        else
+                        {
+                            <svg class="icon" width="48" height="48" role="img" aria-label="Selo @b.Title"><use href="#i-star"/></svg>
+                        }
+                        @b.Title
+                        <small>Desbloqueado em @AlunoModel.UnlockedOn(b.UnlockedAt)</small>
+                    </div>
                 }
-            </tbody>
-        </table>
-    }
-</section>
-
-<section class="card-panel" aria-labelledby="conquistas-titulo">
-    <h2 id="conquistas-titulo" class="fs-5">Conquistas desbloqueadas</h2>
-    @if (s.Badges.Count == 0)
-    {
-        <p class="muted mb-0" id="aluno-sem-conquistas">Nenhuma conquista desbloqueada ainda.</p>
-    }
-    else
-    {
-        <ul class="mb-0">
-            @foreach (var b in s.Badges)
-            {
-                <li>@b.Title <span class="muted">· @b.UnlockedAt.ToOffset(TimeSpan.FromHours(-3)).ToString("dd/MM/yyyy")</span></li>
-            }
-        </ul>
-    }
-</section>
+            </div>
+        }
+    </section>
+</div>
