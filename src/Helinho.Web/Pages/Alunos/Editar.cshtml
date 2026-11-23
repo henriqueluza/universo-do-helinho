@@ -1,6 +1,56 @@
 @page "{id:guid}"
 @model Helinho.Web.Pages.Alunos.EditarModel
+@using Helinho.Application.Abstractions
+@using Helinho.Application.Painel
 @{
     ViewData["Title"] = "Editar aluno";
+    var acesso = Model.Access;
+    var ultimo = acesso.History.LastAt is { } quando ? EditarModel.When(quando) : "";
+    var (selo, situacao) = acesso.History.LastStatus switch
+    {
+        DeliveryStatus.Queued => ("tag-draft", $"Na fila desde {ultimo}"),
+        DeliveryStatus.Sent => ("tag-ok", $"Enviado em {ultimo}"),
+        DeliveryStatus.Failed => ("tag-bad", $"Envio falhou em {ultimo}"),
+        DeliveryStatus.Cancelled => ("tag-neutral", $"Envio cancelado em {ultimo}"),
+        _ => ("tag-neutral", "Nenhum envio ainda"),
+    };
+    var falta = !acesso.Approved ? "Para enviar, marque a aprovação do responsável e salve o cadastro."
+        : !acesso.HasGuardianEmail ? "Para enviar, preencha o e-mail do responsável e salve o cadastro."
+        : acesso.LimitReached ? $"Limite de {StudentAccessRequests.HourlyLimit} envios por hora atingido para este aluno. Tente de novo mais tarde."
+        : null;
+}
+@if (TempData[EditarModel.AccessQueuedKey] is true)
+{
+    <div class="note ok" role="status"><svg aria-hidden="true"><use href="#i-ok"/></svg><span>Pedido de acesso registrado. O e-mail para o responsável sai em instantes.</span></div>
 }
 <partial name="_FormularioAluno" model="Model" />
+<section class="panel panel-pad form" id="acesso" aria-labelledby="acesso-titulo">
+    <div class="panel-head">
+        <div>
+            <h2 id="acesso-titulo">Acesso ao jogo</h2>
+            @if (acesso.HasPassword)
+            {
+                <p>O aluno já tem senha. O responsável recebe por e-mail um link, válido por 1 hora, para trocar a senha.</p>
+            }
+            else
+            {
+                <p>O responsável recebe por e-mail um link, válido por 72 horas, para definir a senha. A equipe nunca vê a senha.</p>
+            }
+        </div>
+        <span class="tag @selo" id="acesso-situacao">@situacao</span>
+    </div>
+    @if (acesso.CanSend && acesso.History.LastStatus == DeliveryStatus.Failed)
+    {
+        <div class="note" id="acesso-falhou"><svg aria-hidden="true"><use href="#i-alert"/></svg><span>O último envio não chegou a sair. Confira o e-mail do responsável e envie de novo.</span></div>
+    }
+    @if (falta is null)
+    {
+        <form method="post" asp-page-handler="EnviarAcesso" class="form-actions">
+            <button class="btn btn-primary" type="submit">@(acesso.HasPassword ? "Enviar troca de senha" : "Enviar acesso")</button>
+        </form>
+    }
+    else
+    {
+        <div class="note info" id="acesso-falta"><svg aria-hidden="true"><use href="#i-info"/></svg><span>@falta</span></div>
+    }
+</section>

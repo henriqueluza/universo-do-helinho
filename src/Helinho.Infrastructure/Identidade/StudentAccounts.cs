@@ -25,4 +25,7 @@ public sealed class StudentAccounts(AppDbContext db) : IStudentAccounts
         db.UserRoles.Add(new IdentityUserRole<Guid> { UserId = user.Id, RoleId = roleId });
         return user.Id;
     }
+
+    public Task<bool> HasPasswordAsync(Guid userId, CancellationToken cancellationToken) =>
+        db.Users.AnyAsync(u => u.Id == userId && u.PasswordHash != null, cancellationToken);
 }
