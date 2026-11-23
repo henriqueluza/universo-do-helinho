@@ -19,6 +19,7 @@ public static class IdentidadeArea
         services.AddApiLogin();
         // AddApiLogin (AddIdentityCore) volta a registrar a fábrica padrão e apagaria a claim de unidade do cookie do painel.
         services.AddScoped<IUserClaimsPrincipalFactory<AppUser>, UnitClaimsPrincipalFactory>();
+        services.AddTokensDeLink();
         services.AddRateLimiter(o =>
         {
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
