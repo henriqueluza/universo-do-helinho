@@ -39,6 +39,21 @@ public partial class DefinirSenhaPaginaTests(PostgresFixture postgres, DefinirSe
         return (user.Id, LinkDeAcesso.Montar(user.Id, token), LinkDeAcesso.TokenParaUrl(token));
     }
 
+    /// <summary>Link de convite com a criação recuada além das 72 horas, no formato do provedor.</summary>
+    private async Task<string> LinkVencidoAsync(Guid userId)
+    {
+        await using var scope = (await shared.GetAsync(postgres)).Services.CreateAsyncScope();
+        var token = await DefinirSenhaLinkTests.EmitirComIdadeAsync(scope.ServiceProvider, userId, LinkDeAcesso.ProvedorConvite, TimeSpan.FromHours(73));
+        return $"{Pagina}?usuario={userId}&token={token}";
+    }
+
+    /// <summary>§10.3: toda resposta da página, em qualquer estado e status, sai sem Referer e sem cache.</summary>
+    private static void SemRefererNemCache(HttpResponseMessage response)
+    {
+        Assert.Equal("no-referrer", Assert.Single(response.Headers.GetValues("Referrer-Policy")));
+        Assert.True(response.Headers.CacheControl?.NoStore);
+    }
+
     private static async Task<(HttpResponseMessage Response, string Html)> AbrirAsync(HttpClient client, string url)
     {
         var response = await client.GetAsync(url, Ct);
@@ -65,8 +80,7 @@ public partial class DefinirSenhaPaginaTests(PostgresFixture postgres, DefinirSe
         var (response, html) = await AbrirAsync(client, link);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("no-referrer", Assert.Single(response.Headers.GetValues("Referrer-Policy")));
-        Assert.True(response.Headers.CacheControl?.NoStore);
+        SemRefererNemCache(response);
         Assert.Contains("class=\"bare-card\" tabindex=\"-1\" data-limpar-endereco", html);
         Assert.Contains($"action=\"{Pagina}\"", html);
         Assert.Equal(2, Regex.Count(html, "type=\"password\"[^>]*autocomplete=\"new-password\"|autocomplete=\"new-password\"[^>]*type=\"password\""));
@@ -91,13 +105,15 @@ public partial class DefinirSenhaPaginaTests(PostgresFixture postgres, DefinirSe
         var (response, _) = await EnviarAsync(client, formulario, SenhaNova);
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        SemRefererNemCache(response);
         Assert.Equal($"{Pagina}?definida=True", response.Headers.Location?.OriginalString);
         Assert.DoesNotContain("helinho.panel=", string.Join(';', response.Headers.TryGetValues("Set-Cookie", out var cookies) ? cookies : []));
         var (final, sucesso) = await AbrirAsync(client, $"{Pagina}?definida=True");
-        Assert.True(final.Headers.CacheControl?.NoStore);
+        SemRefererNemCache(final);
         Assert.Contains("Senha definida", sucesso);
         Assert.Contains("href=\"/entrar\"", sucesso);
-        Assert.Contains(LinkInvalido, (await AbrirAsync(client, link)).Html);
+        // Link já usado: o mesmo corpo do link inválido.
+        Assert.Equal((await AbrirAsync(client, Pagina)).Html, (await AbrirAsync(client, link)).Html);
         Assert.Contains(LinkInvalido, (await EnviarAsync(client, formulario, "Outra-Sintetica-3")).Html);
 
         await using var scope = (await shared.GetAsync(postgres)).Services.CreateAsyncScope();
@@ -122,6 +138,7 @@ public partial class DefinirSenhaPaginaTests(PostgresFixture postgres, DefinirSe
             $"{Pagina}?usuario={userId}&token={deOutraConta}",
             $"{Pagina}?usuario={userId}&token=nao-e-token",
             $"{Pagina}?usuario=nao-e-uuid&token={deOutraConta}",
+            await LinkVencidoAsync(userId),
         ];
 
         var respostas = new List<(HttpResponseMessage Response, string Html)>();
@@ -131,7 +148,7 @@ public partial class DefinirSenhaPaginaTests(PostgresFixture postgres, DefinirSe
         }
 
         Assert.All(respostas, r => Assert.Equal((HttpStatusCode.OK, respostas[0].Html), (r.Response.StatusCode, r.Html)));
-        Assert.All(respostas, r => Assert.Equal("no-referrer", Assert.Single(r.Response.Headers.GetValues("Referrer-Policy"))));
+        Assert.All(respostas, r => SemRefererNemCache(r.Response));
         Assert.Contains(LinkInvalido, respostas[0].Html);
         Assert.Contains("href=\"/recuperar-senha\"", respostas[0].Html);
         Assert.DoesNotContain("<form", respostas[0].Html);
@@ -145,10 +162,11 @@ public partial class DefinirSenhaPaginaTests(PostgresFixture postgres, DefinirSe
         using var client = await ClienteAsync("203.0.113.15");
         var (_, formulario) = await AbrirAsync(client, link);
 
-        var (_, fraca) = await EnviarAsync(client, formulario, "curta");
-        var (_, diferente) = await EnviarAsync(client, formulario, SenhaNova, "Outra-Sintetica-3");
-        var (_, vazia) = await EnviarAsync(client, formulario, "");
+        var (r1, fraca) = await EnviarAsync(client, formulario, "curta");
+        var (r2, diferente) = await EnviarAsync(client, formulario, SenhaNova, "Outra-Sintetica-3");
+        var (r3, vazia) = await EnviarAsync(client, formulario, "");
 
+        Assert.All(new[] { r1, r2, r3 }, SemRefererNemCache);
         Assert.All(new[] { fraca, diferente, vazia }, html =>
         {
             Assert.Contains("class=\"alert\" role=\"alert\" tabindex=\"-1\" id=\"resumo-erros\"", html);
@@ -175,10 +193,14 @@ public partial class DefinirSenhaPaginaTests(PostgresFixture postgres, DefinirSe
         for (var i = 0; i < 10; i++)
         {
             await AbrirAsync(client, link);
-            Assert.Equal(HttpStatusCode.BadRequest, (await SemAntiforgery(client)).StatusCode);
+            var recusado = await SemAntiforgery(client);
+            Assert.Equal(HttpStatusCode.BadRequest, recusado.StatusCode);
+            SemRefererNemCache(recusado);
         }
 
-        Assert.Equal(HttpStatusCode.TooManyRequests, (await SemAntiforgery(client)).StatusCode);
+        var excedente = await SemAntiforgery(client);
+        Assert.Equal(HttpStatusCode.TooManyRequests, excedente.StatusCode);
+        SemRefererNemCache(excedente);
         Assert.Equal(HttpStatusCode.OK, (await AbrirAsync(client, link)).Response.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await SemAntiforgery(outroIp)).StatusCode);
     }

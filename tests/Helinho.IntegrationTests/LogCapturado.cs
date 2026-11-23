@@ -16,7 +16,7 @@ public sealed class LogCapturado : ILoggerProvider, ILogger
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
-        Linhas.Enqueue($"{logLevel}: {formatter(state, exception)}{exception}");
+        Linhas.Enqueue($"{logLevel}: {formatter(state, exception)} {exception}");
         foreach (var par in state as IEnumerable<KeyValuePair<string, object?>> ?? [])
         {
             Linhas.Enqueue($"{par.Key}={par.Value}");

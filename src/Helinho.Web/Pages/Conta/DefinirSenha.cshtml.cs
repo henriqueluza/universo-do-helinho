@@ -3,7 +3,6 @@ using Helinho.Application.Identidade;
 using Helinho.Web.Composition;
 using Helinho.Web.Panel;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -12,9 +11,9 @@ namespace Helinho.Web.Pages.Conta;
 /// <summary>
 /// Destino do link de acesso do e-mail (ADR-0003 §10.3 e §11.3): convite e redefinição na mesma página.
 /// O <c>GET</c> só confere o link; quem o consome é o <c>POST</c>. Não faz login automático.
+/// <c>Referrer-Policy</c> e <c>Cache-Control</c> de toda resposta: <see cref="IdentidadeArea.MapIdentidade"/>.
 /// </summary>
 [EnableRateLimiting(IdentidadeArea.DefinirSenhaRateLimitPolicy)]
-[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class DefinirSenhaModel(DefinirSenhaHandler handler) : PageModel
 {
     public enum Etapa { Formulario, LinkInvalido, Definida }
@@ -29,10 +28,6 @@ public sealed class DefinirSenhaModel(DefinirSenhaHandler handler) : PageModel
     public PasswordInput Input { get; set; } = new();
 
     public Etapa Atual { get; private set; }
-
-    /// <summary>O token está na URL: o endereço desta página não pode seguir no <c>Referer</c> de nenhum pedido.</summary>
-    public override void OnPageHandlerExecuting(PageHandlerExecutingContext context) =>
-        Response.Headers["Referrer-Policy"] = "no-referrer";
 
     public async Task OnGetAsync(bool definida, CancellationToken cancellationToken) =>
         Atual = definida ? Etapa.Definida : await EtapaDoLinkAsync(cancellationToken);
@@ -51,12 +46,19 @@ public sealed class DefinirSenhaModel(DefinirSenhaHandler handler) : PageModel
             return RedirectToPage(new { definida = true });
         }
 
+        if (result.Status != DefinirSenhaStatus.SenhaRecusada)
+        {
+            // A causa de um link inválido não vai nem ao ModelState: a resposta é a mesma para todas (T7).
+            Atual = Etapa.LinkInvalido;
+            return Page();
+        }
+
         foreach (var (campo, mensagem) in result.ErrorCodes.Select(IdentityMensagens.Traduzir))
         {
             ModelState.AddModelError(campo, mensagem);
         }
 
-        Atual = result.Status == DefinirSenhaStatus.SenhaRecusada ? Etapa.Formulario : Etapa.LinkInvalido;
+        Atual = Etapa.Formulario;
         return Page();
     }
 
