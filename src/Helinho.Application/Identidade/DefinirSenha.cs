@@ -3,22 +3,16 @@ namespace Helinho.Application.Identidade;
 public enum DefinirSenhaStatus
 {
     Definida,
-
     /// <summary>Conta inexistente, token malformado, de outra conta, vencido ou já usado: indistinguíveis de fora.</summary>
     LinkInvalido,
-
     /// <summary>A senha não passou na política do Identity; o link continua valendo.</summary>
     SenhaRecusada,
 }
 
+/// <summary><paramref name="ErrorCodes"/> traz os códigos do Identity quando a senha é recusada; vazio nos outros casos.</summary>
 public sealed record DefinirSenhaResult(DefinirSenhaStatus Status, IReadOnlyList<string> ErrorCodes)
 {
-    public static DefinirSenhaResult Definida { get; } = new(DefinirSenhaStatus.Definida, []);
-
-    public static DefinirSenhaResult LinkInvalido { get; } = new(DefinirSenhaStatus.LinkInvalido, []);
-
-    public static DefinirSenhaResult SenhaRecusada(IReadOnlyList<string> errorCodes) =>
-        new(DefinirSenhaStatus.SenhaRecusada, errorCodes);
+    public static DefinirSenhaResult Of(DefinirSenhaStatus status) => new(status, []);
 }
 
 /// <summary>Porta para o Identity: confere o token do link nos dois provedores (convite e redefinição) e grava a senha.</summary>
@@ -43,7 +37,7 @@ public sealed class DefinirSenhaHandler(IPasswordLinkGateway links)
     public Task<DefinirSenhaResult> HandleAsync(string? usuario, string? token, string novaSenha, CancellationToken cancellationToken) =>
         Ler(usuario, token) is { } link
             ? links.SetPasswordAsync(link.UserId, link.Token, novaSenha, cancellationToken)
-            : Task.FromResult(DefinirSenhaResult.LinkInvalido);
+            : Task.FromResult(DefinirSenhaResult.Of(DefinirSenhaStatus.LinkInvalido));
 
     private static (Guid UserId, string Token)? Ler(string? usuario, string? token) =>
         Guid.TryParseExact(usuario, "D", out var userId) && LinkDeAcesso.LerToken(token) is { } lido ? (userId, lido) : null;

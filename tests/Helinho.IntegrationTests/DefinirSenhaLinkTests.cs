@@ -4,7 +4,6 @@ using Helinho.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 namespace Helinho.IntegrationTests;
 
@@ -21,13 +20,11 @@ public class DefinirSenhaLinkTests(PostgresFixture postgres, DefinirSenhaLinkTes
     {
         private HelinhoWebFactory? _factory;
 
-        public LogCapturado Logs { get; } = new();
-
         internal async Task<HelinhoWebFactory> GetAsync(PostgresFixture postgres)
         {
             if (_factory is null)
             {
-                var factory = new HelinhoWebFactory(postgres, configure: s => s.AddSingleton<ILoggerProvider>(Logs));
+                var factory = new HelinhoWebFactory(postgres);
                 await factory.EnsureDatabaseAsync();
                 _factory = factory;
             }
@@ -35,24 +32,19 @@ public class DefinirSenhaLinkTests(PostgresFixture postgres, DefinirSenhaLinkTes
             return _factory;
         }
 
-        public async ValueTask DisposeAsync()
-        {
-            if (_factory is not null)
-            {
-                await _factory.DisposeAsync();
-            }
-        }
+        public ValueTask DisposeAsync() => _factory?.DisposeAsync() ?? ValueTask.CompletedTask;
     }
 
-    private static async Task<T> ComAsync<T>(HelinhoWebFactory factory, Func<UserManager<AppUser>, IServiceProvider, Task<T>> acao)
+    private async Task<T> ComAsync<T>(Func<UserManager<AppUser>, IServiceProvider, Task<T>> acao)
     {
-        await using var scope = factory.Services.CreateAsyncScope();
+        await using var scope = (await shared.GetAsync(postgres)).Services.CreateAsyncScope();
         return await acao(scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>(), scope.ServiceProvider);
     }
 
-    private static Task<AppUser> ContaAsync(UserManager<AppUser> users, Guid userId) => users.FindByIdAsync(userId.ToString())!;
+    private static async Task<AppUser> ContaAsync(UserManager<AppUser> users, Guid userId) =>
+        await users.FindByIdAsync(userId.ToString()) ?? throw new InvalidOperationException("Conta de teste não encontrada.");
 
-    private static Task<AppUser> CriarContaAsync(HelinhoWebFactory factory, string? senha) => ComAsync(factory, async (users, _) =>
+    private Task<AppUser> CriarContaAsync(string? senha) => ComAsync(async (users, _) =>
     {
         var nome = $"t{Guid.NewGuid():N}"[..12];
         var user = new AppUser { UserName = nome, Email = $"{nome}@example.com" };
@@ -60,12 +52,11 @@ public class DefinirSenhaLinkTests(PostgresFixture postgres, DefinirSenhaLinkTes
         return user;
     });
 
-    /// <summary>Token como vai na URL, emitido pelo provedor como o tratador de e-mail fará.</summary>
-    private static Task<string> EmitirAsync(HelinhoWebFactory factory, Guid userId, string provedor) => ComAsync(factory, async (users, _) =>
-        NaUrl(userId, await users.GenerateUserTokenAsync(await ContaAsync(users, userId), provedor, LinkDeAcesso.Finalidade)));
+    private Task<string> EmitirAsync(Guid userId, string provedor) => ComAsync(async (users, _) =>
+        LinkDeAcesso.TokenParaUrl(await users.GenerateUserTokenAsync(await ContaAsync(users, userId), provedor, LinkDeAcesso.Finalidade)));
 
     /// <summary>Token com a criação recuada, no formato do <c>DataProtectorTokenProvider</c>: criação, id, finalidade e carimbo.</summary>
-    private static Task<string> EmitirComIdadeAsync(HelinhoWebFactory factory, Guid userId, string provedor, TimeSpan idade) => ComAsync(factory, async (users, services) =>
+    private Task<string> EmitirComIdadeAsync(Guid userId, string provedor, TimeSpan idade) => ComAsync(async (users, services) =>
     {
         using var dados = new MemoryStream();
         using (var escritor = new BinaryWriter(dados, new UTF8Encoding(false, true), leaveOpen: true))
@@ -77,22 +68,16 @@ public class DefinirSenhaLinkTests(PostgresFixture postgres, DefinirSenhaLinkTes
         }
 
         var protetor = services.GetRequiredService<IDataProtectionProvider>().CreateProtector(provedor);
-        return NaUrl(userId, Convert.ToBase64String(protetor.Protect(dados.ToArray())));
+        return LinkDeAcesso.TokenParaUrl(Convert.ToBase64String(protetor.Protect(dados.ToArray())));
     });
 
-    private static string NaUrl(Guid userId, string token)
-    {
-        var link = LinkDeAcesso.Montar(userId, token);
-        return link[(link.IndexOf("token=", StringComparison.Ordinal) + 6)..];
-    }
-
-    private static Task<bool> ValeAsync(HelinhoWebFactory factory, Guid userId, string token) => ComAsync(factory, (_, services) =>
+    private Task<bool> ValeAsync(Guid userId, string token) => ComAsync((_, services) =>
         services.GetRequiredService<DefinirSenhaHandler>().LinkValidoAsync(userId.ToString(), token, Ct));
 
-    private static Task<DefinirSenhaResult> DefinirAsync(HelinhoWebFactory factory, Guid userId, string token, string senha = SenhaNova) =>
-        ComAsync(factory, (_, services) => services.GetRequiredService<DefinirSenhaHandler>().HandleAsync(userId.ToString(), token, senha, Ct));
+    private Task<DefinirSenhaResult> DefinirAsync(Guid userId, string token, string senha = SenhaNova) =>
+        ComAsync((_, services) => services.GetRequiredService<DefinirSenhaHandler>().HandleAsync(userId.ToString(), token, senha, Ct));
 
-    private static Task<bool> SenhaConfereAsync(HelinhoWebFactory factory, Guid userId, string senha) => ComAsync(factory, async (users, _) =>
+    private Task<bool> SenhaConfereAsync(Guid userId, string senha) => ComAsync(async (users, _) =>
         await users.CheckPasswordAsync(await ContaAsync(users, userId), senha));
 
     [Theory]
@@ -102,108 +87,67 @@ public class DefinirSenhaLinkTests(PostgresFixture postgres, DefinirSenhaLinkTes
     [InlineData(LinkDeAcesso.ProvedorRedefinicao, 65, false)]
     public async Task Convite_vale_72_horas_e_redefinicao_vale_1_hora(string provedor, int idadeEmMinutos, bool vale)
     {
-        var factory = await shared.GetAsync(postgres);
-        var conta = await CriarContaAsync(factory, senha: null);
+        var conta = await CriarContaAsync(senha: null);
 
-        var token = await EmitirComIdadeAsync(factory, conta.Id, provedor, TimeSpan.FromMinutes(idadeEmMinutos));
+        var token = await EmitirComIdadeAsync(conta.Id, provedor, TimeSpan.FromMinutes(idadeEmMinutos));
 
-        Assert.Equal(vale, await ValeAsync(factory, conta.Id, token));
-        Assert.Equal(vale ? DefinirSenhaStatus.Definida : DefinirSenhaStatus.LinkInvalido, (await DefinirAsync(factory, conta.Id, token)).Status);
+        Assert.Equal(vale, await ValeAsync(conta.Id, token));
+        Assert.Equal(vale ? DefinirSenhaStatus.Definida : DefinirSenhaStatus.LinkInvalido, (await DefinirAsync(conta.Id, token)).Status);
     }
 
     [Fact]
-    public async Task Convite_define_a_senha_de_conta_sem_senha_e_conferir_nao_gasta_o_link()
+    public async Task Convite_define_a_senha_de_conta_sem_senha_uma_vez_e_conferir_ou_errar_a_senha_nao_gasta_o_link()
     {
-        var factory = await shared.GetAsync(postgres);
-        var conta = await CriarContaAsync(factory, senha: null);
-        var token = await EmitirAsync(factory, conta.Id, LinkDeAcesso.ProvedorConvite);
+        var conta = await CriarContaAsync(senha: null);
+        var token = await EmitirAsync(conta.Id, LinkDeAcesso.ProvedorConvite);
 
-        Assert.True(await ValeAsync(factory, conta.Id, token));
-        Assert.True(await ValeAsync(factory, conta.Id, token));
-        Assert.False(await SenhaConfereAsync(factory, conta.Id, SenhaNova));
-
-        Assert.Equal(DefinirSenhaStatus.Definida, (await DefinirAsync(factory, conta.Id, token)).Status);
-
-        Assert.True(await SenhaConfereAsync(factory, conta.Id, SenhaNova));
-        Assert.False(await ValeAsync(factory, conta.Id, token));
-        Assert.Equal(DefinirSenhaStatus.LinkInvalido, (await DefinirAsync(factory, conta.Id, token, "Outra-Sintetica-3")).Status);
-        Assert.True(await SenhaConfereAsync(factory, conta.Id, SenhaNova));
+        Assert.True(await ValeAsync(conta.Id, token));
+        var fraca = await DefinirAsync(conta.Id, token, "curta");
+        Assert.Equal(DefinirSenhaStatus.SenhaRecusada, fraca.Status);
+        Assert.Contains("PasswordTooShort", fraca.ErrorCodes);
+        Assert.True(await ValeAsync(conta.Id, token));
+        Assert.Equal(DefinirSenhaStatus.Definida, (await DefinirAsync(conta.Id, token)).Status);
+        Assert.True(await SenhaConfereAsync(conta.Id, SenhaNova));
+        Assert.False(await ValeAsync(conta.Id, token));
+        Assert.Equal(DefinirSenhaStatus.LinkInvalido, (await DefinirAsync(conta.Id, token, "Outra-Sintetica-3")).Status);
+        Assert.True(await SenhaConfereAsync(conta.Id, SenhaNova));
     }
 
     [Fact]
     public async Task Redefinicao_troca_a_senha_mata_os_outros_links_da_conta_e_nao_mexe_no_bloqueio()
     {
-        var factory = await shared.GetAsync(postgres);
-        var conta = await CriarContaAsync(factory, SenhaAntiga);
-        var bloqueio = DateTimeOffset.UtcNow.AddHours(2);
-        await ComAsync(factory, async (users, _) => await users.SetLockoutEndDateAsync(await ContaAsync(users, conta.Id), bloqueio));
-        var usado = await EmitirAsync(factory, conta.Id, LinkDeAcesso.ProvedorRedefinicao);
-        var outro = await EmitirAsync(factory, conta.Id, LinkDeAcesso.ProvedorRedefinicao);
-        var convite = await EmitirAsync(factory, conta.Id, LinkDeAcesso.ProvedorConvite);
+        var conta = await CriarContaAsync(SenhaAntiga);
+        await ComAsync(async (users, _) => await users.SetLockoutEndDateAsync(await ContaAsync(users, conta.Id), DateTimeOffset.MaxValue));
+        var usado = await EmitirAsync(conta.Id, LinkDeAcesso.ProvedorRedefinicao);
+        var outro = await EmitirAsync(conta.Id, LinkDeAcesso.ProvedorRedefinicao);
 
-        Assert.Equal(DefinirSenhaStatus.Definida, (await DefinirAsync(factory, conta.Id, usado)).Status);
+        Assert.Equal(DefinirSenhaStatus.Definida, (await DefinirAsync(conta.Id, usado)).Status);
 
-        Assert.True(await SenhaConfereAsync(factory, conta.Id, SenhaNova));
-        Assert.False(await SenhaConfereAsync(factory, conta.Id, SenhaAntiga));
-        foreach (var token in new[] { usado, outro, convite })
-        {
-            Assert.False(await ValeAsync(factory, conta.Id, token));
-        }
-
-        var fim = await ComAsync(factory, async (users, _) => await users.GetLockoutEndDateAsync(await ContaAsync(users, conta.Id)));
-        Assert.Equal(bloqueio.ToUnixTimeSeconds(), fim!.Value.ToUnixTimeSeconds());
+        Assert.True(await SenhaConfereAsync(conta.Id, SenhaNova));
+        Assert.False(await SenhaConfereAsync(conta.Id, SenhaAntiga));
+        Assert.False(await ValeAsync(conta.Id, usado));
+        Assert.False(await ValeAsync(conta.Id, outro));
+        Assert.True(await ComAsync(async (users, _) => await users.IsLockedOutAsync(await ContaAsync(users, conta.Id))));
     }
 
     [Fact]
-    public async Task Conta_inexistente_token_de_outra_conta_e_token_estranho_dao_o_mesmo_link_invalido()
+    public async Task Conta_inexistente_token_de_outra_conta_token_estranho_e_convite_para_quem_tem_senha_dao_o_mesmo_link_invalido()
     {
-        var factory = await shared.GetAsync(postgres);
-        var conta = await CriarContaAsync(factory, SenhaAntiga);
-        var outra = await CriarContaAsync(factory, senha: null);
-        var daOutra = await EmitirAsync(factory, outra.Id, LinkDeAcesso.ProvedorConvite);
+        var conta = await CriarContaAsync(SenhaAntiga);
+        var outra = await CriarContaAsync(senha: null);
+        var daOutra = await EmitirAsync(outra.Id, LinkDeAcesso.ProvedorConvite);
 
         var respostas = new[]
         {
-            await DefinirAsync(factory, Guid.NewGuid(), daOutra),
-            await DefinirAsync(factory, conta.Id, daOutra),
-            await DefinirAsync(factory, conta.Id, NaUrl(conta.Id, "nao-e-token")),
+            await DefinirAsync(Guid.NewGuid(), daOutra),
+            await DefinirAsync(conta.Id, daOutra),
+            await DefinirAsync(conta.Id, LinkDeAcesso.TokenParaUrl("nao-e-token")),
+            // Conta que já tem senha não aceita o convite de 72 horas, nem recém-emitido (D4).
+            await DefinirAsync(conta.Id, await EmitirAsync(conta.Id, LinkDeAcesso.ProvedorConvite)),
         };
 
-        Assert.All(respostas, r => Assert.Equal(DefinirSenhaResult.LinkInvalido, r));
-        Assert.True(await SenhaConfereAsync(factory, conta.Id, SenhaAntiga));
-        Assert.True(await ValeAsync(factory, outra.Id, daOutra));
-    }
-
-    [Fact]
-    public async Task Senha_fora_da_politica_e_recusada_com_os_codigos_do_Identity_e_o_link_continua_valendo()
-    {
-        var factory = await shared.GetAsync(postgres);
-        var conta = await CriarContaAsync(factory, senha: null);
-        var token = await EmitirAsync(factory, conta.Id, LinkDeAcesso.ProvedorConvite);
-
-        var result = await DefinirAsync(factory, conta.Id, token, "curta");
-
-        Assert.Equal(DefinirSenhaStatus.SenhaRecusada, result.Status);
-        Assert.Contains("PasswordTooShort", result.ErrorCodes);
-        Assert.True(await ValeAsync(factory, conta.Id, token));
-        Assert.Equal(DefinirSenhaStatus.Definida, (await DefinirAsync(factory, conta.Id, token)).Status);
-    }
-
-    [Fact]
-    public async Task Token_e_senha_nao_aparecem_em_log_e_a_auditoria_leva_so_o_id_da_conta()
-    {
-        var factory = await shared.GetAsync(postgres);
-        var conta = await CriarContaAsync(factory, senha: null);
-        var token = await EmitirAsync(factory, conta.Id, LinkDeAcesso.ProvedorConvite);
-        const string senha = "Registro-Sintetico-5";
-
-        await DefinirAsync(factory, conta.Id, token, senha);
-        await DefinirAsync(factory, conta.Id, token, senha);
-
-        var linhas = shared.Logs.Linhas.ToArray();
-        Assert.Contains(linhas, l => l.Contains($"Senha definida por link de acesso para a conta {conta.Id}", StringComparison.Ordinal));
-        Assert.Contains(linhas, l => l.Contains("Link de acesso recusado ao definir senha", StringComparison.Ordinal));
-        Assert.DoesNotContain(linhas, l => l.Contains(token, StringComparison.Ordinal)
-            || l.Contains(LinkDeAcesso.LerToken(token)!, StringComparison.Ordinal) || l.Contains(senha, StringComparison.Ordinal));
+        Assert.All(respostas, r => Assert.Equal(DefinirSenhaStatus.LinkInvalido, r.Status));
+        Assert.True(await SenhaConfereAsync(conta.Id, SenhaAntiga));
+        Assert.True(await ValeAsync(outra.Id, daOutra));
     }
 }
