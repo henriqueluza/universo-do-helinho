@@ -26,6 +26,7 @@ public class JobContractsTests
     [InlineData("Resend")]
     [InlineData("ação")]
     [InlineData("")]
+    [InlineData("resend\n")]
     [InlineData("codigo-com-mais-de-trinta-caracteres")]
     [InlineData("https://example.org/conta/definir-senha?token=abc")]
     public void Texto_livre_nao_entra_no_payload(string text) =>
@@ -51,5 +52,7 @@ public class JobContractsTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new JobRequest("email.admin-invite", Id, new JobPayload(), TimeSpan.Zero));
         Assert.Throws<ArgumentException>(() => new JobRequest("email.admin-invite", Id, new JobPayload(), OneHour, "convite:responsavel@example.org"));
         Assert.Throws<ArgumentException>(() => new JobRequest("email.admin-invite", Id, new JobPayload(), OneHour, new string('k', 201)));
+        Assert.Throws<ArgumentException>(() => new JobRequest("email.admin-invite\n", Id, new JobPayload(), OneHour));
+        Assert.Throws<ArgumentException>(() => new JobRequest("email.admin-invite", Id, new JobPayload(), OneHour, "chave\n"));
     }
 }

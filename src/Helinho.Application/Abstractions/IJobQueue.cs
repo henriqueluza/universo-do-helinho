@@ -35,9 +35,9 @@ public sealed partial record JobRequest(string Type, Guid? SubjectId, JobPayload
     public string? IdempotencyKey { get; } = IdempotencyKey is null || (IdempotencyKey.Length <= 200 && KeyPattern().IsMatch(IdempotencyKey))
         ? IdempotencyKey : throw new ArgumentException("Chave de idempotência inválida.", nameof(IdempotencyKey));
 
-    [GeneratedRegex(@"^[a-z0-9]+(\.[a-z0-9-]+)+$")]
+    [GeneratedRegex(@"^[a-z0-9]+(\.[a-z0-9-]+)+\z")]
     private static partial Regex TypePattern();
 
-    [GeneratedRegex(@"^[A-Za-z0-9:._-]+$")]
+    [GeneratedRegex(@"^[A-Za-z0-9:._-]+\z")]
     private static partial Regex KeyPattern();
 }

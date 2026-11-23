@@ -37,7 +37,7 @@ public sealed partial class JobPayload
         return this;
     }
 
-    [GeneratedRegex(@"^[a-z][A-Za-z0-9]{0,29}$")]
+    [GeneratedRegex(@"^[a-z][A-Za-z0-9]{0,29}\z")]
     private static partial Regex NamePattern();
 }
 
@@ -48,6 +48,6 @@ public static partial class JobCode
         code is { Length: <= 30 } && Pattern().IsMatch(code)
             ? code : throw new ArgumentException("Código fora do vocabulário fechado: texto livre não entra na fila.", parameter);
 
-    [GeneratedRegex(@"^[a-z][a-z0-9]*([._-][a-z0-9]+)*$")]
+    [GeneratedRegex(@"^[a-z][a-z0-9]*([._-][a-z0-9]+)*\z")]
     private static partial Regex Pattern();
 }
