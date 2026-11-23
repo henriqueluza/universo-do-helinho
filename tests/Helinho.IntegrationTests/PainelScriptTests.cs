@@ -55,6 +55,8 @@ public partial class PainelScriptTests(PostgresFixture postgres)
     [InlineData("[data-check]")]
     [InlineData("[data-count-for]")]
     [InlineData("[data-ready-hint]")]
+    [InlineData("[data-sugerir]")] // "Sugerir com IA": retorno enquanto a página recarrega (#288)
+    [InlineData("[data-sugerir-aviso]")]
     public async Task Painel_js_mantem_os_modulos_da_preview(string marcador)
     {
         var body = await GetBodyAsync();
