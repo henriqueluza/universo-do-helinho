@@ -5,16 +5,19 @@ using Helinho.Application.Email;
 using Helinho.Application.Identidade;
 using Helinho.Infrastructure.DependencyInjection;
 using Helinho.Infrastructure.Email;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Helinho.UnitTests;
 
-/// <summary>Tratador de e-mail (#270, ADR-0003 §4.2, §5.3 e §11) contra a porta falsa e um envio que só captura. Dados sintéticos.</summary>
+/// <summary>Tratador de e-mail (#270 e #272, ADR-0003 §4.2, §5.3, §11 e §15) contra portas falsas e um envio que só captura. Dados sintéticos.</summary>
 public class EmailJobHandlerTests
 {
     private const string RawToken = "CfDJ8+token/sintetico=="; // com os caracteres que o Base64 comum tem e a URL não aceita
     private const string GuardianEmail = "responsavel@example.com";
-    private static readonly DateTimeOffset Now = new(2026, 11, 22, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Now = new(2026, 11, 22, 12, 20, 30, TimeSpan.Zero);
+    private static readonly FixedClock Clock = new();
     private static readonly Guid JobId = Guid.Parse("11111111-2222-4333-8444-555555555555");
     private static readonly Guid AdminId = Guid.Parse("aaaaaaaa-0000-4000-8000-000000000001");
     private static readonly Guid StudentUserId = Guid.Parse("bbbbbbbb-0000-4000-8000-000000000002");
@@ -58,13 +61,36 @@ public class EmailJobHandlerTests
         public DateTimeOffset UtcNow => Now;
     }
 
+    private sealed class Counter(int sent) : IEmailDailyCount
+    {
+        public List<DateTimeOffset> Asked { get; } = [];
+
+        public Task<int> SentSinceAsync(DateTimeOffset since, CancellationToken cancellationToken)
+        {
+            Asked.Add(since);
+            return Task.FromResult(sent);
+        }
+    }
+
+    /// <summary>O registro que atende o tipo, como o trabalhador o escolhe; sem teto diário, salvo quando o teste pede.</summary>
+    private static EmailJobHandler Handler(string type, Subjects subjects, Sender sender, int limit = 0, Counter? counter = null) => new(
+        EmailLane.Urgent.Types.Contains(type) ? EmailLane.Urgent : EmailLane.Others,
+        new EmailDailyLimit(limit, counter ?? new Counter(0), Clock), subjects, EmailTemplateRendererTests.Renderer, sender, Clock);
+
+    private static ServiceProvider Provider(string dailyLimit, Subjects subjects, Sender sender) => new ServiceCollection()
+        .AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Email:DailyLimit"] = dailyLimit }).Build())
+        .AddEmailTemplates(_ => new(PublicBaseUrl.Parse("", allowHttpLoopback: false), "FUNDHAS", "contato@example.org"))
+        .AddEmailJobs()
+        .AddScoped<IEmailSubjects>(_ => subjects).AddScoped<IEmailDailyCount>(_ => new Counter(0))
+        .AddSingleton<IEmailSender>(sender).AddSingleton<IClock>(Clock)
+        .BuildServiceProvider();
+
     private static async Task<(JobResult Result, Subjects Subjects, Sender Sender)> RunAsync(
         string type, Guid? subjectId, EmailSendResult? answer = null, params EmailSubject[] known)
     {
         var subjects = new Subjects(known);
         var sender = new Sender(answer ?? new(EmailSendStatus.Sent, "id-sintetico@example.org"));
-        var handler = new EmailJobHandler(subjects, EmailTemplateRendererTests.Renderer, sender, new FixedClock());
-        return (await handler.HandleAsync(Job(type, subjectId), Ct), subjects, sender);
+        return (await Handler(type, subjects, sender).HandleAsync(Job(type, subjectId), Ct), subjects, sender);
     }
 
     private static JobContext Job(string type, Guid? subjectId) =>
@@ -74,15 +100,69 @@ public class EmailJobHandlerTests
     private static string? TokenIn(string body) => LinkDeAcesso.LerToken(Regex.Match(body, "token=([A-Za-z0-9_-]+)").Groups[1].Value);
 
     [Fact]
-    public void Declara_os_cinco_tipos_e_a_politica_de_email_do_ADR()
+    public void Os_dois_registros_dividem_os_cinco_tipos_sem_repeticao_com_a_politica_de_email_do_ADR()
     {
-        var handler = new EmailJobHandler(new Subjects(), EmailTemplateRendererTests.Renderer, new Sender(new(EmailSendStatus.Sent)), new FixedClock());
+        var handler = Handler(EmailJobTypes.PasswordReset, new Subjects(), new Sender(new(EmailSendStatus.Sent)));
 
-        Assert.Equal(
-            ["email.admin-invite", "email.guardian-email-changed", "email.password-changed", "email.password-reset", "email.student-access"],
-            handler.Types.Order());
+        Assert.Equal(["email.admin-invite", "email.password-reset"], EmailLane.Urgent.Types.Order());
+        Assert.Equal(["email.guardian-email-changed", "email.password-changed", "email.student-access"], EmailLane.Others.Types.Order());
+        Assert.Same(EmailLane.Urgent.Types, handler.Types);
         Assert.Equal(
             new JobPolicy(8, TimeSpan.FromMinutes(1), TimeSpan.FromHours(1), 10, TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(2)), handler.Policy);
+    }
+
+    [Theory]
+    [InlineData(0, 5000, false, false)] // sem teto, nem conta
+    [InlineData(300, 239, false, false)]
+    [InlineData(300, 240, false, true)] // de 80% em diante só os urgentes saem
+    [InlineData(300, 299, false, true)]
+    [InlineData(300, 300, true, true)] // no teto, os dois registros esperam
+    [InlineData(300, 450, true, true)]
+    public async Task Teto_diario_suspende_os_demais_em_80_por_cento_e_os_urgentes_no_teto_ate_a_hora_seguinte(int limit, int sent, bool urgentWaits, bool othersWait)
+    {
+        (string Type, Guid Id, bool Waits)[] cases =
+        [
+            (EmailJobTypes.PasswordReset, AdminId, urgentWaits), (EmailJobTypes.AdminInvite, AdminId, urgentWaits),
+            (EmailJobTypes.StudentAccess, StudentId, othersWait), (EmailJobTypes.PasswordChanged, AdminId, othersWait),
+        ];
+        foreach (var (type, id, waits) in cases)
+        {
+            var (subjects, sender, counter) = (new Subjects(Admin, Student), new Sender(new(EmailSendStatus.Sent)), new Counter(sent));
+
+            var result = await Handler(type, subjects, sender, limit, counter).HandleAsync(Job(type, id), Ct);
+
+            Assert.Equal(limit == 0 ? [] : [Now.AddHours(-24)], counter.Asked);
+            Assert.Equal(waits ? 0 : 1, sender.Sent.Count);
+            (string, TimeSpan)? expected = waits ? ("daily_limit", new TimeSpan(0, 39, 30)) : null; // 12:20:30 até as 13:00
+            Assert.Equal(expected, result is JobResult.Suspend s ? (s.ErrorCode, s.PauseFor) : null);
+            Assert.True(!waits || subjects.Tokens.Count == 0, "o teto segura a mensagem antes de gerar o token");
+        }
+    }
+
+    [Theory]
+    [InlineData("", 0)]
+    [InlineData("0", 0)]
+    [InlineData("300", 300)]
+    [InlineData("-1", null)]
+    [InlineData("3,5", null)]
+    [InlineData("trezentos", null)]
+    public void Teto_diario_configurado_e_inteiro_maior_ou_igual_a_zero_e_vazio_vale_sem_teto(string value, int? limit)
+    {
+        Assert.Equal(limit, new EmailDailyLimitOptions { Value = value }.Limit);
+
+        using var provider = Provider(value, new Subjects(), new Sender(new(EmailSendStatus.Sent)));
+        using var scope = provider.CreateScope();
+        if (limit is null)
+        {
+            // Com ValidateOnStart a aplicação nem sobe; a mensagem diz a variável e não repete o valor.
+            var error = Assert.Throws<OptionsValidationException>(() => scope.ServiceProvider.GetServices<IJobHandler>().ToList());
+            Assert.Contains("Email:DailyLimit", error.Message);
+            Assert.DoesNotContain(value, error.Message);
+        }
+        else
+        {
+            Assert.Equal(2, scope.ServiceProvider.GetServices<IJobHandler>().Count());
+        }
     }
 
     [Theory]
@@ -199,21 +279,23 @@ public class EmailJobHandlerTests
     }
 
     [Fact]
-    public async Task Sem_base_publica_o_registro_nao_lanca_e_o_tratador_suspende_sem_ler_a_conta_nem_enviar()
+    public async Task Sem_base_publica_os_dois_registros_sobem_sem_tipo_repetido_e_suspendem_sem_ler_a_conta_nem_enviar()
     {
-        var (subjects, sender) = (new Subjects(Admin), new Sender(new(EmailSendStatus.Sent)));
-        await using var provider = new ServiceCollection()
-            .AddEmailTemplates(_ => new(PublicBaseUrl.Parse("", allowHttpLoopback: false), "FUNDHAS", "contato@example.org"))
-            .AddEmailJobs()
-            .AddScoped<IEmailSubjects>(_ => subjects).AddSingleton<IEmailSender>(sender).AddSingleton<IClock>(new FixedClock())
-            .BuildServiceProvider();
+        var (subjects, sender) = (new Subjects(Admin, Student), new Sender(new(EmailSendStatus.Sent)));
+        await using var provider = Provider("300", subjects, sender);
         await using var scope = provider.CreateAsyncScope();
 
-        var handler = Assert.Single(scope.ServiceProvider.GetServices<IJobHandler>()); // é assim que o trabalhador os resolve na subida
-        var result = await handler.HandleAsync(Job(EmailJobTypes.PasswordReset, AdminId), Ct);
+        var handlers = scope.ServiceProvider.GetServices<IJobHandler>().ToList(); // é assim que o trabalhador os resolve na subida
+        var results = new[]
+        {
+            await handlers.Single(h => h.Types.Contains(EmailJobTypes.PasswordReset)).HandleAsync(Job(EmailJobTypes.PasswordReset, AdminId), Ct),
+            await handlers.Single(h => h.Types.Contains(EmailJobTypes.StudentAccess)).HandleAsync(Job(EmailJobTypes.StudentAccess, StudentId), Ct),
+        };
 
-        var suspended = Assert.IsType<JobResult.Suspend>(result);
-        Assert.Equal(("base_url_missing", TimeSpan.FromMinutes(15)), (suspended.ErrorCode, suspended.PauseFor));
+        Assert.Equal(2, handlers.Count);
+        Assert.Equal(5, handlers.SelectMany(h => h.Types).Distinct().Count());
+        Assert.All(results, result => Assert.Equal(
+            ("base_url_missing", TimeSpan.FromMinutes(15)), Assert.IsType<JobResult.Suspend>(result) is var s ? (s.ErrorCode, s.PauseFor) : default));
         Assert.Empty(subjects.Tokens);
         Assert.Empty(sender.Sent);
     }
