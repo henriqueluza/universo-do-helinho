@@ -9,6 +9,7 @@ public static class Areas
             .AddPainelAlunos().AddPainelConteudo().AddPainelEngajamento().AddGestao().AddFila();
         services.AddIa();
         services.AddEmailTratador();
+        services.AddBrevoWebhook();
         return services;
     }
 
@@ -16,6 +17,7 @@ public static class Areas
     {
         app.MapIdentidade().MapApiHome().MapApiPerfil().MapApiQuiz()
             .MapPainelAlunos().MapPainelConteudo().MapPainelEngajamento().MapGestao();
+        app.MapBrevoWebhook();
         return app;
     }
 }
