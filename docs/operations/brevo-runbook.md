@@ -639,7 +639,7 @@ terraform -chdir=infra/railway plan -out="$HOME/.helinho-infra/brevo.tfplan"
 **✔ Confira, na saída do `plan`:**
 
 1. O resumo mostra **uma** mudança e **nada** a destruir, em `module.ambiente["homologacao"].railway_variable_collection.web`.
-2. `railway_project.this` e `railway_service.postgres` **não aparecem**. Se aparecerem, não aplique ([8.1 do runbook da Railway](railway-runbook.md#81-publicar-uma-versão-nova)).
+2. `railway_project.this` e `railway_service.postgres` **não aparecem**. Se aparecerem, não aplique ([8.1 do runbook da Railway](railway-runbook.md#81-o-que-dispara-um-deploy-e-como-conferir)).
 3. Em `Changes to Outputs`, a lista `variaveis_web` ganha **três** nomes: `Brevo__ApiKey`, `Brevo__SenderEmail` e `Brevo__SenderName`. `Email__Provider` e `App__PublicBaseUrl` já estavam lá (a segunda, desde o domínio próprio), e `Email__DailyLimit` também, se a Issue #229 já entrou.
 4. `url_base_app` **não muda**: continua `https://` mais o domínio do painel. Se aparecer mudando ou ficando vazia, não aplique.
 5. Todos os valores de variável aparecem como `(sensitive value)`.
