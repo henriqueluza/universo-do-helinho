@@ -8,7 +8,6 @@
     var tema = TemaQuiz.Of(job.QuizType);
     var faixa = Helinho.Web.Pages.Questoes.IndexModel.BandLabel(job.AgeBand);
     var total = job.Drafts.Count;
-    var step = job.Status == AiJobStatus.Succeeded && total > 0 ? 2 : 1;
 }
 @section Head {
     @if (Model.AutoRefresh)
@@ -31,8 +30,8 @@
 
     <ol class="ai-steps" aria-label="Etapas">
         <li>Pedir</li>
-        <li aria-current="@(step == 2 ? null : "step")">Gerar</li>
-        <li aria-current="@(step == 2 ? "step" : null)">Revisar</li>
+        <li aria-current="step">Revisar</li>
+        <li>Aprovar</li>
     </ol>
 
     @if (Model.InProgress)
