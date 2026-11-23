@@ -43,19 +43,6 @@ public class CriarAdministradorHandlerTests
     }
 
     [Fact]
-    public async Task Email_ja_usado_por_conta_do_painel_e_recusado_sem_criar_nem_enfileirar()
-    {
-        _gateway.PanelEmails.Add("ADM.NORTE@example.test");
-
-        var result = await _handler.HandleAsync(Account(), Ct);
-
-        Assert.Equal((CriarAdministradorStatus.Rejected, "DuplicateEmail"), (result.Status, Assert.Single(result.ErrorCodes)));
-        Assert.Empty(_gateway.Admins);
-        Assert.Empty(_queue.Requests);
-        Assert.False(_gateway.Committed);
-    }
-
-    [Fact]
     public async Task Recusa_segundo_administrador_ativo_na_mesma_unidade()
     {
         _gateway.Admins.Add(Existing("existente", _unit.Id));
@@ -96,6 +83,19 @@ public class CriarAdministradorHandlerTests
         var result = await _handler.HandleAsync(Account(), Ct);
 
         Assert.Equal(CriarAdministradorStatus.Created, result.Status);
+    }
+
+    [Fact]
+    public async Task Recusa_e_mail_ja_usado_por_outra_conta_mesmo_de_outra_unidade()
+    {
+        _gateway.Admins.Add(Existing("outro", Guid.NewGuid()) with { Email = "ADM.NORTE@example.test" });
+
+        var result = await _handler.HandleAsync(Account(), Ct);
+
+        Assert.Equal(CriarAdministradorStatus.EmailInUse, result.Status);
+        Assert.Single(_gateway.Admins); // só a conta que já existia: nada foi criado
+        Assert.Empty(_queue.Requests); // nem convite na fila
+        Assert.False(_gateway.Committed);
     }
 
     [Fact]
@@ -157,8 +157,6 @@ public class CriarAdministradorHandlerTests
 
         public List<AdminAccount> Admins { get; } = [];
 
-        public HashSet<string> PanelEmails { get; } = new(StringComparer.OrdinalIgnoreCase);
-
         public IReadOnlyList<string> CreateErrors { get; set; } = [];
 
         public bool LockOpened { get; private set; }
@@ -170,6 +168,9 @@ public class CriarAdministradorHandlerTests
 
         public Task<IReadOnlyList<AdminAccount>> ListAdminsAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AdminAccount>>(Admins.ToList());
+
+        public Task<bool> EmailInUseAsync(string email, CancellationToken cancellationToken) =>
+            Task.FromResult(LockOpened && Admins.Exists(a => string.Equals(a.Email, email, StringComparison.OrdinalIgnoreCase)));
 
         public Task<IAdminUnitLock> BeginUnitLockAsync(Guid unitId, CancellationToken cancellationToken)
         {
@@ -188,9 +189,6 @@ public class CriarAdministradorHandlerTests
 
         public Task<bool> DeleteInvitedAdminAsync(Guid accountId, CancellationToken cancellationToken) =>
             Task.FromResult(!AccountChanged && Admins.RemoveAll(a => a.Id == accountId) == 1);
-
-        public Task<bool> PanelEmailInUseAsync(string email, CancellationToken cancellationToken) =>
-            Task.FromResult(PanelEmails.Contains(email));
 
         public Task<IReadOnlyList<string>> CreateAdminAsync(NewAdminAccount account, CancellationToken cancellationToken)
         {

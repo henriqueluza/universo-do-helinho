@@ -36,6 +36,10 @@ public sealed class NovoModel(CriarAdministradorHandler criar) : PageModel
             case CriarAdministradorStatus.UnitHasActiveAdmin:
                 ModelState.AddModelError("Input.UnitId", "Esta unidade já tem um administrador ativo.");
                 break;
+            case CriarAdministradorStatus.EmailInUse:
+                var (emailField, emailMessage) = IdentityMensagens.Traduzir("DuplicateEmail");
+                ModelState.AddModelError(emailField, emailMessage);
+                break;
             default:
                 foreach (var code in result.ErrorCodes)
                 {

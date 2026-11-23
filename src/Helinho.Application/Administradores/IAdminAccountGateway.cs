@@ -35,8 +35,11 @@ public interface IAdminAccountGateway
 
     Task<IAdminUnitLock> BeginUnitLockAsync(Guid unitId, CancellationToken cancellationToken);
 
-    /// <summary>Há conta do painel (Master ou Admin) com este e-mail? Dentro do lock da unidade, trava também o e-mail até o fim da transação.</summary>
-    Task<bool> PanelEmailInUseAsync(string email, CancellationToken cancellationToken);
+    /// <summary>
+    /// Diz se alguma conta já usa o e-mail (sem diferenciar maiúsculas) e segura o endereço até o fim da transação
+    /// do lock da unidade: o banco não tem índice único de e-mail, então a checagem e a criação precisam rodar juntas.
+    /// </summary>
+    Task<bool> EmailInUseAsync(string email, CancellationToken cancellationToken);
 
     /// <summary>Cria o usuário, sem senha, com o papel Admin. Devolve os códigos de erro do Identity; lista vazia = criado.</summary>
     Task<IReadOnlyList<string>> CreateAdminAsync(NewAdminAccount account, CancellationToken cancellationToken);

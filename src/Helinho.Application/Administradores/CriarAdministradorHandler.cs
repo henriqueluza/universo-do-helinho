@@ -8,6 +8,7 @@ public enum CriarAdministradorStatus
     Created,
     InvalidUnit,
     UnitHasActiveAdmin,
+    EmailInUse,
     Rejected,
 }
 
@@ -38,10 +39,13 @@ public sealed class CriarAdministradorHandler(IAdminAccountGateway accounts, IJo
             return CriarAdministradorResult.Of(CriarAdministradorStatus.UnitHasActiveAdmin);
         }
 
-        // E-mail único entre contas do painel (D11): a recuperação de senha precisa achar exatamente uma conta.
-        var errors = await accounts.PanelEmailInUseAsync(account.Email, cancellationToken)
-            ? ["DuplicateEmail"]
-            : await accounts.CreateAdminAsync(account, cancellationToken);
+        // E-mail repetido quebraria o login e a recuperação por e-mail das duas contas (#184).
+        if (await accounts.EmailInUseAsync(account.Email, cancellationToken))
+        {
+            return CriarAdministradorResult.Of(CriarAdministradorStatus.EmailInUse);
+        }
+
+        var errors = await accounts.CreateAdminAsync(account, cancellationToken);
         if (errors.Count > 0)
         {
             return new CriarAdministradorResult(CriarAdministradorStatus.Rejected, errors);

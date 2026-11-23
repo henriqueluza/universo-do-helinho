@@ -36,17 +36,13 @@ public sealed class AdminAccountGateway(AppDbContext db, UserManager<AppUser> us
     public async Task<IAdminUnitLock> BeginUnitLockAsync(Guid unitId, CancellationToken cancellationToken) =>
         new UnitLock(db, await db.BeginLockedTransactionAsync($"admin-unit:{unitId}", cancellationToken));
 
-    public async Task<bool> PanelEmailInUseAsync(string email, CancellationToken cancellationToken)
+    public async Task<bool> EmailInUseAsync(string email, CancellationToken cancellationToken)
     {
         var normalized = users.NormalizeEmail(email.Trim());
-        // O lock da unidade não segura dois cadastros de unidades diferentes com o mesmo e-mail.
-        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({"panel-email:" + normalized}))", cancellationToken);
-        return await (
-            from u in db.Users
-            join ur in db.UserRoles on u.Id equals ur.UserId
-            join r in db.Roles on ur.RoleId equals r.Id
-            where u.NormalizedEmail == normalized && (r.Name == RoleNames.Master || r.Name == RoleNames.Admin)
-            select u.Id).AnyAsync(cancellationToken);
+        var lockKey = $"account-email:{normalized}";
+        // Lock de transação: dois cadastros paralelos com o mesmo e-mail, em unidades diferentes, não passam juntos.
+        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({lockKey}))", cancellationToken);
+        return await db.Users.AnyAsync(u => u.NormalizedEmail == normalized, cancellationToken);
     }
 
     public async Task<IReadOnlyList<string>> CreateAdminAsync(NewAdminAccount account, CancellationToken cancellationToken)
