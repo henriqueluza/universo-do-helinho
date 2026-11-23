@@ -49,6 +49,12 @@ public sealed class EditarModel(GetAiDraftJob getJob, ReviewAiDrafts review) : P
 
     public async Task<IActionResult> OnPostAsync(CancellationToken ct)
     {
+        // A sugestão tem de ser do pedido da URL e ainda estar pendente, como ao abrir o formulário.
+        if ((await FindPendingAsync(ct)).Result is { } stop)
+        {
+            return stop;
+        }
+
         if (ModelState.IsValid)
         {
             try

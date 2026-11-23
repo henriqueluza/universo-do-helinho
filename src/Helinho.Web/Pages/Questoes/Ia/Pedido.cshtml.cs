@@ -36,10 +36,18 @@ public sealed class PedidoModel(GetAiDraftJob getJob, ReviewAiDrafts review, ICl
     public Task<IActionResult> OnGetAsync(CancellationToken ct) => LoadAsync(ct);
 
     public async Task<IActionResult> OnPostAprovarAsync(Guid id, CancellationToken ct) =>
-        Decided(await review.ApproveAsync(id, ct), "Sugestão aprovada. A questão já pode chegar ao jogo.");
+        await OutsideThisRequestAsync(id, ct) ?? Decided(await review.ApproveAsync(id, ct), "Sugestão aprovada. A questão já pode chegar ao jogo.");
 
     public async Task<IActionResult> OnPostDescartarAsync(Guid id, CancellationToken ct) =>
-        Decided(await review.DiscardAsync(id, ct), "Sugestão descartada.");
+        await OutsideThisRequestAsync(id, ct) ?? Decided(await review.DiscardAsync(id, ct), "Sugestão descartada.");
+
+    /// <summary>O id da sugestão vem do formulário: só vale se for uma sugestão do pedido da URL. Senão, 404 e nada é decidido.</summary>
+    private async Task<IActionResult?> OutsideThisRequestAsync(Guid id, CancellationToken ct)
+    {
+        var result = await getJob.HandleAsync(JobId, ct);
+        return result.Status == GetAiDraftJobStatus.Forbidden ? Forbid()
+            : result.Job?.Drafts.Any(d => d.Id == id) == true ? null : NotFound();
+    }
 
     /// <summary>Traduz o resultado do caso de uso. Desligada vira 404; as demais voltam ao pedido com uma mensagem.</summary>
     private IActionResult Decided(AiDraftDecision decision, string done)

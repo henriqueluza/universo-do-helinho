@@ -212,6 +212,25 @@ public partial class AiTelaRevisarTests(PostgresFixture postgres)
         Assert.Equal($"/Questoes/Ia/{job}", response.Headers.Location!.OriginalString);
     }
 
+    /// <summary>Issue #299: o id da sugestão vem do formulário; só vale dentro do pedido da URL.</summary>
+    [Fact]
+    public async Task Sugestao_de_outro_pedido_responde_404_e_nada_e_decidido()
+    {
+        await using var factory = await NewFactoryAsync();
+        using var client = factory.CreateFormClientAs(RoleNames.Admin);
+        var (job, ids) = await SeedAsync(factory, 1);
+        var (other, _) = await SeedAsync(factory, 1);
+
+        using var approve = await ActAsync(client, other, "Aprovar", ids[0]);
+        using var discard = await ActAsync(client, other, "Descartar", ids[0]);
+        using var edit = await PostAsync(client, $"/Questoes/Ia/{job}/editar/{ids[0]}", $"/Questoes/Ia/{other}/editar/{ids[0]}", Edit());
+
+        Assert.All(new[] { approve, discard, edit }, r => Assert.Equal(HttpStatusCode.NotFound, r.StatusCode));
+        var (questions, suggestions) = await ReadAsync(factory);
+        Assert.Empty(questions);
+        Assert.All(suggestions, s => Assert.Equal(AiSuggestionStatus.Pending, s.Status));
+    }
+
     [Fact]
     public async Task Decisao_sem_antiforgery_e_recusada()
     {
