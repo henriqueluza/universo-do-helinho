@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 namespace Helinho.UnitTests;
 
 /// <summary>
-/// Issue #249: o adaptador da Anthropic (ADR-0004 §6.2). Nenhum teste chama a API: um <see cref="HttpMessageHandler"/>
+/// Issues #249 e #251: o adaptador da Anthropic e a repetição em 429 e 5xx (ADR-0004 §6.2). Nenhum teste chama a API: um <see cref="HttpMessageHandler"/>
 /// falso devolve respostas escritas à mão, no formato documentado da Messages API.
 /// </summary>
 public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
@@ -25,6 +25,8 @@ public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
 
     private readonly Recorder _http = new();
     private readonly Logs _logs = new();
+    private readonly List<TimeSpan> _waits = [];
+
     public void Dispose() => _http.Dispose();
 
     private sealed class Recorder : HttpMessageHandler
@@ -74,7 +76,14 @@ public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
     }
 
     private AnthropicQuestionDraftGenerator Generator(int timeoutSeconds = 30) =>
-        new(new HttpClient(_http), new Monitor(new AiOptions { Provider = AiOptions.Anthropic, ApiKey = ApiKey, Model = Model, TimeoutSeconds = timeoutSeconds }), _logs);
+        new(new HttpClient(_http), new Monitor(new AiOptions { Provider = AiOptions.Anthropic, ApiKey = ApiKey, Model = Model, TimeoutSeconds = timeoutSeconds }), _logs)
+        {
+            Delay = (wait, _) =>
+            {
+                _waits.Add(wait);
+                return Task.CompletedTask;
+            },
+        };
 
     private static QuestionDraftRequest Request(int count = 3) =>
         QuestionDraftRequest.Create(QuizType.Ambiental, AgeBand.Age8To10, count, Subject, ["Enunciado existente sintético?"]);
@@ -175,7 +184,7 @@ public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
     [InlineData("""{"questoes":"fora do esquema"}""", "end_turn", QuestionDraftFailure.InvalidOutput)]
     [InlineData("""{"questoes":[{"enunciado":"cortado""", "max_tokens", QuestionDraftFailure.InvalidOutput)]
     [InlineData("Não posso ajudar com isso.", "refusal", QuestionDraftFailure.Refused)]
-    public async Task Saida_fora_do_esquema_ou_recusa_vira_falha_tipada(string text, string stopReason, QuestionDraftFailure expected)
+    public async Task Saida_fora_do_esquema_ou_recusa_vira_falha_tipada_sem_repetir(string text, string stopReason, QuestionDraftFailure expected)
     {
         _http.Enqueue(HttpStatusCode.OK, Message(text, stopReason));
 
@@ -203,19 +212,88 @@ public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
     [InlineData(HttpStatusCode.BadRequest, "invalid_request_error", null, QuestionDraftFailure.Misconfigured)]
     [InlineData(HttpStatusCode.RequestEntityTooLarge, "request_too_large", null, QuestionDraftFailure.Misconfigured)]
     [InlineData(HttpStatusCode.UnprocessableEntity, "invalid_request_error", null, QuestionDraftFailure.Misconfigured)]
-    // 408 e 409 o SDK repetiria por padrão: são passageiros, não configuração errada.
+    // 408 e 409 o SDK repetiria por padrão: são passageiros, não configuração errada. Aqui também não são repetidos.
     [InlineData(HttpStatusCode.RequestTimeout, "timeout_error", null, QuestionDraftFailure.ProviderUnavailable)]
     [InlineData(HttpStatusCode.Conflict, "conflict_error", null, QuestionDraftFailure.ProviderUnavailable)]
-    [InlineData(HttpStatusCode.TooManyRequests, "rate_limit_error", null, QuestionDraftFailure.RateLimited)]
+    // O 429 de teto de gasto não é limite de taxa. O 429 comum e os 5xx saíram desta lista: são os únicos repetidos (abaixo).
     [InlineData(HttpStatusCode.TooManyRequests, "rate_limit_error", "enforced_spend_limit_reached", QuestionDraftFailure.ProviderUnavailable)]
-    [InlineData(HttpStatusCode.InternalServerError, "api_error", null, QuestionDraftFailure.ProviderUnavailable)]
-    [InlineData((HttpStatusCode)529, "overloaded_error", null, QuestionDraftFailure.ProviderUnavailable)]
-    public async Task Erro_do_provedor_vira_o_motivo_fechado_em_uma_tentativa(HttpStatusCode status, string type, string? errorCode, QuestionDraftFailure expected)
+    public async Task Erro_do_provedor_que_nao_melhora_repetindo_vira_o_motivo_fechado_em_uma_tentativa(
+        HttpStatusCode status, string type, string? errorCode, QuestionDraftFailure expected)
     {
+        // Nem com retry-after na resposta: o que não é 429 de limite de taxa nem 5xx tem uma tentativa só.
         _http.Enqueue(status, Error(type, errorCode), ("retry-after", "7"));
 
         Assert.Equal(expected, await FailureAsync());
         Assert.Single(_http.Requests);
+        Assert.Empty(_waits);
+    }
+
+    [Theory]
+    [InlineData("7", 7)]
+    [InlineData("600", 30)] // teto: o provedor não segura a chamada além de 30 s
+    public async Task Limite_de_taxa_com_retry_after_espera_o_que_o_provedor_pediu_e_tenta_de_novo(string retryAfter, int waited)
+    {
+        _http.Enqueue(HttpStatusCode.TooManyRequests, Error("rate_limit_error"), ("retry-after", retryAfter));
+        _http.Enqueue(HttpStatusCode.OK, Message());
+
+        var batch = await Generator().GenerateAsync(Request(), Ct);
+
+        Assert.Single(batch.Drafts);
+        Assert.Equal(2, _http.Requests.Count);
+        Assert.Equal([TimeSpan.FromSeconds(waited)], _waits);
+        Assert.Contains(_logs.Lines, line => line.Contains("será repetida", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Prazo_que_acaba_durante_a_espera_entre_tentativas_vira_Timeout()
+    {
+        _http.Enqueue(HttpStatusCode.InternalServerError, Error("api_error"));
+        var generator = new AnthropicQuestionDraftGenerator(new HttpClient(_http), new Monitor(new AiOptions { ApiKey = ApiKey, Model = Model }), _logs)
+        {
+            Delay = (_, _) => Task.FromCanceled(new CancellationToken(canceled: true)),
+        };
+
+        var failure = await Assert.ThrowsAsync<QuestionDraftGenerationException>(() => generator.GenerateAsync(Request(), Ct));
+
+        Assert.Equal(QuestionDraftFailure.Timeout, failure.Reason);
+        Assert.Single(_http.Requests);
+    }
+
+    [Fact]
+    public async Task Limite_de_taxa_sem_retry_after_repete_duas_vezes_com_espera_exponencial_e_desiste()
+    {
+        for (var i = 0; i < 3; i++)
+        {
+            _http.Enqueue(HttpStatusCode.TooManyRequests, Error("rate_limit_error"));
+        }
+
+        Assert.Equal(QuestionDraftFailure.RateLimited, await FailureAsync());
+        Assert.Equal(3, _http.Requests.Count);
+        Assert.Equal([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)], _waits);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError, "api_error")]
+    [InlineData((HttpStatusCode)529, "overloaded_error")]
+    public async Task Erro_do_servidor_e_repetido_ate_o_teto_e_vira_indisponivel(HttpStatusCode status, string type)
+    {
+        for (var i = 0; i < 3; i++)
+        {
+            _http.Enqueue(status, Error(type));
+        }
+
+        Assert.Equal(QuestionDraftFailure.ProviderUnavailable, await FailureAsync());
+        Assert.Equal(3, _http.Requests.Count);
+    }
+
+    [Fact]
+    public async Task Erro_do_servidor_seguido_de_sucesso_devolve_o_lote()
+    {
+        _http.Enqueue(HttpStatusCode.InternalServerError, Error("api_error"));
+        _http.Enqueue(HttpStatusCode.OK, Message());
+
+        Assert.Single((await Generator().GenerateAsync(Request(), Ct)).Drafts);
+        Assert.Equal(2, _http.Requests.Count);
     }
 
     [Fact]
@@ -226,6 +304,7 @@ public sealed class AnthropicQuestionDraftGeneratorTests : IDisposable
 
         Assert.Equal(QuestionDraftFailure.ProviderUnavailable, await FailureAsync());
         Assert.Single(_http.Requests);
+        Assert.Empty(_waits);
     }
 
     [Fact]
