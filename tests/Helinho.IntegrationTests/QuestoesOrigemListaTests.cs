@@ -160,4 +160,67 @@ public class QuestoesOrigemListaTests(PostgresFixture postgres, QuestoesOrigemLi
         Assert.Contains("rel=\"next\" href=\"/Questoes?origem=Ai&pagina=2\"", html);
         Assert.Matches("action=\"/Questoes\\?[^\"]*origem=Ai", html); // o Aprovar volta para a lista filtrada
     }
+
+    /// <summary>Dois pedidos em lote concluídos: o mais antigo com 1 pendente e 1 descartada, o mais novo com 2 pendentes.</summary>
+    private static async Task<Guid> SeedPendingAsync(HelinhoWebFactory factory)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.AiQuestionSuggestions.ExecuteDeleteAsync(Ct);
+        AiGenerationJob Batch(int hoursAgo) => new(AiJobKind.Batch, QuizType.Cultural, AgeBand.Age8To10, 5, null, Guid.NewGuid(), GeneratedAt.AddHours(-hoursAgo));
+        var (older, newer) = (Batch(5), Batch(1));
+        AiQuestionSuggestion Suggestion(AiGenerationJob job, int position) => new(job.Id, position, $"Sugestão pendente {Letters(position)}?", ["A", "B", "C", "D"], 0, "Explicação.");
+        var discarded = Suggestion(older, 1);
+        discarded.Discard(Guid.NewGuid(), GeneratedAt);
+        db.AiGenerationJobs.AddRange(older, newer);
+        db.AiQuestionSuggestions.AddRange(Suggestion(older, 0), discarded, Suggestion(newer, 0), Suggestion(newer, 1));
+        await db.SaveChangesAsync(Ct);
+        return older.Id;
+    }
+
+    private static async Task ClearPendingAsync(HelinhoWebFactory factory, bool keepOne = false)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var keep = keepOne ? await db.AiQuestionSuggestions.Where(s => s.Status == AiSuggestionStatus.Pending).Select(s => s.Id).FirstAsync(Ct) : Guid.Empty;
+        await db.AiQuestionSuggestions.Where(s => s.Id != keep).ExecuteDeleteAsync(Ct);
+    }
+
+    /// <summary>Issue #300 (ADR-0004 §15): "Gerar com IA" antes de "Nova questão" e o aviso que leva de volta à revisão.</summary>
+    [Fact]
+    public async Task Com_a_IA_ligada_a_lista_tem_Gerar_com_IA_e_o_aviso_conta_as_pendentes_e_leva_ao_pedido_mais_antigo()
+    {
+        var factory = await SeedAsync();
+        var older = await SeedPendingAsync(factory);
+
+        var many = await GetAsync(factory, "/Questoes");
+        await ClearPendingAsync(factory, keepOne: true);
+        var one = await GetAsync(factory, "/Questoes");
+        await ClearPendingAsync(factory);
+        var none = await GetAsync(factory, "/Questoes");
+
+        Assert.Matches("<a class=\"btn btn-ai\" href=\"/Questoes/Ia\"><svg class=\"fill\" aria-hidden=\"true\"><use href=\"#i-ai\"/></svg>Gerar com IA</a>\\s*<a class=\"btn btn-primary\"[^>]*>.*Nova questão", many);
+        Assert.Contains("<div class=\"note ai\" id=\"ia-pendentes\">", many);
+        Assert.Contains("<b>3 sugestões da IA esperando revisão.</b>", many); // a descartada não conta
+        Assert.Contains($"<a class=\"link-btn\" href=\"/Questoes/Ia/{older}\">Revisar agora</a>", many);
+        Assert.Contains("<b>1 sugestão da IA esperando revisão.</b>", one);
+        Assert.DoesNotContain("ia-pendentes", none);
+        Assert.Contains("Gerar com IA", none);
+    }
+
+    [Fact]
+    public async Task Com_a_IA_desligada_a_lista_nao_tem_Gerar_com_IA_nem_aviso_mesmo_com_sugestoes_pendentes()
+    {
+        var factory = await SeedAsync(enabled: false);
+        await SeedPendingAsync(factory);
+
+        var off = await GetAsync(factory, "/Questoes");
+        await ClearPendingAsync(factory);
+
+        Assert.DoesNotContain("btn-ai", off);
+        Assert.DoesNotContain("Gerar com IA", off);
+        Assert.DoesNotContain("ia-pendentes", off);
+        Assert.DoesNotContain("/Questoes/Ia", off);
+        Assert.Contains("tag tag-ai", off); // o selo de origem continua (#289)
+    }
 }

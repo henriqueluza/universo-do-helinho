@@ -9,9 +9,18 @@
 <div class="page-head">
     <p class="sub">Toda questão nasce como rascunho e só chega ao jogo depois de aprovada.</p>
     <div class="page-actions">
+        @if (Model.AiEnabled)
+        {
+            <a class="btn btn-ai" href="/Questoes/Ia"><svg class="fill" aria-hidden="true"><use href="#i-ai"/></svg>Gerar com IA</a>
+        }
         <a class="btn btn-primary" asp-page="Editar"><svg aria-hidden="true"><use href="#i-plus"/></svg>Nova questão</a>
     </div>
 </div>
+
+@if (Model.PendingDrafts is { Count: > 0, OldestJobId: { } oldest })
+{
+    <div class="note ai" id="ia-pendentes"><svg aria-hidden="true"><use href="#i-ai"/></svg><span><b>@(Model.PendingDrafts.Count == 1 ? "1 sugestão da IA esperando revisão." : $"{Model.PendingDrafts.Count} sugestões da IA esperando revisão.")</b> <a class="link-btn" href="/Questoes/Ia/@oldest">Revisar agora</a></span></div>
+}
 
 @if (Model.Saved is not null)
 {
