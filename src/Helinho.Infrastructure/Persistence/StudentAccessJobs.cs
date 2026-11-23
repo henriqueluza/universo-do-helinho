@@ -29,4 +29,10 @@ public sealed class StudentAccessJobs(AppDbContext db) : IStudentAccessJobs
         };
         return new StudentAccessHistory(recent, status, last.FinishedAt ?? last.CreatedAt);
     }
+
+    public Task<bool> HasPendingGuardianNoticeAsync(Guid studentId, CancellationToken cancellationToken) =>
+        db.QueueJobs.AnyAsync(
+            j => j.Type == EmailJobTypes.GuardianEmailChanged && j.SubjectId == studentId
+                && (j.Status == QueueJobStatus.Pending || j.Status == QueueJobStatus.Processing),
+            cancellationToken);
 }

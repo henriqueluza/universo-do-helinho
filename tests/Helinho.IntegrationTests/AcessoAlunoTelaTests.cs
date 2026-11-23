@@ -206,36 +206,59 @@ public class AcessoAlunoTelaTests(PostgresFixture postgres, AcessoAlunoTelaTests
         }
     }
 
+    private static Dictionary<string, string> Fields(string fullName, string guardianEmail) => new()
+    {
+        ["Input.FullName"] = fullName,
+        ["Input.Rg"] = "33.333.333-3",
+        ["Input.Cpf"] = "529.982.247-25",
+        ["Input.Address"] = "Rua Sintética, 3",
+        ["Input.BirthDate"] = "2017-03-01",
+        ["Input.ClassName"] = "5A",
+        ["Input.GuardianName"] = "Responsável Fictício",
+        ["Input.GuardianEmail"] = guardianEmail,
+        ["Input.GuardianApproved"] = "true",
+    };
+
+    /// <summary>Cadastra pelo formulário e devolve o id do aluno criado.</summary>
+    private async Task<Guid> CreateAsync(HttpClient client, string fullName, string guardianEmail)
+    {
+        var response = await PostFormAsync(client, "/Alunos/Novo", "/Alunos/Novo", Fields(fullName, guardianEmail));
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        await using var scope = (await shared.GetAsync(postgres)).Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().Students.IgnoreQueryFilters()
+            .Where(s => s.FullName == fullName).Select(s => s.Id).SingleAsync(Ct);
+    }
+
     [Fact]
     public async Task Cadastrar_aluno_ja_aprovado_enfileira_o_acesso_e_registra_a_auditoria()
     {
         using var client = await AdminAsync();
 
-        var response = await PostFormAsync(client, "/Alunos/Novo", "/Alunos/Novo", new()
-        {
-            ["Input.FullName"] = "Caio Gatilho Sintético",
-            ["Input.Rg"] = "33.333.333-3",
-            ["Input.Cpf"] = "529.982.247-25",
-            ["Input.Address"] = "Rua Sintética, 3",
-            ["Input.BirthDate"] = "2017-03-01",
-            ["Input.ClassName"] = "5A",
-            ["Input.GuardianName"] = "Responsável Fictício",
-            ["Input.GuardianEmail"] = "gatilho.responsavel@example.org",
-            ["Input.GuardianApproved"] = "true",
-        });
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Guid studentId;
-        await using (var scope = (await shared.GetAsync(postgres)).Services.CreateAsyncScope())
-        {
-            studentId = await scope.ServiceProvider.GetRequiredService<AppDbContext>().Students.IgnoreQueryFilters()
-                .Where(s => s.FullName == "Caio Gatilho Sintético").Select(s => s.Id).SingleAsync(Ct);
-        }
+        var studentId = await CreateAsync(client, "Caio Gatilho Sintético", "gatilho.responsavel@example.org");
 
         var userId = client.DefaultRequestHeaders.GetValues(TestAuthHandler.UserHeader).Single();
         Assert.Equal(1, await JobsAsync(studentId));
         Assert.Contains($"Acesso do aluno {studentId} enfileirado pelo usuário {userId}.", shared.LogLines());
         Assert.DoesNotContain(shared.LogLines(), line => Regex.IsMatch(line, "gatilho\\.responsavel|Caio Gatilho"));
+    }
+
+    [Fact]
+    public async Task Trocar_o_email_do_responsavel_registra_auditoria_so_com_ids_e_avisa_que_os_links_deixaram_de_valer()
+    {
+        using var client = await AdminAsync();
+        var studentId = await CreateAsync(client, "Dora Troca Sintética", "troca.antes@example.org");
+        var url = $"/Alunos/Editar/{studentId}";
+
+        var response = await PostFormAsync(client, url, url, Fields("Dora Troca Sintética", "troca.depois@example.org"));
+        var list = await client.GetStringAsync("/Alunos", Ct);
+        var ficha = await client.GetStringAsync(url, Ct);
+
+        var userId = client.DefaultRequestHeaders.GetValues(TestAuthHandler.UserHeader).Single();
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("os links j&#xE1; enviados deixaram de valer", list, StringComparison.Ordinal);
+        Assert.Contains("id=\"acesso-situacao\">Envio cancelado em ", ficha, StringComparison.Ordinal); // o acesso do cadastro foi cancelado
+        Assert.Contains($"E-mail do responsável do aluno {studentId} trocado pelo usuário {userId}.", shared.LogLines());
+        Assert.DoesNotContain(shared.LogLines(), line => Regex.IsMatch(line, "troca\\.(antes|depois)|Dora Troca"));
     }
 
     [Fact]

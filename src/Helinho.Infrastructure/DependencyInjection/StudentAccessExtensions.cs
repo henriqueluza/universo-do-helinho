@@ -12,6 +12,7 @@ public static class StudentAccessExtensions
     {
         services.AddScoped<IStudentAccessJobs, StudentAccessJobs>();
         services.AddScoped<StudentAccessRequests>();
+        services.AddScoped<PreviousGuardianEmailCleaner>();
         return services;
     }
 }

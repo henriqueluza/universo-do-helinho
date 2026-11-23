@@ -17,4 +17,7 @@ public interface IStudentAccessJobs
 {
     /// <summary>Pedidos criados desde <paramref name="since"/> (cancelados não contam) e o mais recente de todos.</summary>
     Task<StudentAccessHistory> ReadAsync(Guid studentId, DateTimeOffset since, CancellationToken cancellationToken);
+
+    /// <summary>Há aviso de troca do e-mail do responsável ainda por enviar (pendente ou em processamento) para o aluno?</summary>
+    Task<bool> HasPendingGuardianNoticeAsync(Guid studentId, CancellationToken cancellationToken);
 }

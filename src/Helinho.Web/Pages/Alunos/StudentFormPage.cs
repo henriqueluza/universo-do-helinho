@@ -58,4 +58,7 @@ internal static partial class StudentAccessAudit
 {
     [LoggerMessage(Level = LogLevel.Information, Message = "Acesso do aluno {StudentId} enfileirado pelo usuário {UserId}.")]
     public static partial void AccessQueued(ILogger logger, Guid studentId, Guid? userId);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "E-mail do responsável do aluno {StudentId} trocado pelo usuário {UserId}.")]
+    public static partial void GuardianEmailChanged(ILogger logger, Guid studentId, Guid? userId);
 }

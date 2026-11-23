@@ -1,5 +1,6 @@
 using Helinho.Application.Abstractions;
 using Helinho.Application.Email;
+using Helinho.Domain.Entities;
 
 namespace Helinho.Application.Painel;
 
@@ -20,6 +21,9 @@ public sealed class StudentAccessRequests(IJobQueue queue, IStudentAccessJobs jo
 
     /// <summary>§6.2: depois disso o trabalho não é mais processado.</summary>
     public static readonly TimeSpan ExpiresIn = TimeSpan.FromHours(72);
+
+    /// <summary>§6.2 e §9: o endereço anterior não fica mais de um dia no banco.</summary>
+    public static readonly TimeSpan NoticeExpiresIn = TimeSpan.FromHours(24);
 
     private const int IdempotencyWindowSeconds = 120;
 
@@ -47,4 +51,28 @@ public sealed class StudentAccessRequests(IJobQueue queue, IStudentAccessJobs jo
     public async Task<bool> StageOnApprovalAsync(Guid studentId, Guid userId, CancellationToken cancellationToken) =>
         !await accounts.HasPasswordAsync(userId, cancellationToken)
         && await StageAsync(studentId, cancellationToken) == StudentAccessRequest.Queued;
+
+    /// <summary>
+    /// Efeitos de segurança da troca do e-mail do responsável (§9, §11.4; T13 e T16), sem salvar: troca o carimbo da conta
+    /// (link já enviado ao endereço anterior deixa de valer), cancela os acessos pendentes e enfileira o aviso ao endereço
+    /// anterior. A fila não guarda destinatário (§5.3): ele fica em <see cref="Student.PreviousGuardianEmail"/> até o aviso
+    /// terminar. Com aviso ainda por enviar, nada é sobrescrito: o aviso vai para quem tinha o endereço antes da primeira troca.
+    /// </summary>
+    public async Task StageGuardianEmailChangeAsync(Student student, string previousEmail, CancellationToken cancellationToken)
+    {
+        var stamp = await accounts.RotateSecurityStampAsync(student.UserId, cancellationToken);
+        await queue.CancelPendingAsync(EmailJobTypes.StudentAccess, student.Id, cancellationToken);
+        if (await jobs.HasPendingGuardianNoticeAsync(student.Id, cancellationToken))
+        {
+            return;
+        }
+
+        // Uma chave por troca (o resumo do carimbo novo), como o aviso de senha alterada (§5.4).
+        var key = $"{EmailJobTypes.GuardianEmailChanged}:{student.Id}:{stamp}";
+        var request = new JobRequest(EmailJobTypes.GuardianEmailChanged, student.Id, new JobPayload(), NoticeExpiresIn, key);
+        if (await queue.EnqueueAsync(request, cancellationToken) is not null)
+        {
+            student.KeepPreviousGuardianEmail(previousEmail);
+        }
+    }
 }
