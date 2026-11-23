@@ -1,6 +1,7 @@
 using System.Globalization;
 using Helinho.Application.Ai;
 using Helinho.Infrastructure.Ai;
+using Helinho.Infrastructure.Fakes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -30,9 +31,20 @@ public static class AiExtensions
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<AiOptions>, AiOptionsValidator>();
 
+        services.AddOptions<FakeAiOptions>()
+            .Configure<IConfiguration>((options, configuration) => configuration.GetSection(FakeAiOptions.Section).Bind(options));
         services.AddSingleton<DisabledQuestionDraftGenerator>();
-        // Os geradores Fake e Anthropic entram aqui pelas Issues deles. Até lá, e sempre com Off, a porta falha fechada.
-        services.AddTransient<IQuestionDraftGenerator>(provider => provider.GetRequiredService<DisabledQuestionDraftGenerator>());
+        services.AddSingleton<FakeQuestionDraftGenerator>();
+        // Transitório: o cliente HTTP tipado do adaptador da Anthropic não pode ficar preso num singleton. Ele é
+        // registrado por AddIa, na área IA do Web, que tem o Microsoft.Extensions.Http; um host que use Anthropic sem
+        // chamar AddIa falha ao resolver. IOptionsMonitor é a mesma instância que o ValidateOnStart já validou.
+        services.AddTransient<IQuestionDraftGenerator>(provider =>
+        {
+            var options = provider.GetRequiredService<IOptionsMonitor<AiOptions>>().CurrentValue;
+            return options.UsesAnthropic ? provider.GetRequiredService<AnthropicQuestionDraftGenerator>()
+                : options.UsesFake ? provider.GetRequiredService<FakeQuestionDraftGenerator>()
+                : provider.GetRequiredService<DisabledQuestionDraftGenerator>();
+        });
         return services;
     }
 

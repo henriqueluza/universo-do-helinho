@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Helinho.Domain;
 using Helinho.Infrastructure.Persistence;
 using Helinho.Infrastructure.Seeding;
+using Helinho.Web.Composition;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
@@ -41,6 +42,13 @@ public class HospedagemTests(PostgresFixture postgres)
         await using var scope = factory.Services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().RunAsync(Ct);
     }
+
+    /// <summary>
+    /// O <c>migrate</c> do pre-deploy (ADR-0002 §7.3): cria o esquema antes de a página ser pedida. O token antiforgery
+    /// de <c>/entrar</c> é protegido com as chaves da tabela <c>DataProtectionKeys</c> (§9); sem ela, a página não renderiza.
+    /// </summary>
+    private static async Task MigrateAsync(WebApplicationFactory<Program> factory) =>
+        Assert.Equal(0, await SeedCommand.RunDatabaseCommandAsync(factory.Services, ["migrate"], TextWriter.Null, Ct));
 
     /// <summary>Requisição como o proxy a entrega: HTTP puro, com o esquema e o IP do cliente em cabeçalhos.</summary>
     private static HttpRequestMessage Proxied(HttpMethod method, string path, string? proto = "https", params string[] realIp)
@@ -95,6 +103,7 @@ public class HospedagemTests(PostgresFixture postgres)
     public async Task Proto_encaminhado_e_tratado_como_https_com_HSTS_e_cookie_Secure()
     {
         await using var factory = CreateFactory(Environments.Production, trustProxy: true);
+        await MigrateAsync(factory);
         using var client = CreateClient(factory);
 
         using var request = Proxied(HttpMethod.Get, "/entrar");
@@ -122,6 +131,7 @@ public class HospedagemTests(PostgresFixture postgres)
     public async Task Em_Development_nao_ha_redirecionamento_nem_HSTS_nem_cookie_Secure()
     {
         await using var factory = CreateFactory(Environments.Development, trustProxy: false);
+        await MigrateAsync(factory);
         using var client = CreateClient(factory);
 
         using var request = Proxied(HttpMethod.Get, "/entrar");

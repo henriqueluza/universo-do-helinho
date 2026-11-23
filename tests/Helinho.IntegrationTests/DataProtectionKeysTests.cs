@@ -76,6 +76,34 @@ public class DataProtectionKeysTests(PostgresFixture postgres)
         Assert.Throws<CryptographicException>(() => Protector(withoutKeys.Services).Unprotect(payload));
     }
 
+    /// <summary>
+    /// O <c>migrate</c> do pre-deploy vem antes de a aplicação atender (ADR-0002 §7.3): sem a tabela, nada é protegido,
+    /// porque não existe chave fora do banco; aplicada a migração, o mesmo host volta a proteger sem reiniciar.
+    /// </summary>
+    [Fact]
+    public async Task Sem_o_esquema_a_protecao_falha_e_volta_a_funcionar_depois_do_migrate_sem_reiniciar()
+    {
+        await using var factory = new HelinhoWebFactory(postgres, Password);
+        var protector = Protector(factory.Services);
+
+        Assert.Throws<CryptographicException>(() => protector.Protect("valor-sintetico"));
+
+        await factory.EnsureDatabaseAsync();
+        Assert.Equal("valor-sintetico", protector.Unprotect(protector.Protect("valor-sintetico")));
+        Assert.NotEmpty(await StoredKeysAsync(factory));
+    }
+
+    /// <summary>A conexão que o anel de chaves abre de forma síncrona não negocia GSS (ver <c>WithoutGssNegotiation</c>).</summary>
+    [Fact]
+    public async Task Conexao_registrada_no_host_nao_negocia_GSS()
+    {
+        await using var factory = new HelinhoWebFactory(postgres, Password);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var connectionString = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetConnectionString();
+
+        Assert.Equal(Npgsql.GssEncryptionMode.Disable, new Npgsql.NpgsqlConnectionStringBuilder(connectionString).GssEncryptionMode);
+    }
+
     [Fact]
     public async Task Cookie_de_login_emitido_por_uma_instancia_e_aceito_por_outra_no_mesmo_banco()
     {

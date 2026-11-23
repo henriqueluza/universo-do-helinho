@@ -29,6 +29,8 @@ public static class EmailExtensions
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<EmailOptions>, EmailOptionsValidator>();
 
+        services.AddOptions<DevEmailOutboxOptions>();
+        services.AddSingleton<DevEmailOutbox>();
         services.AddSingleton<FakeEmailSender>();
         // Transitório: o cliente tipado da Brevo não pode ficar preso num singleton (IHttpClientFactory).
         // IOptionsMonitor é a mesma instância que o ValidateOnStart já validou.

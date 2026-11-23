@@ -1,9 +1,11 @@
 using System.Text;
 using Helinho.Application.Identidade;
 using Helinho.Infrastructure.Persistence;
+using Helinho.Web.Composition;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Helinho.IntegrationTests;
 
@@ -15,16 +17,22 @@ public class DefinirSenhaLinkTests(PostgresFixture postgres, DefinirSenhaLinkTes
     private const string SenhaNova = "Nova-Sintetica-7";
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    /// <summary>Um host para a classe inteira (#215: cada host deixa observadores de arquivo); cada teste cria as próprias contas.</summary>
+    /// <summary>
+    /// Um host para a classe inteira (#215: cada host deixa observadores de arquivo); cada teste cria as próprias contas.
+    /// Guarda os logs e confia no cabeçalho de IP do proxy, para os testes da página (#240) usarem um IP por teste.
+    /// </summary>
     public sealed class Host : IAsyncDisposable
     {
         private HelinhoWebFactory? _factory;
+
+        public LogCapturado Logs { get; } = new();
 
         internal async Task<HelinhoWebFactory> GetAsync(PostgresFixture postgres)
         {
             if (_factory is null)
             {
-                var factory = new HelinhoWebFactory(postgres);
+                var factory = new HelinhoWebFactory(postgres, configure: s => s
+                    .AddSingleton<ILoggerProvider>(Logs).Configure<ProxyOptions>(o => o.TrustForwardedHeaders = true));
                 await factory.EnsureDatabaseAsync();
                 _factory = factory;
             }
@@ -55,9 +63,13 @@ public class DefinirSenhaLinkTests(PostgresFixture postgres, DefinirSenhaLinkTes
     private Task<string> EmitirAsync(Guid userId, string provedor) => ComAsync(async (users, _) =>
         LinkDeAcesso.TokenParaUrl(await users.GenerateUserTokenAsync(await ContaAsync(users, userId), provedor, LinkDeAcesso.Finalidade)));
 
-    /// <summary>Token com a criação recuada, no formato do <c>DataProtectorTokenProvider</c>: criação, id, finalidade e carimbo.</summary>
-    private Task<string> EmitirComIdadeAsync(Guid userId, string provedor, TimeSpan idade) => ComAsync(async (users, services) =>
+    /// <summary>
+    /// Token com a criação recuada, no formato do <c>DataProtectorTokenProvider</c>: criação, id, finalidade e carimbo.
+    /// Os testes da página (#240) também o usam, com os serviços de um escopo do host compartilhado.
+    /// </summary>
+    internal static async Task<string> EmitirComIdadeAsync(IServiceProvider services, Guid userId, string provedor, TimeSpan idade)
     {
+        var users = services.GetRequiredService<UserManager<AppUser>>();
         using var dados = new MemoryStream();
         using (var escritor = new BinaryWriter(dados, new UTF8Encoding(false, true), leaveOpen: true))
         {
@@ -69,7 +81,7 @@ public class DefinirSenhaLinkTests(PostgresFixture postgres, DefinirSenhaLinkTes
 
         var protetor = services.GetRequiredService<IDataProtectionProvider>().CreateProtector(provedor);
         return LinkDeAcesso.TokenParaUrl(Convert.ToBase64String(protetor.Protect(dados.ToArray())));
-    });
+    }
 
     private Task<bool> ValeAsync(Guid userId, string token) => ComAsync((_, services) =>
         services.GetRequiredService<DefinirSenhaHandler>().LinkValidoAsync(userId.ToString(), token, Ct));
@@ -89,7 +101,7 @@ public class DefinirSenhaLinkTests(PostgresFixture postgres, DefinirSenhaLinkTes
     {
         var conta = await CriarContaAsync(senha: null);
 
-        var token = await EmitirComIdadeAsync(conta.Id, provedor, TimeSpan.FromMinutes(idadeEmMinutos));
+        var token = await ComAsync((_, services) => EmitirComIdadeAsync(services, conta.Id, provedor, TimeSpan.FromMinutes(idadeEmMinutos)));
 
         Assert.Equal(vale, await ValeAsync(conta.Id, token));
         Assert.Equal(vale ? DefinirSenhaStatus.Definida : DefinirSenhaStatus.LinkInvalido, (await DefinirAsync(conta.Id, token)).Status);
