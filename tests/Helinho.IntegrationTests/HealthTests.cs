@@ -16,6 +16,13 @@ public class HealthTests(PostgresFixture postgres)
     private const string Ok = """{"status":"ok"}""";
     private const string Unavailable = """{"status":"unavailable"}""";
 
+    /// <summary>
+    /// Tempo limite de conexão dos testes de banco mudo: acima do teto da rota (<see cref="HealthEndpoint.ReadyTimeout"/>),
+    /// para só a rota encerrar a consulta. Não é maior porque a subida do host também o espera: o anel de chaves do
+    /// Data Protection é lido do banco, de forma síncrona, antes de o host atender (Issue #103).
+    /// </summary>
+    private const int MuteConnectTimeoutSeconds = 10;
+
     [Fact]
     public async Task Health_responde_200()
     {
@@ -64,7 +71,7 @@ public class HealthTests(PostgresFixture postgres)
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start(); // aceita a conexão TCP e nunca responde ao protocolo: só o tempo limite da rota encerra a consulta
         await using var factory = new HelinhoWebFactory(postgres);
-        using var client = ClientWithDatabaseAt(factory, ((IPEndPoint)listener.LocalEndpoint).Port, connectTimeoutSeconds: 60);
+        using var client = ClientWithDatabaseAt(factory, ((IPEndPoint)listener.LocalEndpoint).Port, connectTimeoutSeconds: MuteConnectTimeoutSeconds);
 
         var elapsed = Stopwatch.StartNew();
         var response = await client.GetAsync("/health/ready", TestContext.Current.CancellationToken);
@@ -81,7 +88,7 @@ public class HealthTests(PostgresFixture postgres)
         listener.Start(); // servidor mudo: sem o token da requisição, a rota só terminaria no tempo limite
         var served = new TaskCompletionSource();
         await using var factory = new HelinhoWebFactory(postgres, configure: s => s.AddSingleton<IStartupFilter>(new AfterRequest(() => served.TrySetResult())));
-        using var client = ClientWithDatabaseAt(factory, ((IPEndPoint)listener.LocalEndpoint).Port, connectTimeoutSeconds: 60);
+        using var client = ClientWithDatabaseAt(factory, ((IPEndPoint)listener.LocalEndpoint).Port, connectTimeoutSeconds: MuteConnectTimeoutSeconds);
         using var abort = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
 
         var request = client.GetAsync("/health/ready", abort.Token);

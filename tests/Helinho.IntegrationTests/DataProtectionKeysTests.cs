@@ -93,6 +93,17 @@ public class DataProtectionKeysTests(PostgresFixture postgres)
         Assert.NotEmpty(await StoredKeysAsync(factory));
     }
 
+    /// <summary>A conexão que o anel de chaves abre de forma síncrona não negocia GSS (ver <c>WithoutGssNegotiation</c>).</summary>
+    [Fact]
+    public async Task Conexao_registrada_no_host_nao_negocia_GSS()
+    {
+        await using var factory = new HelinhoWebFactory(postgres, Password);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var connectionString = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetConnectionString();
+
+        Assert.Equal(Npgsql.GssEncryptionMode.Disable, new Npgsql.NpgsqlConnectionStringBuilder(connectionString).GssEncryptionMode);
+    }
+
     [Fact]
     public async Task Cookie_de_login_emitido_por_uma_instancia_e_aceito_por_outra_no_mesmo_banco()
     {
