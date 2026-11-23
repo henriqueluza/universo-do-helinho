@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using Helinho.Application.Abstractions;
 using Helinho.Application.Questions;
 using Helinho.Domain;
@@ -31,9 +32,13 @@ public sealed record QuestionDraftValidation(IReadOnlyList<QuestionDraft> Accept
 /// Valida a saída de qualquer gerador, inclusive do fake, como dado não confiável (ADR-0004 §8). Texto fora da
 /// regra é rejeitado, nunca cortado nem limpo. Os aceitos saem aparados.
 /// </summary>
-public static class QuestionDraftValidator
+public static partial class QuestionDraftValidator
 {
-    private static readonly string[] Links = ["http://", "https://", "www."];
+    private static readonly string[] Links = ["http://", "https://", "www.", "javascript:"];
+
+    /// <summary><c>data:</c> seguido de tipo de mídia ou de vírgula. "Qual data: 22 de abril?" não casa.</summary>
+    [GeneratedRegex("data:(,|[a-z]+/)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex DataUri();
 
     /// <param name="existingStatements">Enunciados do mesmo tipo e faixa já guardados (<see cref="ListExistingStatementsAsync"/>).</param>
     /// <param name="limit">Quantidade pedida: o que vier além dela é descartado e contado.</param>
@@ -47,14 +52,15 @@ public static class QuestionDraftValidator
             var draft = drafts[position];
             var rejection = position >= Math.Min(limit, QuestionDraftRequest.MaxCount) ? DraftRejection.OverLimit : Check(draft);
             // A duplicata é a última regra: só um rascunho que seria aceito ocupa o enunciado no lote.
-            if (rejection is null && !seen.Add(Normalize(draft.Statement)))
+            if (rejection is null && draft is not null && !seen.Add(Normalize(draft.Statement)))
             {
                 rejection = DraftRejection.Duplicate;
             }
 
-            if (rejection is { } reason)
+            if (rejection is { } reason || draft is null)
             {
-                rejections[reason] = rejections.GetValueOrDefault(reason) + 1;
+                var counted = rejection ?? DraftRejection.Malformed;
+                rejections[counted] = rejections.GetValueOrDefault(counted) + 1;
                 continue;
             }
 
@@ -80,9 +86,9 @@ public static class QuestionDraftValidator
         await db.Questions.AsNoTracking().Where(q => q.QuizType == quizType && q.AgeBand == ageBand)
             .Select(q => q.Statement).ToListAsync(cancellationToken);
 
-    private static DraftRejection? Check(QuestionDraft draft)
+    private static DraftRejection? Check(QuestionDraft? draft)
     {
-        if (ReferenceEquals(draft, QuestionDraftOutputParser.MalformedItem))
+        if (draft is null || ReferenceEquals(draft, QuestionDraftOutputParser.MalformedItem))
         {
             return DraftRejection.Malformed;
         }
@@ -103,36 +109,51 @@ public static class QuestionDraftValidator
             return DraftRejection.InvalidCorrectIndex;
         }
 
-        if (draft.Options.Select(Normalize).Distinct(StringComparer.Ordinal).Count() != 4)
-        {
-            return DraftRejection.DuplicateOptions;
-        }
-
+        // O tamanho vem antes de qualquer normalização: texto gigante não é processado.
         if (draft.Statement.Trim().Length > SaveQuestion.StatementMax || draft.Explanation.Trim().Length > SaveQuestion.ExplanationMax
             || draft.Options.Any(o => o.Trim().Length > SaveQuestion.OptionMax))
         {
             return DraftRejection.TooLong;
         }
 
+        // Enunciado só de pontuação ou de emoji não tem o que comparar: sem isto, todos seriam duplicata uns dos outros.
+        if (Normalize(draft.Statement).Length == 0)
+        {
+            return DraftRejection.Incomplete;
+        }
+
+        if (draft.Options.Select(Normalize).Distinct(StringComparer.Ordinal).Count() != 4)
+        {
+            return DraftRejection.DuplicateOptions;
+        }
+
         return texts.OfType<string>().Any(IsUnsafe) ? DraftRejection.UnsafeText : null;
     }
 
-    /// <summary>Controle, invisível ou de direção, par substituto quebrado, marcação (<c>&lt;</c> + letra, <c>/</c> ou <c>!</c>) ou endereço de site.</summary>
+    /// <summary>
+    /// Controle, invisível ou de direção (inclusive os caracteres de tag e os seletores de variação fora do plano
+    /// básico, que escondem texto), par substituto quebrado, marcação (<c>&lt;</c> + letra, <c>/</c>, <c>!</c>,
+    /// <c>#</c>, <c>?</c> ou <c>%</c>), endereço de site, <c>javascript:</c> ou <c>data:</c>.
+    /// </summary>
     private static bool IsUnsafe(string text)
     {
-        for (var i = 0; i < text.Length; i++)
+        for (var i = 0; i < text.Length;)
         {
-            var c = text[i];
-            var next = i + 1 < text.Length ? text[i + 1] : ' ';
-            var paired = char.IsHighSurrogate(c) && char.IsLowSurrogate(next) || char.IsLowSurrogate(c) && i > 0 && char.IsHighSurrogate(text[i - 1]);
-            if (char.IsControl(c) || (char.IsSurrogate(c) && !paired) || (c == '<' && (char.IsLetter(next) || next is '/' or '!'))
-                || char.GetUnicodeCategory(c) is UnicodeCategory.Format or UnicodeCategory.LineSeparator
+            // Pelo ponto de código, não pelo char: a categoria de um caractere fora do plano básico só existe na runa.
+            if (!Rune.TryGetRuneAt(text, i, out var rune) || rune.Value is >= 0xE0100 and <= 0xE01EF
+                || Rune.GetUnicodeCategory(rune) is UnicodeCategory.Control or UnicodeCategory.Format or UnicodeCategory.LineSeparator
                     or UnicodeCategory.ParagraphSeparator or UnicodeCategory.PrivateUse or UnicodeCategory.OtherNotAssigned)
+            {
+                return true;
+            }
+
+            i += rune.Utf16SequenceLength;
+            if (rune.Value == '<' && i < text.Length && (char.IsLetter(text[i]) || text[i] is '/' or '!' or '#' or '?' or '%'))
             {
                 return true;
             }
         }
 
-        return Links.Any(link => text.Contains(link, StringComparison.OrdinalIgnoreCase));
+        return Links.Any(link => text.Contains(link, StringComparison.OrdinalIgnoreCase)) || DataUri().IsMatch(text);
     }
 }

@@ -36,44 +36,52 @@ public class QuestionDraftValidationTests
         Assert.Equal(["Azul", "Verde", "Roxo", "Cinza"], draft.Options);
     }
 
-    [Fact]
-    public void Texto_malicioso_ou_fora_das_regras_e_rejeitado_com_o_motivo_e_nunca_limpo()
+    public static TheoryData<string, DraftRejection> Malicious => new()
     {
-        var invisible = "texto " + (char)0x202E + "invertido";
-        (string Item, DraftRejection Reason)[] cases =
-        [
-            (Item(statement: "<script>alert(1)</script>"), DraftRejection.UnsafeText),
-            (Item(b: "<b>Verde</b>"), DraftRejection.UnsafeText),
-            (Item(explanation: "Fim <!-- comentário -->"), DraftRejection.UnsafeText),
-            (Item(explanation: "Veja em https://example.org"), DraftRejection.UnsafeText),
-            (Item(d: "WWW.example.org"), DraftRejection.UnsafeText),
-            (Item(statement: invisible), DraftRejection.UnsafeText),
-            (Item(explanation: "linha um\nlinha dois"), DraftRejection.UnsafeText),
-            (Item(statement: new string('x', SaveQuestion.StatementMax + 1)), DraftRejection.TooLong),
-            (Item(c: new string('x', SaveQuestion.OptionMax + 1)), DraftRejection.TooLong),
-            (Item(explanation: new string('x', SaveQuestion.ExplanationMax + 1)), DraftRejection.TooLong),
-            (Item(correct: "e"), DraftRejection.InvalidCorrectIndex),
-            (Item(correct: "a,b"), DraftRejection.InvalidCorrectIndex),
-            (Item(a: "Água", b: "agua!"), DraftRejection.DuplicateOptions),
-            (Item(a: "   "), DraftRejection.Incomplete),
-            (Item(explanation: ""), DraftRejection.Incomplete),
-        ];
+        { Item(statement: "<script>alert(1)</script>"), DraftRejection.UnsafeText },
+        { Item(b: "<b>Verde</b>"), DraftRejection.UnsafeText },
+        { Item(explanation: "Fim <!-- comentário -->"), DraftRejection.UnsafeText },
+        { Item(explanation: "sobra de marcação </"), DraftRejection.UnsafeText },
+        { Item(a: "<#FF0000>Azul"), DraftRejection.UnsafeText },
+        { Item(explanation: "Veja em https://example.org"), DraftRejection.UnsafeText },
+        { Item(d: "WWW.example.org"), DraftRejection.UnsafeText },
+        { Item(explanation: "clique: JavaScript:alert(1)"), DraftRejection.UnsafeText },
+        { Item(c: "data:text/html;base64,QQ=="), DraftRejection.UnsafeText },
+        { Item(explanation: "veja data:,texto"), DraftRejection.UnsafeText },
+        { Item(statement: "texto " + (char)0x202E + "invertido"), DraftRejection.UnsafeText },
+        { Item(statement: "tag escondida " + char.ConvertFromUtf32(0xE0041) + " aqui?"), DraftRejection.UnsafeText },
+        { Item(b: "Verde" + char.ConvertFromUtf32(0xE0100)), DraftRejection.UnsafeText },
+        { Item(explanation: "linha um\nlinha dois"), DraftRejection.UnsafeText },
+        { Item(statement: new string('x', SaveQuestion.StatementMax + 1)), DraftRejection.TooLong },
+        { Item(c: new string('x', SaveQuestion.OptionMax + 1)), DraftRejection.TooLong },
+        { Item(explanation: new string('x', SaveQuestion.ExplanationMax + 1)), DraftRejection.TooLong },
+        { Item(correct: "e"), DraftRejection.InvalidCorrectIndex },
+        { Item(correct: "a,b"), DraftRejection.InvalidCorrectIndex },
+        { Item(a: "Água", b: "agua!"), DraftRejection.DuplicateOptions },
+        { Item(a: "   "), DraftRejection.Incomplete },
+        { Item(explanation: ""), DraftRejection.Incomplete },
+        { Item(statement: "?!..."), DraftRejection.Incomplete },
+        { Item(statement: "🙂🙂"), DraftRejection.Incomplete },
+    };
 
-        foreach (var (item, reason) in cases)
-        {
-            var result = Run(Batch(item, Item(statement: "Quantos lados tem um triângulo?", a: "Três", b: "Dois", c: "Cinco", d: "Seis")));
+    [Theory]
+    [MemberData(nameof(Malicious))]
+    public void Texto_malicioso_ou_fora_das_regras_e_rejeitado_com_o_motivo_e_nunca_limpo(string item, DraftRejection reason)
+    {
+        var result = Run(Batch(item, Item(statement: "Quantos lados tem um triângulo?", a: "Três", b: "Dois", c: "Cinco", d: "Seis")));
 
-            Assert.Equal("Quantos lados tem um triângulo?", Assert.Single(result.Accepted).Statement);
-            Assert.Equal(KeyValuePair.Create(reason, 1), Assert.Single(result.Rejections));
-        }
+        Assert.Equal("Quantos lados tem um triângulo?", Assert.Single(result.Accepted).Statement);
+        Assert.Equal(KeyValuePair.Create(reason, 1), Assert.Single(result.Rejections));
     }
 
     [Fact]
     public void Menor_que_e_emoji_em_texto_comum_nao_sao_marcacao()
     {
-        var result = Run(Batch(Item(statement: "Qual número é < 5 e > 3? 🙂", a: "4", b: "6", c: "2", d: "9")));
+        var result = Run(Batch(
+            Item(statement: "Qual número é < 5 e > 3? 🙂", a: "4", b: "6", c: "2", d: "9"),
+            Item(statement: "Em qual data: 22 de abril ou 7 de setembro?", a: "22 de abril", b: "7 de setembro", c: "1 de maio", d: "15 de novembro")));
 
-        Assert.Single(result.Accepted);
+        Assert.Equal(2, result.Accepted.Count);
     }
 
     [Fact]
@@ -99,8 +107,10 @@ public class QuestionDraftValidationTests
     {
         var thirty = Batch([.. Enumerable.Range(1, 30).Select(i => Item(statement: $"Pergunta sintética número {i}?"))]);
 
-        Assert.Equal((20, 10), (Run(thirty, limit: 99).Accepted.Count, Run(thirty, limit: 99).Rejections[DraftRejection.OverLimit]));
-        Assert.Equal((5, 25), (Run(thirty, limit: 5).Accepted.Count, Run(thirty, limit: 5).InvalidCount));
+        var (capped, asked) = (Run(thirty, limit: 99), Run(thirty, limit: 5));
+
+        Assert.Equal((20, 10), (capped.Accepted.Count, capped.Rejections[DraftRejection.OverLimit]));
+        Assert.Equal((5, 25), (asked.Accepted.Count, asked.InvalidCount));
     }
 
     [Fact]
@@ -124,14 +134,16 @@ public class QuestionDraftValidationTests
     public void Rascunho_que_nao_veio_do_analisador_passa_pelas_mesmas_regras()
     {
         var valid = new QuestionDraft(Statement, ["Azul", "Verde", "Roxo", "Cinza"], 0, "Explicação sintética.");
-        QuestionDraft[] drafts = [valid with { Options = ["Azul", "Verde", "Roxo"] }, valid with { CorrectIndex = 4 }, valid with { CorrectIndex = -1 },
-            valid with { Statement = "par quebrado " + (char)0xD83D }, valid];
+        QuestionDraft?[] maybe = [valid with { Options = ["Azul", "Verde", "Roxo"] }, valid with { CorrectIndex = 4 }, valid with { CorrectIndex = -1 },
+            valid with { Statement = "par quebrado " + (char)0xD83D }, null, valid];
+        // Supressão de propósito: o que se testa é um nulo vindo de código sem anotações.
+        QuestionDraft[] drafts = maybe!;
 
         var result = QuestionDraftValidator.Validate(drafts, [], 20);
 
         Assert.Equal(valid.Statement, Assert.Single(result.Accepted).Statement);
-        Assert.Equal((1, 2, 1), (result.Rejections[DraftRejection.WrongOptionCount],
-            result.Rejections[DraftRejection.InvalidCorrectIndex], result.Rejections[DraftRejection.UnsafeText]));
+        Assert.Equal((1, 2, 1, 1), (result.Rejections[DraftRejection.WrongOptionCount], result.Rejections[DraftRejection.InvalidCorrectIndex],
+            result.Rejections[DraftRejection.UnsafeText], result.Rejections[DraftRejection.Malformed]));
     }
 
     [Fact]
