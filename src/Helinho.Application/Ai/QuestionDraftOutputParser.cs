@@ -12,7 +12,10 @@ public static class QuestionDraftOutputParser
 {
     public const int MaxBytes = 64 * 1024;
 
-    /// <summary>Marca de item fora do formato. Não carrega nada do texto recebido.</summary>
+    /// <summary>
+    /// Marca de item fora do formato. Não carrega nada do texto recebido. Reconheça com <c>ReferenceEquals</c>: por ser
+    /// record, <c>==</c> também a igualaria a qualquer rascunho vazio com índice -1.
+    /// </summary>
     public static readonly QuestionDraft MalformedItem = new("", [], -1, "");
 
     private static readonly string[] OptionKeys = ["a", "b", "c", "d"];
@@ -59,8 +62,8 @@ public static class QuestionDraftOutputParser
         foreach (var property in item.EnumerateObject())
         {
             // Propriedade desconhecida, repetida ou que não é texto invalida o item.
-            if (property.Value.ValueKind != JsonValueKind.String || !ItemKeys.Contains(property.Name)
-                || !fields.TryAdd(property.Name, Text(property.Value)))
+            var key = Key(property);
+            if (key is null || property.Value.ValueKind != JsonValueKind.String || !fields.TryAdd(key, Text(property.Value)))
             {
                 return MalformedItem;
             }
@@ -74,6 +77,19 @@ public static class QuestionDraftOutputParser
         // Fora de a–d, o índice fica -1 e o validador recusa. Sem diferenciar maiúsculas (ADR-0004 §6.3).
         var correct = Array.FindIndex(OptionKeys, key => string.Equals(key, fields["correta"]?.Trim(), StringComparison.OrdinalIgnoreCase));
         return new QuestionDraft(fields["enunciado"] ?? "", [.. OptionKeys.Select(key => fields[key] ?? "")], correct, fields["explicacao"] ?? "");
+    }
+
+    /// <summary>A chave conhecida, ou <c>null</c>. Ler o nome também lança com escape de par substituto quebrado.</summary>
+    private static string? Key(JsonProperty property)
+    {
+        try
+        {
+            return Array.Find(ItemKeys, known => property.NameEquals(known));
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
     }
 
     /// <summary><c>null</c> quando o texto tem escape de par substituto quebrado, que o <c>GetString</c> recusa lançando.</summary>
