@@ -1,9 +1,12 @@
 @model PanelUserModel
 @{
     var current = Context.Request.Path.Value ?? "/";
-    bool Active(NavItem i) => current.Equals(i.Path, StringComparison.OrdinalIgnoreCase)
+    bool Matches(NavItem i) => current.Equals(i.Path, StringComparison.OrdinalIgnoreCase)
         || current.StartsWith(i.Path + "/", StringComparison.OrdinalIgnoreCase)
         || (i.Path == "/Dashboard" && current == "/");
+    // Só o item de caminho mais longo fica ativo: /Questoes/Ia não acende também "Questões".
+    var best = Model.Items.Where(Matches).OrderByDescending(i => i.Path.Length).FirstOrDefault();
+    bool Active(NavItem i) => i == best;
     var groupIndex = 0;
 }
 <aside class="rail offcanvas-md offcanvas-start" id="menu" tabindex="-1" aria-label="Menu do painel">
