@@ -14,7 +14,7 @@ public enum QueueJobStatus
 
 /// <summary>
 /// Linha da fila persistente (ADR-0003 §5.1). Só referências: o destinatário é resolvido, o token gerado e a mensagem
-/// renderizada pelo tratador na hora de enviar. As transições de processamento são da Issue do trabalhador.
+/// renderizada pelo tratador na hora de enviar.
 /// </summary>
 public class QueueJob
 {
@@ -75,5 +75,24 @@ public class QueueJob
         Status = QueueJobStatus.Cancelled;
         FinishedAt = now.ToUniversalTime();
         IdempotencyKey = null;
+    }
+
+    /// <summary>
+    /// Saída de <c>Processing</c>, na gravação final única do processador (§6.6). Suspender devolve a tentativa (§6.3):
+    /// é o único caminho que diminui o contador.
+    /// </summary>
+    public void Apply(JobTransition transition, DateTimeOffset now)
+    {
+        if (Status != QueueJobStatus.Processing)
+        {
+            throw new InvalidOperationException("Só um trabalho em processamento recebe o resultado.");
+        }
+
+        Status = transition.Status;
+        LastError = transition.Error;
+        ExternalId = transition.ExternalId ?? ExternalId;
+        Attempts -= transition.ReturnsAttempt ? 1 : 0;
+        NextAttemptAt = transition.NextAttemptAt?.ToUniversalTime() ?? NextAttemptAt;
+        FinishedAt = Status == QueueJobStatus.Pending ? null : now.ToUniversalTime();
     }
 }
