@@ -19,9 +19,6 @@ TestResults/
 *.tfvars
 *.tfvars.json
 !*.tfvars.example
-# Plano salvo (`plan -out`): guarda os valores sensíveis em texto.
-*.tfplan
-tfplan
 crash.log
 crash.*.log
 override.tf

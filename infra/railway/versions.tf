@@ -8,9 +8,5 @@ terraform {
       # Provider 0.x: versão exata. Atualizar é um PR chore próprio (init -upgrade + lock).
       version = "0.6.3"
     }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.9"
-    }
   }
 }
