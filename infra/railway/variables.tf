@@ -123,10 +123,11 @@ variable "variaveis_web" {
   }
   # As três validações abaixo repetem no `plan` o que a aplicação recusa na subida: EmailOptions.Errors() (remetente
   # que seja e-mail, nome com até 70 caracteres, URL https absoluta sem caminho). De propósito o `plan` é mais
-  # estrito: confere o formato mesmo com Fake e recusa barra final e maiúscula na URL.
+  # estrito: confere o formato mesmo com Fake, recusa no remetente os sinais de nome e lista (`<>"(),;:`) e, na
+  # URL, barra final e maiúscula.
   validation {
     condition = (var.variaveis_web.Brevo__SenderEmail == "" ? var.variaveis_web.Email__Provider != "Brevo" :
-    can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.variaveis_web.Brevo__SenderEmail)))
+    can(regex("^[^@\\s<>\"(),;:]+@[^@\\s<>\"(),;:]+\\.[^@\\s<>\"(),;:]+$", var.variaveis_web.Brevo__SenderEmail)))
     error_message = "Brevo__SenderEmail precisa ser um e-mail válido e é obrigatório com Email__Provider = \"Brevo\"."
   }
   validation {

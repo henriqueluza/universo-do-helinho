@@ -87,6 +87,16 @@ run "recusa_remetente_que_nao_e_email" {
   expect_failures = [var.variaveis_web]
 }
 
+run "recusa_remetente_com_nome_entre_sinais" {
+  command = plan
+
+  variables {
+    variaveis_web = { Brevo__SenderEmail = "Remetente<nao-responda@example.org>" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
 run "recusa_brevo_sem_url_publica" {
   command = plan
 
@@ -123,6 +133,16 @@ run "recusa_segredo_de_webhook_curto" {
 
   variables {
     brevo_webhook_secret = "curto-demais"
+  }
+
+  expect_failures = [var.brevo_webhook_secret]
+}
+
+run "recusa_segredo_de_webhook_com_espaco" {
+  command = plan
+
+  variables {
+    brevo_webhook_secret = "xxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxx"
   }
 
   expect_failures = [var.brevo_webhook_secret]

@@ -200,32 +200,6 @@ Schema do `railway_custom_domain` no provider 0.6.3, conferido com `terraform pr
 
 Acrescentar o domínio a um ambiente que já existe muda `railway_variable_collection.web` (entra `App__PublicBaseUrl`): pelo L4, esse `apply` reimplanta o serviço web. A aplicação não restringe o host (`AllowedHosts` é `*`) e nada precisa mudar nela.
 
-## Domínio próprio
-
-Opcional e desligado por padrão. Em `terraform.tfvars`:
-
-```hcl
-ambientes = {
-  homologacao = { seed_enabled = true, dominio_proprio = "painel.example.org" }
-}
-```
-
-Com o campo preenchido, o módulo cria `railway_custom_domain.web` e `App__PublicBaseUrl` passa a valer `https://painel.example.org`. Para outro valor, defina `variaveis_web.App__PublicBaseUrl`: o valor explícito vence. Hoje nenhum código da aplicação lê essa variável (ela é da Sprint 3). O domínio `*.up.railway.app` continua existindo, e `url_publica` e `url_api` continuam apontando para ele.
-
-Depois do `apply`, `terraform output dns_dominio_proprio` traz os dois registros que a Railway exige: o `CNAME` do host e o `TXT` de verificação de posse. O `TXT` vai para o DNS público e não é segredo. `nome` é relativo à `zona`. O passo a passo (ordem em relação ao primeiro deploy, DNS, `dig`, certificado) está em `docs/operations/railway-dominio.md`.
-
-Schema do `railway_custom_domain` no provider 0.6.3, conferido com `terraform providers schema -json` e no código da tag `v0.6.3` (`internal/provider/resource_custom_domain.go`):
-
-| Atributo | Tipo | Observação |
-|---|---|---|
-| `domain`, `environment_id`, `service_id` | obrigatórios | mudar qualquer um **recria** o recurso; os registros DNS mudam junto |
-| `target_port` | opcional | atualizado no lugar; aqui é sempre 8080 |
-| `host_label`, `zone`, `dns_record_value` | computados | o registro que aponta o host para a Railway. O provider não devolve o tipo: a documentação da Railway diz `CNAME` |
-| `verification_host_label`, `verification_record_value` | computados | o registro `TXT` de verificação |
-| `id`, `project_id` | computados | |
-
-Acrescentar o domínio a um ambiente que já existe muda `railway_variable_collection.web` (entra `App__PublicBaseUrl`): pelo L4, esse `apply` reimplanta o serviço web. A aplicação não restringe o host (`AllowedHosts` é `*`) e nada precisa mudar nela.
-
 ## Deploy contínuo (`auto_deploy`)
 
 O provider não tem atributo para ligar ou desligar o auto-deploy. Com `auto_deploy = false` (padrão), o serviço web recebe o watch pattern `/.auto-deploy-desligado`, que nenhum arquivo do repositório casa: a Railway ignora os pushes e a publicação é manual, pelo painel (`Cmd+K` → **Deploy Latest Commit**). Não crie arquivo com esse nome na raiz do repositório.
