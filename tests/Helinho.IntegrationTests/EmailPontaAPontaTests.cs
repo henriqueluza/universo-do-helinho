@@ -194,6 +194,74 @@ public partial class EmailPontaAPontaTests(PostgresFixture postgres, EmailPontaA
     }
 
     [Fact]
+    public async Task Convite_master_cria_o_administrador_o_email_leva_o_link_a_senha_e_definida_e_ele_entra_no_painel()
+    {
+        var master = await ContaAsync(RoleNames.Master);
+        var unidade = await ComAsync(async services =>
+        {
+            var db = services.GetRequiredService<AppDbContext>();
+            var unit = db.Units.Add(new Unit($"Unidade {Tag()} (fictícia)")).Entity;
+            await db.SaveChangesAsync(Ct);
+            return unit.Id;
+        });
+        var nome = $"adm{Tag()}";
+        var endereco = $"{nome}@example.com";
+        using var painel = await PainelAsync(master);
+
+        using var criado = await PostFormAsync(painel, "/Administradores/Novo", "/Administradores/Novo",
+            new() { ["Input.UserName"] = nome, ["Input.Email"] = endereco, ["Input.UnitId"] = unidade.ToString() });
+        var antesDaFila = shared.Email.Enviados.Count(m => m.Recipient == endereco);
+        var convite = Assert.Single(await EmailsAsync(endereco, EmailJobTypes.AdminInvite));
+        var link = Link(convite);
+        var (semSenha, recusado) = await EntrarAsync(nome, SenhaNova);
+        await DefinirSenhaAsync(link, SenhaNova);
+        var (comSenha, aceito) = await EntrarAsync(nome, SenhaNova);
+        using var alunos = await comSenha.GetAsync("/Alunos", Ct);
+
+        Assert.Equal(HttpStatusCode.Redirect, criado.StatusCode);
+        Assert.Equal(0, antesDaFila); // quem envia é a fila, depois da gravação
+        Assert.Contains("72 horas", convite.TextBody, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.OK, recusado.StatusCode); // antes de definir a senha a conta não entra
+        Assert.Equal(HttpStatusCode.Redirect, aceito.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, alunos.StatusCode); // página só do administrador da unidade
+        Assert.Contains(LinkInvalido, await AbrirAsync(link), StringComparison.Ordinal); // o link não funciona de novo
+        Assert.Single(await EmailsAsync(endereco, EmailJobTypes.AdminInvite)); // e nada sai de novo
+        semSenha.Dispose();
+        comSenha.Dispose();
+    }
+
+    [Fact]
+    public async Task Redefinicao_pedido_anonimo_link_por_email_senha_nova_e_aviso_de_senha_alterada()
+    {
+        var admin = await ContaAsync(RoleNames.Admin);
+        using var anonimo = (await shared.GetAsync(postgres)).CreateAnonymousClient();
+        Task<int> TrabalhosAsync() => ComAsync(services => services.GetRequiredService<AppDbContext>().QueueJobs.CountAsync(Ct));
+
+        var antes = await TrabalhosAsync();
+        using var desconhecido = await PostFormAsync(anonimo, "/recuperar-senha", "/recuperar-senha", new() { ["Input.Email"] = $"ninguem{Tag()}@example.com" });
+        var depoisDoDesconhecido = await TrabalhosAsync();
+        using var conhecido = await PostFormAsync(anonimo, "/recuperar-senha", "/recuperar-senha", new() { ["Input.Email"] = admin.Email! });
+        var pedido = Assert.Single(await EmailsAsync(admin.Email!, EmailJobTypes.PasswordReset));
+        var link = Link(pedido);
+        await DefinirSenhaAsync(link, SenhaNova);
+        var (nova, aceito) = await EntrarAsync(admin.UserName!, SenhaNova);
+        var (antiga, recusado) = await EntrarAsync(admin.UserName!, SenhaAntiga);
+        var aviso = Assert.Single(await EmailsAsync(admin.Email!, EmailJobTypes.PasswordChanged));
+
+        // A resposta não diz se a conta existe, e o endereço desconhecido não gera trabalho.
+        Assert.Equal(HttpStatusCode.OK, conhecido.StatusCode);
+        Assert.Equal(await desconhecido.Content.ReadAsStringAsync(Ct), await conhecido.Content.ReadAsStringAsync(Ct));
+        Assert.Equal(antes, depoisDoDesconhecido);
+        Assert.Contains("1 hora", pedido.TextBody, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Redirect, aceito.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, recusado.StatusCode); // a senha antiga deixou de valer
+        Assert.Contains(LinkInvalido, await AbrirAsync(link), StringComparison.Ordinal);
+        Assert.DoesNotContain("token=", aviso.TextBody + aviso.HtmlBody, StringComparison.Ordinal);
+        nova.Dispose();
+        antiga.Dispose();
+    }
+
+    [Fact]
     public async Task Acesso_do_aluno_aprovar_envia_o_link_ao_responsavel_e_a_senha_definida_entra_no_jogo()
     {
         using var painel = await PainelAsync(await ContaAsync(RoleNames.Admin));
@@ -209,6 +277,7 @@ public partial class EmailPontaAPontaTests(PostgresFixture postgres, EmailPontaA
         Assert.Equal(HttpStatusCode.Redirect, aprovado.StatusCode);
         Assert.All(["Ana", matricula, "72 horas"], essencial => Assert.Contains(essencial, acesso.TextBody, StringComparison.Ordinal));
         await EntrarNoJogoAsync(matricula, SenhaNova, id);
+        Assert.Single(await EmailsAsync(responsavel, EmailJobTypes.PasswordChanged)); // o aviso do aluno vai ao responsável
     }
 
     [Fact]

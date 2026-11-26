@@ -14,8 +14,6 @@ namespace Helinho.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public class PanelAdministradoresTests(PostgresFixture postgres)
 {
-    private const string SenhaInicial = "Segredo-Inicial9x";
-
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private sealed class CaptureLogger : ILoggerProvider, ILogger
@@ -64,13 +62,25 @@ public class PanelAdministradoresTests(PostgresFixture postgres)
         return unit.Id;
     }
 
-    private static Dictionary<string, string> AdminForm(Guid unitId, string user, string password = SenhaInicial) => new()
+    private static Dictionary<string, string> AdminForm(Guid unitId, string user, string? email = null) => new()
     {
         ["Input.UserName"] = user,
-        ["Input.Email"] = $"{user}@exemplo.test",
+        ["Input.Email"] = email ?? $"{user}@exemplo.test",
         ["Input.UnitId"] = unitId.ToString(),
-        ["Input.Password"] = password,
     };
+
+    private static async Task<string> ListaAsync(HttpClient client) =>
+        WebUtility.HtmlDecode(await (await client.GetAsync("/Administradores", Ct)).Content.ReadAsStringAsync(Ct));
+
+    private static async Task<string> SituacaoAsync(HttpClient client, string user) =>
+        Regex.Match(await ListaAsync(client), $"<th scope=\"row\">{Regex.Escape(user)}</th>.*?<span class=\"tag [^\"]+\">([^<]+)</span>",
+            RegexOptions.Singleline).Groups[1].Value;
+
+    private static async Task<int> SqlAsync(HelinhoWebFactory factory, FormattableString sql)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.ExecuteSqlAsync(sql, Ct);
+    }
 
     [Theory]
     [InlineData("/Administradores")]
@@ -101,23 +111,25 @@ public class PanelAdministradoresTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task Master_cria_administrador_vinculado_a_unidade_sem_expor_ou_logar_a_senha()
+    public async Task Master_cria_administrador_sem_senha_e_o_convite_fica_na_fila_so_com_referencias()
     {
         var logs = new CaptureLogger();
         await using var factory = await NewFactoryAsync(logs);
         var unitId = await CreateUnitAsync(factory, "Unidade Aurora");
         using var client = factory.CreateFormClientAs(RoleNames.Master);
 
+        var form = await (await client.GetAsync("/Administradores/Novo", Ct)).Content.ReadAsStringAsync(Ct);
         var response = await PostFormAsync(client, "/Administradores/Novo", AdminForm(unitId, "adm.aurora"));
 
+        Assert.Contains("link para criar a própria senha. O link vale 72 horas.", WebUtility.HtmlDecode(form));
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var list = await (await client.GetAsync("/Administradores", Ct)).Content.ReadAsStringAsync(Ct);
+        var list = await ListaAsync(client);
         Assert.Contains("adm.aurora", list);
         Assert.Contains("Unidade Aurora", list);
-        Assert.DoesNotContain(SenhaInicial, list);
+        Assert.Equal("Aguardando envio", await SituacaoAsync(client, "adm.aurora"));
         lock (logs.Lines)
         {
-            Assert.DoesNotContain(logs.Lines, l => l.Contains(SenhaInicial, StringComparison.Ordinal));
+            Assert.DoesNotContain(logs.Lines, l => l.Contains("adm.aurora@exemplo.test", StringComparison.OrdinalIgnoreCase));
         }
 
         await using var scope = factory.Services.CreateAsyncScope();
@@ -125,38 +137,55 @@ public class PanelAdministradoresTests(PostgresFixture postgres)
         var created = await users.FindByNameAsync("adm.aurora");
         Assert.Equal(unitId, created!.UnitId);
         Assert.True(await users.IsInRoleAsync(created, RoleNames.Admin));
-        Assert.True(await users.CheckPasswordAsync(created, SenhaInicial));
+        Assert.False(await users.HasPasswordAsync(created));
+        var job = await scope.ServiceProvider.GetRequiredService<AppDbContext>().QueueJobs.AsNoTracking().SingleAsync(Ct);
+        Assert.Equal(("email.admin-invite", created.Id, QueueJobStatus.Pending), (job.Type, job.SubjectId, job.Status));
+        Assert.Equal("""{"v":1}""", job.Payload.Replace(" ", "", StringComparison.Ordinal));
+        Assert.StartsWith($"email.admin-invite:{created.Id:D}:", job.IdempotencyKey);
     }
 
     [Fact]
-    public async Task Senha_fraca_devolve_erro_em_portugues_e_nao_repete_a_senha_na_tela()
+    public async Task Email_de_outra_conta_do_painel_e_recusado_sem_criar_nem_enfileirar()
     {
         await using var factory = await NewFactoryAsync();
-        var unitId = await CreateUnitAsync(factory, "Unidade Fraca");
+        var unitId = await CreateUnitAsync(factory, "Unidade Eco");
+        var outraUnidade = await CreateUnitAsync(factory, "Unidade Eco Dois");
         using var client = factory.CreateFormClientAs(RoleNames.Master);
+        await PostFormAsync(client, "/Administradores/Novo", AdminForm(unitId, "adm.eco"));
 
-        var response = await PostFormAsync(client, "/Administradores/Novo", AdminForm(unitId, "adm.fraca", "abc"));
+        var response = await PostFormAsync(client, "/Administradores/Novo", AdminForm(outraUnidade, "adm.eco.dois", "ADM.ECO@exemplo.test"));
 
-        var html = await response.Content.ReadAsStringAsync(Ct);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("A senha deve ter pelo menos", html);
-        Assert.DoesNotContain("value=\"abc\"", html);
+        Assert.Contains("Já existe um usuário com este e-mail.", WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync(Ct)));
+        await using var scope = factory.Services.CreateAsyncScope();
+        Assert.Null(await scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>().FindByNameAsync("adm.eco.dois"));
+        Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<AppDbContext>().QueueJobs.CountAsync(Ct));
     }
 
     [Fact]
-    public async Task Senha_sem_simbolo_e_recusada_e_a_ajuda_da_tela_menciona_o_simbolo()
+    public async Task Lista_mostra_a_situacao_do_convite_lida_da_fila()
     {
         await using var factory = await NewFactoryAsync();
-        var unitId = await CreateUnitAsync(factory, "Unidade Sem Simbolo");
+        var unitId = await CreateUnitAsync(factory, "Unidade Situação");
         using var client = factory.CreateFormClientAs(RoleNames.Master);
+        await PostFormAsync(client, "/Administradores/Novo", AdminForm(unitId, "adm.situacao"));
 
-        var form = await (await client.GetAsync("/Administradores/Novo", Ct)).Content.ReadAsStringAsync(Ct);
-        var response = await PostFormAsync(client, "/Administradores/Novo", AdminForm(unitId, "adm.simbolo", "Segredo123"));
+        await SqlAsync(factory, $"""UPDATE "QueueJobs" SET "Status" = 'Succeeded', "FinishedAt" = now() - interval '71 hours'""");
+        Assert.Equal("Convite enviado", await SituacaoAsync(client, "adm.situacao"));
+        await SqlAsync(factory, $"""UPDATE "QueueJobs" SET "FinishedAt" = now() - interval '73 hours'""");
+        Assert.Equal("Convite expirado", await SituacaoAsync(client, "adm.situacao"));
+        await SqlAsync(factory, $"""UPDATE "QueueJobs" SET "Status" = 'Failed'""");
+        Assert.Equal("Não entregue", await SituacaoAsync(client, "adm.situacao"));
+        await SqlAsync(factory, $"""DELETE FROM "QueueJobs" """);
+        Assert.Equal("Convite expirado", await SituacaoAsync(client, "adm.situacao"));
 
-        var html = System.Net.WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync(Ct));
-        Assert.Contains("número e um símbolo", System.Net.WebUtility.HtmlDecode(form));
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("A senha deve ter pelo menos um símbolo.", html);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            Assert.True((await users.AddPasswordAsync((await users.FindByNameAsync("adm.situacao"))!, "Senha-Sintetica-9x")).Succeeded);
+        }
+
+        Assert.Equal("Ativo", await SituacaoAsync(client, "adm.situacao"));
     }
 
     [Fact]
@@ -224,7 +253,6 @@ public class PanelAdministradoresTests(PostgresFixture postgres)
             ["Input.UserName"] = "",
             ["Input.Email"] = "",
             ["Input.UnitId"] = "",
-            ["Input.Password"] = "",
         });
 
         var html = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync(Ct));
@@ -232,7 +260,6 @@ public class PanelAdministradoresTests(PostgresFixture postgres)
         Assert.Contains("Informe o nome de usuário.", html);
         Assert.Contains("Informe o e-mail.", html);
         Assert.Contains("Selecione a unidade.", html);
-        Assert.Contains("Informe a senha inicial.", html);
         Assert.Contains("id=\"resumo-erros\"", html);
         Assert.Matches("id=\"resumo-erros\"[^>]*autofocus", html);
         Assert.DoesNotContain("name=\"Input.UserName\" maxlength=\"60\" autocomplete=\"off\" autofocus", html);

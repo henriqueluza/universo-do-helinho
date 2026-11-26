@@ -1,4 +1,5 @@
 @page
+@using Helinho.Application.Administradores
 @model Helinho.Web.Pages.Administradores.IndexModel
 @{
     ViewData["Title"] = "Administradores";
@@ -9,6 +10,14 @@
         <a class="btn btn-primary" href="/Administradores/Novo"><svg aria-hidden="true"><use href="#i-plus" /></svg>Novo administrador</a>
     </div>
 </div>
+@if (Model.Aviso is not null)
+{
+    <div class="note ok" role="status"><svg aria-hidden="true"><use href="#i-ok" /></svg><span>@Model.Aviso</span></div>
+}
+@if (Model.Erro is not null)
+{
+    <div class="note" role="alert"><svg aria-hidden="true"><use href="#i-alert" /></svg><span>@Model.Erro</span></div>
+}
 <section class="panel panel-pad" aria-label="Administradores">
     @if (Model.Rows.Count == 0)
     {
@@ -23,16 +32,28 @@
         <div class="table-wrap">
             <table class="table">
                 <thead>
-                    <tr><th scope="col">Usuário</th><th scope="col">E-mail</th><th scope="col">Unidade</th><th scope="col">Situação</th></tr>
+                    <tr><th scope="col">Usuário</th><th scope="col">E-mail</th><th scope="col">Unidade</th><th scope="col">Situação</th><th scope="col" class="actions">Ações</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var r in Model.Rows)
                     {
+                        var (selo, situacao) = IndexModel.Selo(r.Situacao);
                         <tr>
                             <th scope="row">@r.UserName</th>
                             <td>@r.Email</td>
                             <td>@r.UnitName</td>
-                            <td><span class="tag @(r.Active ? "tag-ok" : "tag-neutral")">@(r.Active ? "Ativo" : "Inativo")</span></td>
+                            <td><span class="tag @selo">@situacao</span></td>
+                            <td class="actions">
+                                @if (r.Situacao is not (AdminSituacao.Ativo or AdminSituacao.Inativo))
+                                {
+                                    <div class="row-actions">
+                                        <form method="post" asp-page-handler="Reenviar" asp-route-id="@r.Id">
+                                            <button class="btn btn-sm" type="submit">Reenviar convite<span class="visually-hidden"> para @r.UserName</span></button>
+                                        </form>
+                                        <a class="link-btn" asp-page="CancelarConvite" asp-route-id="@r.Id">Cancelar convite<span class="visually-hidden"> de @r.UserName</span></a>
+                                    </div>
+                                }
+                            </td>
                         </tr>
                     }
                 </tbody>

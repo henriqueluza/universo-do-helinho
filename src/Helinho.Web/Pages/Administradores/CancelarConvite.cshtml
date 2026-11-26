@@ -1,0 +1,13 @@
+@page "{id:guid}"
+@model Helinho.Web.Pages.Administradores.CancelarConviteModel
+@{
+    ViewData["Title"] = "Cancelar convite";
+}
+<form class="panel panel-pad form" method="post">
+    <p>O convite de <b>@Model.UserName</b> será cancelado e a conta, apagada. O link enviado deixa de funcionar e a unidade fica livre para um novo administrador. Não dá para desfazer.</p>
+    <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Cancelar convite e apagar a conta</button>
+        @* Foco inicial na saída segura: Enter logo ao abrir a página não apaga a conta. *@
+        <a class="btn" href="/Administradores" autofocus>Voltar sem cancelar</a>
+    </div>
+</form>

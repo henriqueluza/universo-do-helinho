@@ -194,7 +194,7 @@ public class EmailRepetidoTests(PostgresFixture postgres, EmailRepetidoTests.Hos
         // O segundo cadastro espera o primeiro terminar; sem o lock do e-mail, responderia "livre" na hora.
         Assert.NotSame(checagem, await Task.WhenAny(checagem, Task.Delay(TimeSpan.FromMilliseconds(500), Ct)));
         var nome = $"adm{Guid.NewGuid():N}"[..12];
-        Assert.Empty(await primeiro.CreateAdminAsync(new NewAdminAccount(nome, email, unidadeA, "Segredo-Inicial9x"), Ct));
+        Assert.Empty(await primeiro.CreateAdminAsync(new NewAdminAccount(nome, email, unidadeA), Ct));
         await lockA.CommitAsync(Ct);
         Assert.True(await checagem);
     }
