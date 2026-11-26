@@ -51,7 +51,7 @@ Só dados sintéticos em homologação. A única exceção deste runbook é o se
 | Tratador de e-mail da fila | **Em entrega** (Issues #270, #271 e #272; PR #346 aberto; ADR-0003 §18, item 8b) | A fila enche e ninguém envia |
 | Provedores de token e página `/conta/definir-senha` | **Na `main`** (Issues #239 e #240; PRs #244 e #252). Implementados antes da medição, por decisão do Henrique em 22/11/2026; quem espera a medição é a ligação da Brevo ([Passo 4b](#passo-4b--envio-de-medição-do-link)) | — |
 | Convite de administrador, redefinição de senha, acesso do aluno | **Em entrega** (Issues abertas: convite #266, #268 e #285; redefinição #278, #279 e #280; acesso do aluno #267). O defeito #184, de que a redefinição dependia, já está corrigido (PR #276) | Nenhuma tela dispara e-mail; o [Passo 7](#passo-7--teste-de-fumaça-de-ponta-a-ponta) não pode ser feito |
-| Rota `POST /webhooks/brevo` | **Em entrega** (Issue #265 aberta, item 12) | O [Passo 6](#passo-6--webhook-transacional-opcional) não pode ser feito |
+| Rota `POST /webhooks/brevo` | **Feito no código:** Issues #277 e #265 (item 12). A rota só existe com `Brevo__WebhookSecret` configurado | Sem o segredo configurado, a rota responde 404 e o [Passo 6](#passo-6--webhook-transacional-opcional) não tem efeito |
 
 **A ordem que vale desde 22/11/2026.** A conta e a chave da Brevo ainda não chegaram; o código (tokens, página e fluxos) é implementado antes, com `Email__Provider=Fake`. Quando a chave chegar: [Passo 4b](#passo-4b--envio-de-medição-do-link) primeiro, e **só depois** o [Passo 5](#passo-5--variáveis-na-railway-pelo-terraform). O texto original do ADR-0003 (§8.4, condição 1, e §16) diz que a medição vem antes da Issue dos tokens; a nota de situação de 25/11/2026 no próprio ADR registra a ordem nova (linha 11 de [Diferenças](#diferenças-entre-o-adr-0003-o-terraform-e-o-runbook-da-railway)).
 
@@ -702,7 +702,7 @@ Ligar a Brevo não envia nada por si só. O primeiro e-mail real sai no [Passo 7
 
 ## Passo 6 — Webhook transacional (opcional)
 
-**Depende da Issue do webhook** (`POST /webhooks/brevo`; ADR-0003 §18, item 12; Issue #265, aberta). A variável `brevo_webhook_secret` já existe no Terraform (Issue #229, PR #333). Sem a rota na `main`, pule este passo. Sem o segredo, a rota nem existe e responde 404 (ADR-0003 §12).
+**A rota do webhook** (`POST /webhooks/brevo`; ADR-0003 §18, item 12) entrou com as Issues #277 e #265. A variável `brevo_webhook_secret` já existe no Terraform (Issue #229, PR #333). Sem o segredo, a rota nem existe e responde 404 (ADR-0003 §12).
 
 Para que serve: a Brevo avisa quando uma mensagem não pôde ser entregue, e as telas passam a mostrar "e-mail não entregue". É aviso de melhor esforço, não registro oficial de entrega.
 
@@ -761,7 +761,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/webhooks/brevo" -H 'Con
 unset SEGREDO_WEBHOOK BASE
 ```
 
-Imprime `200`: o segredo da Railway é o mesmo do gerenciador, e evento fora da lista é aceito e ignorado (ADR-0003 §12). **Confira:** o comportamento exato vem da Issue do webhook.
+Imprime `200`: o segredo da Railway é o mesmo do gerenciador, e evento fora da lista é aceito e ignorado (ADR-0003 §12). É o comportamento coberto pelos testes da Issue #265; corpo que não é JSON responde `400`, e acima de 64 KB, `413`.
 
 Por fim, na Brevo: **Integrations → Webhooks → Outbound webhooks** → clique no webhook → em **Statistics**, o **Send test request** aparece como **Delivered** [F22]. É a prova de que **a Brevo envia o cabeçalho próprio**, ponto que o ADR-0003 §12 deixou para este teste. **Confira:** se ela o envia também nas novas tentativas só dá para ver em uso.
 
