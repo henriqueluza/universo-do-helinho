@@ -1,5 +1,7 @@
+using Helinho.Application.Abstractions;
 using Helinho.Application.Ai;
 using Helinho.Infrastructure.Ai;
+using Microsoft.Extensions.Options;
 
 namespace Helinho.Web.Composition;
 
@@ -27,6 +29,14 @@ public static partial class IaArea
                 LogRealProviderIgnored(loggers.CreateLogger(typeof(IaArea)));
             }
         });
+        // Uma instância só das opções: os casos de uso e o tratador leem IOptions, a porta lê IOptionsMonitor. Sem isto
+        // cada visão monta e valida a sua, e a regra de ambiente acima roda (e avisa no log) duas vezes na subida.
+        services.AddSingleton<IOptions<AiOptions>>(provider => Options.Create(provider.GetRequiredService<IOptionsMonitor<AiOptions>>().CurrentValue));
+        // Casos de uso da IA (ADR-0004 §10.2). A página que os chama fica sob a política Panel.
+        services.AddScoped<RequestAiDrafts>();
+        services.AddScoped<GetAiDraftJob>();
+        // Tratador da raia ai.question-drafts: o trabalhador da fila o descobre por IJobHandler (ADR-0003 §6.6).
+        services.AddScoped<IJobHandler, ProcessAiDraftJob>();
         return services;
     }
 
