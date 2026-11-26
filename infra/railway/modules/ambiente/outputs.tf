@@ -11,5 +11,15 @@ output "resumo" {
     servico_postgres    = railway_service.postgres.name
     servico_postgres_id = railway_service.postgres.id
     variaveis_web       = local.nomes_web
+    url_base_app        = local.url_base_app
+    provedor_email      = var.variaveis_web.Email__Provider
   }
+}
+
+# `nome` é relativo à `zona`, como a Railway devolve. O TXT prova a posse do domínio e é público: não é segredo.
+output "dns_dominio_proprio" {
+  value = flatten([for d in railway_custom_domain.web : [
+    { tipo = "CNAME", nome = d.host_label, zona = d.zone, valor = d.dns_record_value },
+    { tipo = "TXT", nome = d.verification_host_label, zona = d.zone, valor = d.verification_record_value },
+  ]])
 }

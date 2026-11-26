@@ -1,5 +1,17 @@
 # `terraform test`: providers simulados, só `plan` em memória. Não usa token nem fala com a Railway.
-mock_provider "railway" {}
+mock_provider "railway" {
+  # Valores sintéticos no lugar do que a Railway devolveria, já no `plan`, para conferir as saídas de DNS.
+  mock_resource "railway_custom_domain" {
+    override_during = plan
+    defaults = {
+      host_label                = "painel"
+      zone                      = "example.org"
+      dns_record_value          = "abc123.up.railway.app"
+      verification_host_label   = "_railway-verify.painel"
+      verification_record_value = "railway-verify=sintetico"
+    }
+  }
+}
 mock_provider "random" {}
 
 variables {
@@ -16,12 +28,74 @@ run "padrao_cria_so_homologacao" {
   assert {
     condition = toset(output.ambientes["homologacao"].variaveis_web) == toset([
       "ASPNETCORE_ENVIRONMENT", "PORT", "ConnectionStrings__Default", "Proxy__TrustForwardedHeaders",
-      "Seed__Enabled", "HELINHO_SEED_PASSWORD", "Email__Provider", "Ai__Provider",
+      "Seed__Enabled", "HELINHO_SEED_PASSWORD", "Email__Provider", "Email__DailyLimit", "Ai__Provider",
       "Api__Auth__TokenLifetime", "Api__Auth__MaxFailedAttempts", "Api__Auth__LockoutDuration",
       "Api__Auth__LoginRateLimit", "Api__Auth__LoginRateWindow",
     ])
     error_message = "Variável vazia não pode ser enviada, e as obrigatórias não podem faltar."
   }
+  assert {
+    condition     = output.dns_dominio_proprio == { homologacao = [] }
+    error_message = "Sem dominio_proprio não pode existir railway_custom_domain nem registro DNS a cadastrar."
+  }
+}
+
+run "dominio_proprio_cria_o_recurso_e_as_saidas" {
+  command = plan
+
+  variables {
+    ambientes = { homologacao = { seed_enabled = true, dominio_proprio = "painel.example.org" } }
+  }
+
+  assert {
+    condition = output.dns_dominio_proprio["homologacao"] == [
+      { tipo = "CNAME", nome = "painel", zona = "example.org", valor = "abc123.up.railway.app" },
+      { tipo = "TXT", nome = "_railway-verify.painel", zona = "example.org", valor = "railway-verify=sintetico" },
+    ]
+    error_message = "Com dominio_proprio, a saída traz o CNAME e o TXT de verificação que a Railway devolve."
+  }
+  assert {
+    condition     = output.ambientes["homologacao"].url_base_app == "https://painel.example.org"
+    error_message = "Com dominio_proprio, App__PublicBaseUrl vale https://<domínio> por padrão."
+  }
+  assert {
+    condition     = contains(output.ambientes["homologacao"].variaveis_web, "App__PublicBaseUrl")
+    error_message = "App__PublicBaseUrl precisa ser enviada ao serviço web quando há domínio próprio."
+  }
+}
+
+run "url_base_explicita_vence_o_dominio_proprio" {
+  command = plan
+
+  variables {
+    ambientes     = { homologacao = { seed_enabled = true, dominio_proprio = "painel.example.org" } }
+    variaveis_web = { App__PublicBaseUrl = "https://outro.example.org" }
+  }
+
+  assert {
+    condition     = output.ambientes["homologacao"].url_base_app == "https://outro.example.org"
+    error_message = "Valor explícito de App__PublicBaseUrl em variaveis_web vence o domínio próprio."
+  }
+}
+
+run "recusa_dominio_com_esquema" {
+  command = plan
+
+  variables {
+    ambientes = { homologacao = { seed_enabled = true, dominio_proprio = "https://painel.example.org" } }
+  }
+
+  expect_failures = [var.ambientes]
+}
+
+run "recusa_dominio_com_barra" {
+  command = plan
+
+  variables {
+    ambientes = { homologacao = { seed_enabled = true, dominio_proprio = "painel.example.org/" } }
+  }
+
+  expect_failures = [var.ambientes]
 }
 
 run "producao_ligada_sem_seed" {
@@ -32,7 +106,12 @@ run "producao_ligada_sem_seed" {
       homologacao = { seed_enabled = true }
       producao    = {}
     }
-    variaveis_web = { Email__Provider = "Brevo" }
+    variaveis_web = {
+      Email__Provider    = "Brevo"
+      Brevo__SenderEmail = "nao-responda@example.org"
+      Brevo__SenderName  = "Remetente sintético"
+      App__PublicBaseUrl = "https://painel.example.org"
+    }
     brevo_api_key = "chave-sintetica"
   }
 
@@ -90,7 +169,7 @@ run "recusa_provedor_real_sem_chave" {
   command = plan
 
   variables {
-    variaveis_web = { Email__Provider = "Brevo", Ai__Provider = "Real" }
+    variaveis_web = { Email__Provider = "Brevo", Brevo__SenderEmail = "nao-responda@example.org", Brevo__SenderName = "Remetente sintético", App__PublicBaseUrl = "https://painel.example.org", Ai__Provider = "Real" }
   }
 
   expect_failures = [var.brevo_api_key, var.ai_api_key]
@@ -101,7 +180,7 @@ run "recusa_chave_nula_com_provedor_real" {
   command = plan
 
   variables {
-    variaveis_web = { Email__Provider = "Brevo", Ai__Provider = "Real" }
+    variaveis_web = { Email__Provider = "Brevo", Brevo__SenderEmail = "nao-responda@example.org", Brevo__SenderName = "Remetente sintético", App__PublicBaseUrl = "https://painel.example.org", Ai__Provider = "Real" }
     brevo_api_key = null
     ai_api_key    = null
   }
