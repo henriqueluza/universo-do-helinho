@@ -1,7 +1,7 @@
 # Runbook — envio real de e-mails com a Brevo
 
 **Para quem:** Henrique, sozinho, no navegador e na própria máquina (macOS). **Escrito em:** 19/11/2026 (Issue #206). **Revisto em:** 22/11/2026, depois do aceite do ADR-0003.
-**Descreve:** o ADR-0003 (`docs/architecture/ADR-0003-emails-brevo.md`, PR #185, **aceito pelo Henrique em 22/11/2026**, decisões D1 a D18; lido no commit `589d9ff`), o Terraform de `infra/railway/` (PR #100, já com o domínio próprio do PR #221) e o [runbook da Railway](railway-runbook.md). O código que envia e-mail ainda está em Issues abertas ou por criar; veja [Antes de começar](#antes-de-começar).
+**Descreve:** o ADR-0003 (`docs/architecture/ADR-0003-emails-brevo.md`, PR #185, **aceito pelo Henrique em 22/11/2026**, decisões D1 a D18; lido no commit `589d9ff`), o Terraform de `infra/railway/` (PRs #100, #322, #330, #333 e #344, já na `main`) e o [runbook da Railway](railway-runbook.md). Parte do código que envia e-mail (tratador e fluxos) ainda não chegou à `main`, sem data; veja [Antes de começar](#antes-de-começar).
 
 > **Nada deste runbook foi executado.** Nenhum agente criou conta, domínio, remetente ou chave, nem chamou a API da Brevo. Os passos de painel foram conferidos na documentação da Brevo e da Railway em 19/11/2026 (seção [Fontes](#fontes); as marcas `[F1]`, `[F2]`… apontam para ela). O painel da Brevo é em inglês e muda com frequência: se a tela não bater com o texto, vale a tela. Onde a documentação não confirma um nome ou um comportamento, o passo traz **Confira:**; o índice está em [Fatos não confirmados](#fatos-não-confirmados-e-onde-cada-um-é-tratado).
 
@@ -9,7 +9,7 @@ Só dados sintéticos em homologação. A única exceção deste runbook é o se
 
 ## O caminho feliz em 10 linhas
 
-1. **Pré-requisitos:** ADR-0003 aceito em 22/11/2026; homologação no ar pelo runbook da Railway, com o domínio próprio do painel; adaptador (Issues #204 e #209), modelos (#205 e #207), fila (#223) e worker (#228) na `main`, mais os tokens e os fluxos (Issues ainda por criar). Sem eles, ligar a Brevo não envia nada. → [Antes de começar](#antes-de-começar)
+1. **Pré-requisitos:** ADR-0003 aceito em 22/11/2026; homologação no ar pelo runbook da Railway, com o domínio próprio do painel; adaptador, modelos, tokens, página de definir senha, a fila (tabela, porta e processador) e o trabalhador da fila (Issue #228) já na `main`; faltam, em entrega, o tratador de e-mail e os fluxos (convite, redefinição e acesso do aluno). Sem eles, ligar a Brevo não envia nada. → [Antes de começar](#antes-de-começar)
 2. **Conta e plano:** entrar na conta Brevo da contratante; o plano gratuito envia **300 e-mails por dia**; antes de qualquer envio, ligar o rastreamento anônimo, desligar as prévias e pôr a retenção em 1 mês. → [Passo 1](#passo-1--conta-e-plano)
 3. **Domínio:** **Settings → Senders, Domains, IPs → Domains → Add a domain**; mandar os registros (código da Brevo, DKIM e DMARC) a quem administra o DNS da FUNDHAS; conferir com `dig`; concluir a autenticação. → [Passo 2](#passo-2--autenticar-o-domínio-institucional)
 4. **Remetente:** **Settings → Senders, Domains, IPs → Senders → Add a sender**. → [Passo 3](#passo-3--criar-o-remetente)
@@ -28,8 +28,8 @@ Só dados sintéticos em homologação. A única exceção deste runbook é o se
 | `Brevo__ApiKey` | **Settings → SMTP & API → API Keys & MCP → Generate API key**; o valor aparece uma única vez ([4.2](#42-criar-a-chave)) | Gerenciador de senhas. No uso: `read -rs TF_VAR_brevo_api_key` no terminal do Terraform. Nunca em `tfvars`, arquivo, chat, Issue ou PR | **sim** |
 | `Brevo__SenderEmail` | **Settings → Senders, Domains, IPs → Senders**: o campo **From email** do remetente criado no [Passo 3](#passo-3--criar-o-remetente), letra por letra | `terraform.tfvars`, em `variaveis_web` (o arquivo fica fora do git) | não |
 | `Brevo__SenderName` | O campo **From name** do mesmo remetente (até 70 caracteres) | `terraform.tfvars`, em `variaveis_web` | não |
-| `App__PublicBaseUrl` | Não vem da Brevo. É `https://` mais o domínio próprio do painel (no exemplo, `https://paineladm.example.org`) | Você **não** escreve: o Terraform a monta a partir de `ambientes.homologacao.dominio_proprio`, no `terraform.tfvars` (PR #221). Só preencha `variaveis_web.App__PublicBaseUrl` para um valor diferente; o explícito vence | não |
-| `Brevo__WebhookSecret` | Não vem da Brevo: você gera (32 caracteres ou mais) e cola nos dois lados. Na Brevo, em **Integrations → Webhooks**, como valor do cabeçalho próprio `X-Helinho-Webhook-Secret` ([Passo 6](#passo-6--webhook-transacional-opcional)) | Gerenciador de senhas; no uso, `read -rs TF_VAR_brevo_webhook_secret` (variável `brevo_webhook_secret`, **Issue #229, em andamento; sem PR em 22/11/2026**). Vazia, não é enviada e o webhook fica desligado. Até a Issue entrar, não crie à mão no painel da Railway | **sim** |
+| `App__PublicBaseUrl` | Não vem da Brevo. É `https://` mais o domínio próprio do painel (no exemplo, `https://paineladm.example.org`) | Você **não** escreve: o Terraform a monta a partir de `ambientes.homologacao.dominio_proprio`, no `terraform.tfvars` (PR #330). Só preencha `variaveis_web.App__PublicBaseUrl` para um valor diferente; o explícito vence | não |
+| `Brevo__WebhookSecret` | Não vem da Brevo: você gera (32 caracteres ou mais) e cola nos dois lados. Na Brevo, em **Integrations → Webhooks**, como valor do cabeçalho próprio `X-Helinho-Webhook-Secret` ([Passo 6](#passo-6--webhook-transacional-opcional)) | Gerenciador de senhas; no uso, `read -rs TF_VAR_brevo_webhook_secret` (variável `brevo_webhook_secret`, **na `main`**: Issue #229, PR #333). Vazia, não é enviada e o webhook fica desligado. Não crie à mão no painel da Railway | **sim** |
 | `Email__DailyLimit` | O limite diário do plano ([1.2](#12-plano-e-limite-diário)): `300` no gratuito, ou menos se a conta também fizer outros envios | `terraform.tfvars`, em `variaveis_web`, padrão `300`: só escreva para baixar. A chave existe em `variaveis_web` desde o PR #333 (Issue #229); precisa estar aplicada (`apply`) antes de qualquer envio em volume (ADR-0003 §13) | não |
 | Chave temporária da medição | A mesma tela da chave de API, com outro nome e validade de 7 dias ([Passo 4b](#passo-4b--envio-de-medição-do-link)) | Só na variável `BREVO_KEY` do terminal, lida com `read -rs`; apagada na Brevo ao fim da medição. **Não vai para a Railway** | **sim** |
 | Registros DNS (código da Brevo, DKIM, DMARC) | **Settings → Senders, Domains, IPs → Domains** | No DNS do domínio institucional, por quem o administra. Não vão para o repositório | não |
@@ -40,20 +40,20 @@ Só dados sintéticos em homologação. A única exceção deste runbook é o se
 
 | O quê | Onde está | Sem ele |
 |---|---|---|
-| ADR-0003 aceito | **Cumprido:** aceito pelo Henrique em 22/11/2026, decisões D1 a D18 (ADR-0003 §16). O PR #185 ainda precisa chegar à `main` | — |
-| Terraform de `infra/railway/` e homologação no ar | PR #100; [runbook da Railway](railway-runbook.md), passos 1 a 7 | Não há onde pôr as variáveis |
-| Domínio próprio do painel | `ambientes.homologacao.dominio_proprio` (Issue #220, PR #221, já na branch do PR #100); passo a passo em `docs/operations/railway-dominio.md`, que chega à `main` com o PR #100 | `App__PublicBaseUrl` não é enviada, e os links dos e-mails não têm para onde apontar |
-| Variáveis de e-mail no Terraform: `Email__DailyLimit`, `brevo_webhook_secret` e validações de remetente e de URL com `Brevo` | **Feito no código:** Issue #229, PR #333, na `main` desde 25/11/2026. Falta o `apply` do Henrique | Até o `apply`: sem teto diário do nosso lado. `Email__DailyLimit` e `Brevo__WebhookSecret` ainda não são lidas pela aplicação (tratador de e-mail e Issue #265) |
-| Adaptador `BrevoEmailSender`, opções validadas na subida, registro `Fake`/`Brevo` | Issues #204 e #209 | `Email__Provider=Brevo` não tem efeito: a aplicação continua com o envio fake |
-| Renderizador, layout e modelos dos e-mails | Issues #205 e #207 | Não há mensagem para enviar |
-| Chaves do Data Protection no PostgreSQL | PR #120 (Issue #103) | Cada deploy invalida os links já enviados (ADR-0003 §10.4) |
-| Fila (`QueueJobs`) | Issue #223 | Nada é enviado: todo e-mail passa pela fila |
-| Worker genérico e tratador de e-mail | Issue #228 (worker); o tratador de e-mail é **Issue a criar** (ADR-0003 §18, item 8b) | A fila enche e ninguém envia |
-| Provedores de token e página `/conta/definir-senha` | **Issue a criar** (ADR-0003 §18, item 5). **Implementada antes da medição**, por decisão do Henrique em 22/11/2026; quem espera a medição é a ligação da Brevo ([Passo 4b](#passo-4b--envio-de-medição-do-link)) | O link do e-mail não abre |
-| Convite de administrador, redefinição de senha, acesso do aluno | **Issues a criar** (itens 9, 10 e 11; a 10 depende da Issue #184) | Nenhuma tela dispara e-mail; o [Passo 7](#passo-7--teste-de-fumaça-de-ponta-a-ponta) não pode ser feito |
-| Rota `POST /webhooks/brevo` | **Issue a criar** (item 12) | O [Passo 6](#passo-6--webhook-transacional-opcional) não pode ser feito |
+| ADR-0003 aceito | **Cumprido:** aceito pelo Henrique em 22/11/2026, decisões D1 a D18 (ADR-0003 §16). Na `main` (PR #185) | — |
+| Terraform de `infra/railway/` e homologação no ar | **Na `main`** (PRs #100, #322, #323 e #330); [runbook da Railway](railway-runbook.md), passos 1 a 7 | Não há onde pôr as variáveis |
+| Domínio próprio do painel | `ambientes.homologacao.dominio_proprio` (Issue #220; **na `main`**, PR #330); passo a passo em `docs/operations/railway-dominio.md` | `App__PublicBaseUrl` não é enviada, e os links dos e-mails não têm para onde apontar |
+| Variáveis de e-mail no Terraform: `Email__DailyLimit`, `brevo_webhook_secret` e validações de remetente e de URL com `Brevo` | **Na `main`** (Issue #229, PR #333). Falta o `apply` do Henrique | Até o `apply`: sem teto diário do nosso lado. `Email__DailyLimit` e `Brevo__WebhookSecret` ainda não são lidas pela aplicação (tratador de e-mail e Issue #265) |
+| Adaptador `BrevoEmailSender`, opções validadas na subida, registro `Fake`/`Brevo` | **Na `main`** (Issues #204 e #209; PRs #210 e #211) | — |
+| Renderizador, layout e modelos dos e-mails | **Na `main`** (Issues #205 e #207; PR #212); caixa de saída de desenvolvimento no PR #283 | — |
+| Chaves do Data Protection no PostgreSQL | **Na `main`** (PR #120; D4 aceita em 22/11/2026) | — |
+| Fila (`QueueJobs`) | **Na `main`:** tabela (#304), porta (#310), contratos do tratador (#311), processador (#316), limites (#321, #325) e o trabalhador em segundo plano (`BackgroundService`; Issue #228, PR #331) | Nada é enviado: todo e-mail passa pela fila |
+| Tratador de e-mail da fila | **Em entrega** (Issues #270, #271 e #272; PR #346 aberto; ADR-0003 §18, item 8b) | A fila enche e ninguém envia |
+| Provedores de token e página `/conta/definir-senha` | **Na `main`** (Issues #239 e #240; PRs #244 e #252). Implementados antes da medição, por decisão do Henrique em 22/11/2026; quem espera a medição é a ligação da Brevo ([Passo 4b](#passo-4b--envio-de-medição-do-link)) | — |
+| Convite de administrador, redefinição de senha, acesso do aluno | **Em entrega** (Issues abertas: convite #266, #268 e #285; redefinição #278, #279 e #280; acesso do aluno #267). O defeito #184, de que a redefinição dependia, já está corrigido (PR #276) | Nenhuma tela dispara e-mail; o [Passo 7](#passo-7--teste-de-fumaça-de-ponta-a-ponta) não pode ser feito |
+| Rota `POST /webhooks/brevo` | **Em entrega** (Issue #265 aberta, item 12) | O [Passo 6](#passo-6--webhook-transacional-opcional) não pode ser feito |
 
-**A ordem que vale desde 22/11/2026.** A conta e a chave da Brevo ainda não chegaram; o código (tokens, página e fluxos) é implementado antes, com `Email__Provider=Fake`. Quando a chave chegar: [Passo 4b](#passo-4b--envio-de-medição-do-link) primeiro, e **só depois** o [Passo 5](#passo-5--variáveis-na-railway-pelo-terraform). O texto do ADR-0003 (§8.4, condição 1, e §16) ainda diz que a medição vem antes da Issue dos tokens; veja a linha 11 de [Diferenças](#diferenças-entre-o-adr-0003-o-terraform-e-o-runbook-da-railway).
+**A ordem que vale desde 22/11/2026.** A conta e a chave da Brevo ainda não chegaram; o código (tokens, página e fluxos) é implementado antes, com `Email__Provider=Fake`. Quando a chave chegar: [Passo 4b](#passo-4b--envio-de-medição-do-link) primeiro, e **só depois** o [Passo 5](#passo-5--variáveis-na-railway-pelo-terraform). O texto original do ADR-0003 (§8.4, condição 1, e §16) diz que a medição vem antes da Issue dos tokens; a nota de situação de 25/11/2026 no próprio ADR registra a ordem nova (linha 11 de [Diferenças](#diferenças-entre-o-adr-0003-o-terraform-e-o-runbook-da-railway)).
 
 **O que dá para adiantar sem esperar código:** os passos 1, 2 e 3 (conta, domínio e remetente) e a medição do link ([Passo 4b](#passo-4b--envio-de-medição-do-link)), assim que houver conta e chave. O domínio é o que mais demora: depende de outra pessoa e de até 48 horas de propagação. **Não deixe a chave da aplicação parada:** chave sem uso por 90 dias é desativada pela Brevo [F8]; a medição já conta como uso.
 
@@ -546,7 +546,7 @@ Pré-requisito: a homologação já foi criada pelo [runbook da Railway](railway
 
 ### 5.1 Editar o terraform.tfvars
 
-**Primeiro, o domínio do painel.** `App__PublicBaseUrl` é a base de todo link enviado por e-mail (ADR-0003 §10.3). Você não a escreve: o Terraform a monta como `https://` mais o `dominio_proprio` do ambiente (PR #221). O bloco abaixo já deve estar no `infra/railway/terraform.tfvars` desde o `docs/operations/railway-dominio.md`; aqui o domínio é de exemplo:
+**Primeiro, o domínio do painel.** `App__PublicBaseUrl` é a base de todo link enviado por e-mail (ADR-0003 §10.3). Você não a escreve: o Terraform a monta como `https://` mais o `dominio_proprio` do ambiente (PR #330). O bloco abaixo já deve estar no `infra/railway/terraform.tfvars` desde o `docs/operations/railway-dominio.md`; aqui o domínio é de exemplo:
 
 ```hcl
 ambientes = {
@@ -572,7 +572,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' "$BASE/health/ready"
 
 **Se der errado:**
 
-- O `echo` não imprime nada, ou imprime `null` → o ambiente não tem `dominio_proprio`, ou o Terraform aplicado é anterior ao PR #221. Pare e faça antes o `docs/operations/railway-dominio.md`. Não troque pelo endereço `*.up.railway.app` só para seguir: o link dos e-mails ficaria com ele.
+- O `echo` não imprime nada, ou imprime `null` → o ambiente não tem `dominio_proprio`, ou o Terraform aplicado é anterior ao `dominio_proprio` (PR #330). Pare e faça antes o `docs/operations/railway-dominio.md`. Não troque pelo endereço `*.up.railway.app` só para seguir: o link dos e-mails ficaria com ele.
 - O `curl` falha ou reclama do certificado → o DNS do painel ainda não propagou, ou a Railway ainda não emitiu o certificado. Não ligue a Brevo: os links dos e-mails abririam com erro.
 
 **Depois, as variáveis da Brevo.** No mesmo arquivo, descomente ou acrescente o bloco abaixo. As chaves que você não escrever continuam com o padrão:
@@ -778,7 +778,7 @@ Resposta 4xx (menos 429) ou 5xx do sistema faz a Brevo **descartar o evento, sem
 
 ## Passo 7 — Teste de fumaça de ponta a ponta
 
-**Só depois que os fluxos existirem** (fila e worker, Issues #223 e #228; tratador de e-mail, tokens e página `/conta/definir-senha`, convite de administrador e redefinição de senha, Issues ainda por criar). Os nomes de tela e de situação abaixo vêm do ADR-0003 §11 e podem mudar nessas Issues.
+**Só depois que os fluxos existirem** (tratador de e-mail, convite de administrador, redefinição de senha e acesso do aluno, em entrega; a fila e o trabalhador dela, Issues #223 e #228, os tokens e a página `/conta/definir-senha` já estão na `main`). Os nomes de tela e de situação abaixo vêm do ADR-0003 §11 e podem mudar nessas Issues.
 
 Use **um e-mail seu**, de uma caixa que você abre. É o único dado real em homologação: não o escreva no repositório, em Issue nem em PR.
 
@@ -996,7 +996,7 @@ Guarde a resposta fora do repositório e leve os fatos para o ADR em PR `docs`, 
 | 9 | Mensagens de erro da aplicação na subida com configuração incompleta | Issues #204 e #209 | [5.4](#54-conferir-o-deploy) |
 | 10 | Se a Brevo envia o cabeçalho próprio em toda chamada do webhook, inclusive no teste e nas novas tentativas; rótulos dos eventos no painel; em qual cabeçalho vai o token da opção **Token** (que por isso não é usada) | ADR-0003 §17, item 5 | [Passo 6](#passo-6--webhook-transacional-opcional); pergunta 7 ao suporte |
 | 11 | Nomes finais no Terraform (`brevo_webhook_secret`, `Email__DailyLimit`) e o texto das validações novas | **Confirmado:** Issue #229, PR #333. Os nomes são esses; as mensagens estão em `infra/railway/variables.tf` | [5.1](#51-editar-o-terraformtfvars), [5.3](#53-plan-e-apply), [Passo 6](#passo-6--webhook-transacional-opcional) |
-| 12 | Nomes de tela, de situação, de tabela e de coluna dos fluxos e da fila | Issues #223 e #228 (fila e worker); as dos fluxos, a criar | [Passo 7](#passo-7--teste-de-fumaça-de-ponta-a-ponta) |
+| 12 | Nomes de tela, de situação, de tabela e de coluna dos fluxos e da fila | Fila e trabalhador na `main` (Issues #223 e #228); fluxos em entrega | [Passo 7](#passo-7--teste-de-fumaça-de-ponta-a-ponta) |
 | 13 | Se `htmlContent` e `textContent` saem juntos; onde o selo "Sent with Brevo" aparece em e-mail enviado pela API | ADR-0003 §17, itens 2 e 8 | [Passo 4b](#passo-4b--envio-de-medição-do-link), itens 4 e 6; [Passo 7](#passo-7--teste-de-fumaça-de-ponta-a-ponta), item 3 |
 | 14 | O que acontece com a fila pendente ao trocar para `Fake` | Issues #223 e #228 | [Desligar o envio em emergência](#desligar-o-envio-em-emergência) |
 | 15 | O que a API responde com a chave desativada por falta de uso ou vencida (supõe-se erro de autenticação) | ADR-0003 §17, item 13 | [4.2](#42-criar-a-chave) |
@@ -1020,8 +1020,8 @@ Encontradas ao escrever a primeira versão deste runbook. O ADR-0003 foi alinhad
 | 7 | A retenção de 30 dias da fila não vale do lado da Brevo sem configurar a conta | **Decidido:** ADR-0003 §5.6 e D9 | [1.4](#14-retenção-dos-registros-na-brevo) |
 | 8 | Webhook: o ADR supunha `Authorization: Bearer`, que a documentação não confirma; o roteiro da sprint citava três eventos | **Decidido:** ADR-0003 §12 e D18 (cabeçalho próprio `X-Helinho-Webhook-Secret` e quatro eventos, com `invalid_email` de propósito) | [Passo 6](#passo-6--webhook-transacional-opcional) |
 | 9 | Fatos que estavam sem fonte direta: selo no gratuito, registros DNS, retenção, fila de 1.000 | **No ADR:** fontes F22 a F31, lidas pela API pública da central de ajuda | [Fontes](#fontes) |
-| 10 | O runbook da Railway diz que o terminal do Terraform carrega dois segredos e lista 13 variáveis do serviço web ([4.3](railway-runbook.md#43-exportar-os-segredos-sem-deixá-los-no-histórico), [5.3](railway-runbook.md#53-plan)). Com a Brevo ligada são três segredos (quatro com o webhook) e mais variáveis | **Pendente:** ajustar o runbook da Railway em PR `docs` próprio (a Issue #226 já o revisa por outro motivo) | [Convenções](#convenções); [5.3](#53-plan-e-apply) |
-| 11 | **Ordem da medição.** O ADR-0003 (§8.4, condição 1; §16; §18, item 5) diz que a medição vem **antes** da Issue dos tokens. Em 22/11/2026 o Henrique decidiu implementar os tokens e a página antes, porque a chave ainda não tinha chegado | **Pendente no ADR:** trocar "antes da Issue 5" por "antes de ligar `Email__Provider=Brevo`" (PR #185 ou PR `docs` próprio). Este runbook já segue a decisão nova | [Antes de começar](#antes-de-começar), [Passo 4b](#passo-4b--envio-de-medição-do-link), [Passo 5](#passo-5--variáveis-na-railway-pelo-terraform) |
+| 10 | O runbook da Railway diz que o terminal do Terraform carrega dois segredos e lista 13 variáveis do serviço web ([4.3](railway-runbook.md#43-exportar-os-segredos-sem-deixá-los-no-histórico), [5.3](railway-runbook.md#53-plan)). Com a Brevo ligada são três segredos (quatro com o webhook) e mais variáveis | **Resolvido em 25/11/2026 (PR #335):** o runbook da Railway lista as 17 variáveis da `main`, já com as de e-mail e de IA (PRs #333 e #344). A primeira subida dele continua com dois segredos, porque vai com `Fake`; os da Brevo entram por este runbook, no [Passo 5](#passo-5--variáveis-na-railway-pelo-terraform) e no [Passo 6](#passo-6--webhook-transacional-opcional) | [Convenções](#convenções); [5.3](#53-plan-e-apply) |
+| 11 | **Ordem da medição.** O ADR-0003 (§8.4, condição 1; §16; §18, item 5) diz que a medição vem **antes** da Issue dos tokens. Em 22/11/2026 o Henrique decidiu implementar os tokens e a página antes, porque a chave ainda não tinha chegado | **Resolvido em 25/11/2026:** o ADR-0003 ganhou uma nota de situação com a ordem nova (a medição trava ligar `Email__Provider=Brevo`, não a construção). Este runbook já seguia a decisão | [Antes de começar](#antes-de-começar), [Passo 4b](#passo-4b--envio-de-medição-do-link), [Passo 5](#passo-5--variáveis-na-railway-pelo-terraform) |
 | 12 | A Issue #206 fala em guardar a chave "só na Railway"; o Terraform exige a chave em todo `plan` | **Decidido neste runbook:** gerenciador de senhas e Railway, mais o estado do Terraform | [4.2](#42-criar-a-chave), [8.3](#83-onde-a-chave-fica-guardada) |
 
 ## Fontes
