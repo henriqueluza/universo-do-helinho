@@ -40,18 +40,18 @@ Só dados sintéticos em homologação. A única exceção deste runbook é o se
 
 | O quê | Onde está | Sem ele |
 |---|---|---|
-| ADR-0003 aceito | **Cumprido:** aceito pelo Henrique em 22/11/2026, decisões D1 a D18 (ADR-0003 §16). O PR #185 ainda precisa chegar à `main` | — |
-| Terraform de `infra/railway/` e homologação no ar | PR #100; [runbook da Railway](railway-runbook.md), passos 1 a 7 | Não há onde pôr as variáveis |
-| Domínio próprio do painel | `ambientes.homologacao.dominio_proprio` (Issue #220, PR #221, já na branch do PR #100); passo a passo em `docs/operations/railway-dominio.md`, que chega à `main` com o PR #100 | `App__PublicBaseUrl` não é enviada, e os links dos e-mails não têm para onde apontar |
-| Variáveis de e-mail no Terraform: `Email__DailyLimit`, `brevo_webhook_secret` e validações de remetente e de URL com `Brevo` | **Feito no código:** Issue #229, PR #333, na `main` desde 25/11/2026. Falta o `apply` do Henrique | Até o `apply`: sem teto diário do nosso lado. `Email__DailyLimit` e `Brevo__WebhookSecret` ainda não são lidas pela aplicação (tratador de e-mail e Issue #265) |
-| Adaptador `BrevoEmailSender`, opções validadas na subida, registro `Fake`/`Brevo` | Issues #204 e #209 | `Email__Provider=Brevo` não tem efeito: a aplicação continua com o envio fake |
-| Renderizador, layout e modelos dos e-mails | Issues #205 e #207 | Não há mensagem para enviar |
-| Chaves do Data Protection no PostgreSQL | PR #120 (Issue #103) | Cada deploy invalida os links já enviados (ADR-0003 §10.4) |
-| Fila (`QueueJobs`) | Issue #223 | Nada é enviado: todo e-mail passa pela fila |
-| Worker genérico e tratador de e-mail | Issue #228 (worker); o tratador de e-mail é **Issue a criar** (ADR-0003 §18, item 8b) | A fila enche e ninguém envia |
-| Provedores de token e página `/conta/definir-senha` | **Issue a criar** (ADR-0003 §18, item 5). **Implementada antes da medição**, por decisão do Henrique em 22/11/2026; quem espera a medição é a ligação da Brevo ([Passo 4b](#passo-4b--envio-de-medição-do-link)) | O link do e-mail não abre |
-| Convite de administrador, redefinição de senha, acesso do aluno | **Issues a criar** (itens 9, 10 e 11; a 10 depende da Issue #184) | Nenhuma tela dispara e-mail; o [Passo 7](#passo-7--teste-de-fumaça-de-ponta-a-ponta) não pode ser feito |
-| Rota `POST /webhooks/brevo` | **Issues #277 e #265** (item 12; em andamento, sem PR em 22/11/2026) | O [Passo 6](#passo-6--webhook-transacional-opcional) não pode ser feito |
+| ADR-0003 aceito | **Cumprido:** aceito pelo Henrique em 22/11/2026, decisões D1 a D18 (ADR-0003 §16). Na `main` (PR #185) | — |
+| Terraform de `infra/railway/` e homologação no ar | **Na `main`** (PRs #100, #322, #323 e #330); [runbook da Railway](railway-runbook.md), passos 1 a 7 | Não há onde pôr as variáveis |
+| Domínio próprio do painel | `ambientes.homologacao.dominio_proprio` (Issue #220; **na `main`**, PR #330); passo a passo em `docs/operations/railway-dominio.md` | `App__PublicBaseUrl` não é enviada, e os links dos e-mails não têm para onde apontar |
+| Variáveis de e-mail no Terraform: `Email__DailyLimit`, `brevo_webhook_secret` e validações de remetente e de URL com `Brevo` | **Na `main`** (Issue #229, PR #333). Falta o `apply` do Henrique | Até o `apply`: sem teto diário do nosso lado. `Email__DailyLimit` e `Brevo__WebhookSecret` ainda não são lidas pela aplicação (tratador de e-mail e Issue #265) |
+| Adaptador `BrevoEmailSender`, opções validadas na subida, registro `Fake`/`Brevo` | **Na `main`** (Issues #204 e #209; PRs #210 e #211) | — |
+| Renderizador, layout e modelos dos e-mails | **Na `main`** (Issues #205 e #207; PR #212); caixa de saída de desenvolvimento no PR #283 | — |
+| Chaves do Data Protection no PostgreSQL | **Na `main`** (PR #120; D4 aceita em 22/11/2026) | — |
+| Fila (`QueueJobs`) | **Na `main`:** tabela (#304), porta (#310), contratos do tratador (#311), processador (#316), limites (#321, #325) e o trabalhador em segundo plano (`BackgroundService`; Issue #228, PR #331) | Nada é enviado: todo e-mail passa pela fila |
+| Tratador de e-mail da fila | **Em entrega** (Issues #270, #271 e #272; PR #346 aberto; ADR-0003 §18, item 8b) | A fila enche e ninguém envia |
+| Provedores de token e página `/conta/definir-senha` | **Na `main`** (Issues #239 e #240; PRs #244 e #252). Implementados antes da medição, por decisão do Henrique em 22/11/2026; quem espera a medição é a ligação da Brevo ([Passo 4b](#passo-4b--envio-de-medição-do-link)) | — |
+| Convite de administrador, redefinição de senha, acesso do aluno | **Em entrega** (Issues abertas: convite #266, #268 e #285; redefinição #278, #279 e #280; acesso do aluno #267). O defeito #184, de que a redefinição dependia, já está corrigido (PR #276) | Nenhuma tela dispara e-mail; o [Passo 7](#passo-7--teste-de-fumaça-de-ponta-a-ponta) não pode ser feito |
+| Rota `POST /webhooks/brevo` | **Feito no código:** Issues #277 e #265 (item 12). A rota só existe com `Brevo__WebhookSecret` configurado | Sem o segredo configurado, a rota responde 404 e o [Passo 6](#passo-6--webhook-transacional-opcional) não tem efeito |
 
 **A ordem que vale desde 22/11/2026.** A conta e a chave da Brevo ainda não chegaram; o código (tokens, página e fluxos) é implementado antes, com `Email__Provider=Fake`. Quando a chave chegar: [Passo 4b](#passo-4b--envio-de-medição-do-link) primeiro, e **só depois** o [Passo 5](#passo-5--variáveis-na-railway-pelo-terraform). O texto original do ADR-0003 (§8.4, condição 1, e §16) diz que a medição vem antes da Issue dos tokens; a nota de situação de 25/11/2026 no próprio ADR registra a ordem nova (linha 11 de [Diferenças](#diferenças-entre-o-adr-0003-o-terraform-e-o-runbook-da-railway)).
 
@@ -702,7 +702,7 @@ Ligar a Brevo não envia nada por si só. O primeiro e-mail real sai no [Passo 7
 
 ## Passo 6 — Webhook transacional (opcional)
 
-**Depende do webhook** (`POST /webhooks/brevo`; ADR-0003 §18, item 12; Issues #277 e #265). A variável `brevo_webhook_secret` já existe no Terraform (Issue #229, PR #333). Sem a rota na `main`, pule este passo. Sem o segredo, a rota nem existe e responde 404 (ADR-0003 §12).
+**A rota do webhook** (`POST /webhooks/brevo`; ADR-0003 §18, item 12) entrou com as Issues #277 e #265. A variável `brevo_webhook_secret` já existe no Terraform (Issue #229, PR #333). Sem o segredo, a rota nem existe e responde 404 (ADR-0003 §12).
 
 Para que serve: a Brevo avisa quando uma mensagem não pôde ser entregue, e as telas passam a mostrar "e-mail não entregue". É aviso de melhor esforço, não registro oficial de entrega.
 
