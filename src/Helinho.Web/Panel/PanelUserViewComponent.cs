@@ -1,9 +1,9 @@
 using Helinho.Application.Abstractions;
 using Helinho.Application.Ai;
-using Microsoft.Extensions.Options;
 using Helinho.Domain;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Helinho.Web.Panel;
 

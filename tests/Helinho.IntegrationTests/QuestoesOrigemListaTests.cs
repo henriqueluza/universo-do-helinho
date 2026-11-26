@@ -102,6 +102,8 @@ public class QuestoesOrigemListaTests(PostgresFixture postgres, QuestoesOrigemLi
         var all = await GetAsync(factory, "/Questoes");
         var team = await GetAsync(factory, "/Questoes?origem=Team");
         var ai = await GetAsync(factory, "/Questoes?origem=Ai");
+        var teamCultural = await GetAsync(factory, "/Questoes?origem=Team&tipo=Cultural");
+        var aiOtherType = await GetAsync(factory, "/Questoes?origem=Ai&tipo=Esportivo");
 
         Assert.Matches("<label for=\"origem\">Origem</label>\\s*<select id=\"origem\" name=\"origem\" class=\"select\">", all);
         Assert.Contains("<option value=\"\">Todas</option>", all);
@@ -113,6 +115,8 @@ public class QuestoesOrigemListaTests(PostgresFixture postgres, QuestoesOrigemLi
         Assert.Equal(["Pergunta da equipe a?"], Rows(team));
         Assert.Equal(["Pergunta sugerida pela IA e editada?", "Pergunta sugerida pela IA pura?"], Rows(ai));
         Assert.Contains("<option value=\"Ai\" selected=\"selected\">IA</option>", ai);
+        Assert.Equal(["Pergunta da equipe a?"], Rows(teamCultural)); // combinado com E, não com OU: as três questões são Culturais
+        Assert.Empty(Rows(aiOtherType)); // há questões de IA, mas nenhuma Esportiva
     }
 
     [Fact]
@@ -161,20 +165,26 @@ public class QuestoesOrigemListaTests(PostgresFixture postgres, QuestoesOrigemLi
         Assert.Matches("action=\"/Questoes\\?[^\"]*origem=Ai", html); // o Aprovar volta para a lista filtrada
     }
 
-    /// <summary>Dois pedidos em lote concluídos: o mais antigo com 1 pendente e 1 descartada, o mais novo com 2 pendentes.</summary>
+    /// <summary>
+    /// Três pedidos em lote: o mais antigo de todos só com uma pendente cujo texto a retenção já apagou (não conta nem é
+    /// destino do aviso), o seguinte com 1 pendente e 1 descartada, o mais novo com 2 pendentes. Devolve o do meio.
+    /// </summary>
     private static async Task<Guid> SeedPendingAsync(HelinhoWebFactory factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.AiQuestionSuggestions.ExecuteDeleteAsync(Ct);
         AiGenerationJob Batch(int hoursAgo) => new(AiJobKind.Batch, QuizType.Cultural, AgeBand.Age8To10, 5, null, Guid.NewGuid(), GeneratedAt.AddHours(-hoursAgo));
-        var (older, newer) = (Batch(5), Batch(1));
+        var (purgedOnly, older, newer) = (Batch(9), Batch(5), Batch(1));
         AiQuestionSuggestion Suggestion(AiGenerationJob job, int position) => new(job.Id, position, $"Sugestão pendente {Letters(position)}?", ["A", "B", "C", "D"], 0, "Explicação.");
         var discarded = Suggestion(older, 1);
         discarded.Discard(Guid.NewGuid(), GeneratedAt);
-        db.AiGenerationJobs.AddRange(older, newer);
-        db.AiQuestionSuggestions.AddRange(Suggestion(older, 0), discarded, Suggestion(newer, 0), Suggestion(newer, 1));
+        var purged = Suggestion(purgedOnly, 0);
+        db.AiGenerationJobs.AddRange(purgedOnly, older, newer);
+        db.AiQuestionSuggestions.AddRange(purged, Suggestion(older, 0), discarded, Suggestion(newer, 0), Suggestion(newer, 1));
         await db.SaveChangesAsync(Ct);
+        // Retenção (ADR-0004 D7): a linha continua Pending, mas sem texto não há o que revisar.
+        await db.AiQuestionSuggestions.Where(s => s.Id == purged.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.ContentPurgedAt, (DateTimeOffset?)GeneratedAt), Ct);
         return older.Id;
     }
 
@@ -182,7 +192,9 @@ public class QuestoesOrigemListaTests(PostgresFixture postgres, QuestoesOrigemLi
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var keep = keepOne ? await db.AiQuestionSuggestions.Where(s => s.Status == AiSuggestionStatus.Pending).Select(s => s.Id).FirstAsync(Ct) : Guid.Empty;
+        var keep = keepOne
+            ? await db.AiQuestionSuggestions.Where(s => s.Status == AiSuggestionStatus.Pending && s.ContentPurgedAt == null).Select(s => s.Id).FirstAsync(Ct)
+            : Guid.Empty;
         await db.AiQuestionSuggestions.Where(s => s.Id != keep).ExecuteDeleteAsync(Ct);
     }
 

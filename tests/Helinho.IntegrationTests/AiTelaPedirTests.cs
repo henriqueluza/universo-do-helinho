@@ -118,11 +118,16 @@ public partial class AiTelaPedirTests(PostgresFixture postgres)
     public async Task Pedir_de_novo_volta_com_os_mesmos_dados_do_pedido()
     {
         await using var factory = await NewFactoryAsync();
-        using var client = factory.CreateClientAs(RoleNames.Admin);
+        using var client = factory.CreateClientAs(RoleNames.Master); // critério: Master também acessa
 
         var again = WebUtility.HtmlDecode(await client.GetStringAsync("/Questoes/Ia?tipo=Esportivo&faixa=Age8To10&qtd=10&assunto=Esportes%20coletivos", Ct));
         Assert.Matches("<option value=\"Esportivo\" selected", again);
         Assert.Matches("<option value=\"10\" selected", again);
         Assert.Contains("value=\"Esportes coletivos\"", again, StringComparison.Ordinal);
+
+        // O assunto é texto digitado: volta ao campo só pela codificação do Razor.
+        var hostile = await client.GetStringAsync("/Questoes/Ia?assunto=%3Cscript%3Ealert(1)%3C%2Fscript%3E", Ct);
+        Assert.DoesNotContain("<script>alert", hostile, StringComparison.Ordinal);
+        Assert.Contains("value=\"&lt;script&gt;alert(1)&lt;/script&gt;\"", hostile, StringComparison.Ordinal);
     }
 }
