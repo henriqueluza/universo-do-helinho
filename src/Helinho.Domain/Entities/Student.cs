@@ -47,7 +47,7 @@ public class Student
     /// <summary>E-mail do responsável (ADR-0003 §9). Não é único nem identificador de login; nulo nos alunos anteriores ao campo.</summary>
     public string? GuardianEmail { get; private set; }
 
-    /// <summary>Endereço anterior, guardado só enquanto o aviso de troca não termina (ADR-0003 §9 e §11.4). Quem escreve é a Issue do acesso do aluno.</summary>
+    /// <summary>Endereço anterior, guardado só enquanto o aviso de troca não termina (ADR-0003 §9 e §11.4).</summary>
     public string? PreviousGuardianEmail { get; private set; }
 
     public string ClassName { get; private set; } = "";
@@ -83,6 +83,11 @@ public class Student
         var value = Guard.Required(email, "E-mail do responsável");
         GuardianEmail = EmailAddress.IsValid(value) ? value : throw new DomainException("E-mail do responsável inválido.");
     }
+
+    /// <summary>Guarda o endereço que o aviso de troca vai usar; só existe enquanto o aviso não termina (ADR-0003 §9).</summary>
+    public void KeepPreviousGuardianEmail(string email) => PreviousGuardianEmail = Guard.Required(email, "E-mail anterior do responsável");
+
+    public void ClearPreviousGuardianEmail() => PreviousGuardianEmail = null;
 
     public void AddXp(int amount) =>
         Xp += amount < 0 ? throw new DomainException("XP ganho não pode ser negativo.") : amount;

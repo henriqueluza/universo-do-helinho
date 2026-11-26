@@ -1,0 +1,10 @@
+O e-mail de responsável no Universo do Helinho foi alterado
+Se você não reconhece a troca, procure a unidade da FUNDHAS.
+
+Olá. Este endereço era o e-mail de responsável de {{aluno}} no Universo do Helinho, o jogo educativo da FUNDHAS.
+
+Em {{data}}, a unidade da FUNDHAS trocou esse e-mail por outro. As mensagens sobre o acesso de {{aluno}} ao jogo passam a ir para o novo endereço, e os links enviados antes para este e-mail deixaram de valer.
+
+Se você pediu a troca, não precisa fazer nada.
+
+Se você não reconhece a troca, procure a unidade da FUNDHAS ou use o contato abaixo.

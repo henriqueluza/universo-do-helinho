@@ -52,3 +52,13 @@ public abstract class StudentFormPage : PageModel
 
     public string? Error(string field) => Errors.GetValueOrDefault(field);
 }
+
+/// <summary>Auditoria do acesso do aluno (ADR-0003 §11.4, T13): só ids, nunca nome, matrícula ou endereço.</summary>
+internal static partial class StudentAccessAudit
+{
+    [LoggerMessage(Level = LogLevel.Information, Message = "Acesso do aluno {StudentId} enfileirado pelo usuário {UserId}.")]
+    public static partial void AccessQueued(ILogger logger, Guid studentId, Guid? userId);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "E-mail do responsável do aluno {StudentId} trocado pelo usuário {UserId}.")]
+    public static partial void GuardianEmailChanged(ILogger logger, Guid studentId, Guid? userId);
+}
