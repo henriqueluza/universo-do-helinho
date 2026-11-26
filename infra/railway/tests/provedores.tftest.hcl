@@ -1,4 +1,4 @@
-# `terraform test` do provedor de e-mail: providers simulados, só `plan` em memória, sem token.
+# `terraform test` dos provedores de e-mail e de IA: providers simulados, só `plan` em memória, sem token.
 # Chaves e segredos daqui são sintéticos e sem formato de chave real, de propósito.
 mock_provider "railway" {}
 mock_provider "random" {}
@@ -11,9 +11,118 @@ run "padrao_e_fake" {
   command = plan
 
   assert {
-    condition     = output.ambientes["homologacao"].provedor_email == "Fake"
-    error_message = "Sem configuração, o e-mail sobe em Fake. O conjunto exato de variáveis enviadas está em validacoes.tftest.hcl."
+    condition     = output.ambientes["homologacao"].provedor_email == "Fake" && output.ambientes["homologacao"].provedor_ia == "Fake"
+    error_message = "Sem configuração, e-mail e IA sobem em Fake. O conjunto exato de variáveis enviadas está em validacoes.tftest.hcl."
   }
+}
+
+run "ia_off_sem_chave" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "Off" }
+  }
+
+  assert {
+    condition     = output.ambientes["homologacao"].provedor_ia == "Off" && !contains(output.ambientes["homologacao"].variaveis_web, "Ai__ApiKey")
+    error_message = "Off não exige chave e é enviado como Off (Issue #182)."
+  }
+}
+
+run "ia_fake_explicita_vence_o_padrao_de_producao" {
+  command = plan
+
+  variables {
+    ambientes     = { homologacao = { seed_enabled = true }, producao = {} }
+    variaveis_web = { Ai__Provider = "Fake" }
+  }
+
+  assert {
+    condition     = output.ambientes["producao"].provedor_ia == "Fake"
+    error_message = "Fake não exige chave, e o valor explícito vence o padrão do ambiente."
+  }
+}
+
+run "anthropic_com_chave_e_modelo" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "Anthropic", Ai__Model = "modelo-sintetico-1" }
+    ai_api_key    = "chave-sintetica"
+  }
+
+  assert {
+    condition     = length(setsubtract(["Ai__ApiKey", "Ai__Model"], output.ambientes["homologacao"].variaveis_web)) == 0
+    error_message = "Com Anthropic, a chave e o modelo precisam ser enviados."
+  }
+}
+
+run "recusa_anthropic_sem_chave" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "Anthropic", Ai__Model = "modelo-sintetico-1" }
+  }
+
+  expect_failures = [var.ai_api_key]
+}
+
+run "recusa_anthropic_sem_modelo" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "Anthropic" }
+    ai_api_key    = "chave-sintetica"
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_modelo_com_apelido_latest" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "Anthropic", Ai__Model = "modelo-sintetico-latest" }
+    ai_api_key    = "chave-sintetica"
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+# Um caso só para as duas brechas do `endswith`: maiúscula e "latest" fora do fim.
+run "recusa_apelido_latest_em_maiuscula_e_no_meio" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "Anthropic", Ai__Model = "modelo-sintetico-Latest-1" }
+    ai_api_key    = "chave-sintetica"
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "ia_vazia_vale_o_padrao_do_ambiente" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "" }
+  }
+
+  assert {
+    condition     = output.ambientes["homologacao"].provedor_ia == "Fake"
+    error_message = "Ai__Provider vazio vale o mesmo que omitido: Fake em homologacao (ADR-0004 D9)."
+  }
+}
+
+run "recusa_provedor_de_ia_desconhecido" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "Real" }
+    ai_api_key    = "chave-sintetica"
+  }
+
+  expect_failures = [var.variaveis_web]
 }
 
 run "brevo_completa_com_webhook" {
@@ -123,9 +232,10 @@ run "recusa_chave_com_espaco" {
 
   variables {
     brevo_api_key = "chave sintetica"
+    ai_api_key    = "chave sintetica"
   }
 
-  expect_failures = [var.brevo_api_key]
+  expect_failures = [var.brevo_api_key, var.ai_api_key]
 }
 
 run "recusa_segredo_de_webhook_curto" {
@@ -148,6 +258,79 @@ run "recusa_segredo_de_webhook_com_espaco" {
   expect_failures = [var.brevo_webhook_secret]
 }
 
+run "recusa_prazo_de_ia_fora_da_faixa" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__TimeoutSeconds = "301" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_prazo_de_ia_abaixo_da_faixa" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__TimeoutSeconds = "4" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "aceita_prazo_de_ia_no_minimo" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__TimeoutSeconds = "5" }
+  }
+
+  assert {
+    condition     = contains(output.ambientes["homologacao"].variaveis_web, "Ai__TimeoutSeconds")
+    error_message = "5 é o menor prazo aceito e precisa ser enviado."
+  }
+}
+
+run "recusa_cota_de_ia_acima_da_faixa" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__DailyQuotaPerAdmin = "10001" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_cota_de_ia_zerada" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__DailyQuotaPerAdmin = "0" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_teto_global_de_ia_zerado" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__DailyGlobalLimit = "0" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_teto_global_de_ia_acima_da_faixa" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__DailyGlobalLimit = "100001" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
 run "recusa_teto_de_email_acima_da_faixa" {
   command = plan
 
@@ -166,4 +349,31 @@ run "recusa_teto_de_email_negativo" {
   }
 
   expect_failures = [var.variaveis_web]
+}
+
+# As fronteiras de Email__DailyLimit não mudam com a validação única das quatro faixas.
+run "aceita_teto_de_email_no_limite" {
+  command = plan
+
+  variables {
+    variaveis_web = { Email__DailyLimit = "100000" }
+  }
+
+  assert {
+    condition     = contains(output.ambientes["homologacao"].variaveis_web, "Email__DailyLimit")
+    error_message = "100000 é o maior teto aceito e precisa ser enviado."
+  }
+}
+
+run "teto_de_email_vazio_nao_e_enviado" {
+  command = plan
+
+  variables {
+    variaveis_web = { Email__DailyLimit = "" }
+  }
+
+  assert {
+    condition     = !contains(output.ambientes["homologacao"].variaveis_web, "Email__DailyLimit")
+    error_message = "Vazio é aceito e não é enviado: vale o padrão da aplicação."
+  }
 }
