@@ -34,7 +34,7 @@ A fila e os fluxos de e-mail foram feitos em seis pilhas paralelas, juntados e p
 | 26 | `entrega2-26-redefinicao-3` | Closes #280 | 176 |
 | 27 | `entrega2-27-convite-1` | Closes #266 | 343 |
 | 28 | `entrega2-28-convite-2` | Closes #268 | 398 |
-| 29 | `entrega2-29-convite-3` | Closes #285 | 269 |
+| 29 | `entrega2-29-convite-3` | Closes #285 | 273 |
 | 30 | `entrega2-30-ponta-a-ponta-convite-redefinicao` | Closes #293 | 69 |
 
 **O portão.** As fatias 01 a 22 não dependem do PR #276 (#184, e-mail repetido). Da 24 em diante (redefinição, convite e o resto do teste de ponta a ponta) o #276 tem de estar na branch padrão: a `entrega2-23-portao-184` é a fatia 22 com o #276 mesclado, só para as seguintes compilarem e serem testadas; ela não vira PR.

@@ -110,6 +110,9 @@ public class PanelConvitesTests(PostgresFixture postgres, DefinirSenhaLinkTests.
 
         var confirmacao = await (await client.GetAsync(pagina, Ct)).Content.ReadAsStringAsync(Ct);
         Assert.Contains("<b>adm.cancelado</b>", confirmacao);
+        // O foco inicial fica na saída segura, nunca no botão que apaga a conta.
+        Assert.Contains("<a class=\"btn\" href=\"/Administradores\" autofocus>Voltar sem cancelar</a>", confirmacao);
+        Assert.DoesNotMatch("<button[^>]*autofocus", confirmacao);
         Assert.NotNull(await ContaAsync("adm.cancelado")); // abrir a confirmação não apaga nada
 
         var lista = await PostAsync(client, pagina, pagina);
