@@ -2,7 +2,7 @@
 
 Root module do Terraform que descreve a hospedagem do backend na Railway, conforme o ADR-0002 (`docs/architecture/ADR-0002-hospedagem-railway.md`, PR #101). Um `apply` cria, por ambiente: o projeto, o PostgreSQL 17 com volume, o serviço web ligado ao repositório, as variáveis dos dois serviços e o domínio `*.up.railway.app`.
 
-**`terraform plan`, `apply` e `destroy` são executados só pelo Henrique.** Agentes e o CI ficam em `fmt`, `init -backend=false`, `validate` e `tflint`, que não falam com a Railway e não precisam de token. O passo a passo de operação (token, estado, primeiro `apply`, rollback, backup) vai para o runbook `docs/operations/railway-runbook.md`, em Issue própria.
+**`terraform plan`, `apply` e `destroy` são executados só pelo Henrique.** Agentes e o CI ficam em `fmt`, `init -backend=false`, `validate` e `tflint`, que não falam com a Railway e não precisam de token. O passo a passo de operação (token, estado, primeiro `apply`, rollback, backup) está no runbook `docs/operations/railway-runbook.md`.
 
 ## Arquivos
 
@@ -111,7 +111,7 @@ Nenhuma saída carrega segredo. A senha do banco se lê no painel (variável `PG
 
 O provider não tem atributo para ligar ou desligar o auto-deploy. Com `auto_deploy = false` (padrão), o serviço web recebe o watch pattern `/.auto-deploy-desligado`, que nenhum arquivo do repositório casa: a Railway ignora os pushes e a publicação é manual, pelo painel (`Cmd+K` → **Deploy Latest Commit**). Não crie arquivo com esse nome na raiz do repositório.
 
-Com `auto_deploy = true` a lista fica vazia e todo push em `main` implanta. Ative também **Wait for CI** nas configurações do serviço, que o provider não alcança.
+Com `auto_deploy = true` a lista fica vazia e todo push em `main` implanta. Ative também **Wait for CI** nas configurações do serviço, que o provider não alcança. É assim que a homologação roda: o Henrique liga `auto_deploy = true` no `terraform.tfvars` (ADR-0002 §7.5, decisão D3); o padrão da variável continua `false`.
 
 ## Produção
 
