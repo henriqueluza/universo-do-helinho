@@ -113,13 +113,13 @@ Nenhuma saída carrega segredo. A senha do banco se lê no painel (variável `PG
 
 O provider não tem atributo para ligar ou desligar o auto-deploy. Com `auto_deploy = false` (padrão), o serviço web recebe o watch pattern `/.auto-deploy-desligado`, que nenhum arquivo do repositório casa: a Railway ignora os pushes e a publicação é manual, pelo painel (`Cmd+K` → **Deploy Latest Commit**). Não crie arquivo com esse nome na raiz do repositório.
 
-Com `auto_deploy = true` a lista fica vazia e todo push em `main` implanta. Ative também **Wait for CI** nas configurações do serviço, que o provider não alcança. Hoje ele não espera build nem testes, porque o `validate.yml` só roda em PR; quem segura um commit ruim é a proteção da `main` (ADR-0002 §7.5, Issue #225). É assim que a homologação roda: o Henrique liga `auto_deploy = true` no `terraform.tfvars` (ADR-0002 §7.5, decisão D3); o padrão da variável continua `false`.
+Com `auto_deploy = true` a lista fica vazia e todo push em `main` implanta, menos em `producao` (seção Produção, abaixo). Ative também **Wait for CI** nas configurações do serviço, que o provider não alcança. Hoje ele não espera build nem testes, porque o `validate.yml` só roda em PR; quem segura um commit ruim é a proteção da `main` (ADR-0002 §7.5, Issue #225). É assim que a homologação roda: o Henrique liga `auto_deploy = true` no `terraform.tfvars` (ADR-0002 §7.5, decisão D3); o padrão da variável continua `false`.
 
 ## Produção
 
 `producao` existe no código e nasce desligada: o padrão de `ambientes` só tem `homologacao`. Acrescentar a chave `producao` cria um segundo projeto Railway (`helinho-producao`) com o mesmo módulo. Antes disso o ADR-0002 §5.2 exige ADR próprio para dado real, resposta sobre região e fornecedores, teto de gasto e estado do Terraform separado por ambiente. O seed é recusado em produção.
 
-`auto_deploy` é uma variável única do root, e o `true` que a homologação usa não vale para a produção: em `producao` o auto-deploy fica sempre desligado, qualquer que seja o valor da variável (`main.tf`), e a publicação é manual. Ligar auto-deploy em produção exige ADR e mudança de código (ADR-0002 §7.5 e §12, D1, item 6).
+`auto_deploy` é uma variável única do root, e o `true` que a homologação usa não vale para a produção: em `producao` o Terraform nunca liga o auto-deploy, qualquer que seja o valor da variável (`main.tf`), e a publicação é manual. A trava só cobre o que o Terraform controla: o que for ligado à mão no painel da Railway fica fora dela. Ligar auto-deploy em produção exige ADR e mudança de código (ADR-0002 §7.5 e §12, D1, item 6).
 
 ## Limitações do provider comunitário e contornos
 

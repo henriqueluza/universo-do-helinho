@@ -239,7 +239,7 @@ O que a escolha implica:
 
 - **Toda migração mergeada roda sozinha em homologação**, pelo pre-deploy (7.3), sem ninguém acompanhar e, hoje, sem que a Railway espere build e testes do commit publicado. A regra de migração compatível com a versão anterior (expand/contract) passa a valer a cada merge.
 - **O `apply` deixa de ser o único momento em que o ambiente muda**: cada merge em `main` também muda.
-- **Em produção o padrão continua desligado.** Hoje `auto_deploy` é uma variável única do root, não por ambiente: ao ligar `producao`, ela precisa de `terraform.tfvars` próprio (estado separado, seção 5.2) sem `auto_deploy = true`, ou a variável passa a ser por ambiente. Isso se resolve antes de ligar a produção.
+- **Em produção o padrão continua desligado.** Hoje `auto_deploy` é uma variável única do root, não por ambiente: ao ligar `producao`, ela precisa de `terraform.tfvars` próprio (estado separado, seção 5.2) sem `auto_deploy = true`, ou a variável passa a ser por ambiente. Isso se resolve antes de ligar a produção. Desde a Issue #107 o `main.tf` já passa `auto_deploy = false` ao ambiente `producao`, qualquer que seja o valor da variável: o `true` da homologação não chega à produção.
 
 **Limite do Wait for CI (achado da revisão do PR #101).** O Wait for CI só pode esperar um workflow que rode no commit publicado, ou seja, disparado por `push` em `main`. Hoje o `validate.yml` (format, build e testes) só dispara em `pull_request`; em push na `main` roda apenas o `security.yml` (gitleaks e semgrep). Portanto, **ligar o clique não faz a Railway esperar build e testes e não protege as migrações mergeadas**. Como a Railway se comporta sem workflow de push, ou só com o `security.yml`, não foi confirmado em fonte (seção 16, item 10).
 
@@ -376,7 +376,7 @@ A produção não é ligada agora. A lista fica como registro para quando ela fo
 3. **E-mails reais para convite e redefinição de senha** (Sprint 3), ou um caminho manual.
 4. **Pré-requisitos de dado real do ADR-0001 §7**: proteção em repouso de CPF/RG, retenção, consentimento, auditoria e MFA do master.
 5. **Domínio** (ver "Pendências", abaixo).
-6. **`auto_deploy` por ambiente** (acréscimo da revisão): hoje a variável é única no root; o `true` da homologação não pode valer para a produção (7.5).
+6. **`auto_deploy` por ambiente** (acréscimo da revisão): hoje a variável é única no root; o `true` da homologação não pode valer para a produção (7.5). Atendido no Terraform desde a Issue #107 (trava em `infra/railway/main.tf`).
 
 Somam-se os itens já listados na seção 5.2.
 
