@@ -11,3 +11,20 @@ obj/
 *.user
 TestResults/
 .demo/
+
+# Terraform (infra/). O .terraform.lock.hcl é versionado.
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+# Plano salvo (`plan -out`): guarda os valores sensíveis em texto.
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

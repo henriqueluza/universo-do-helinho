@@ -22,6 +22,15 @@ public sealed class AdminAccountGateway(AppDbContext db, UserManager<AppUser> us
     public async Task<IAdminUnitLock> BeginUnitLockAsync(Guid unitId, CancellationToken cancellationToken) =>
         new UnitLock(await db.BeginLockedTransactionAsync($"admin-unit:{unitId}", cancellationToken));
 
+    public async Task<bool> EmailInUseAsync(string email, CancellationToken cancellationToken)
+    {
+        var normalized = users.NormalizeEmail(email.Trim());
+        var lockKey = $"account-email:{normalized}";
+        // Lock de transação: dois cadastros paralelos com o mesmo e-mail, em unidades diferentes, não passam juntos.
+        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({lockKey}))", cancellationToken);
+        return await db.Users.AnyAsync(u => u.NormalizedEmail == normalized, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<string>> CreateAdminAsync(NewAdminAccount account, CancellationToken cancellationToken)
     {
         var user = new AppUser { UserName = account.UserName.Trim(), Email = account.Email.Trim(), UnitId = account.UnitId };

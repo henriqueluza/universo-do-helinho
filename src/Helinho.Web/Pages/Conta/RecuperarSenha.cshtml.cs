@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Helinho.Application.Abstractions;
 using Helinho.Domain;
+using Helinho.Infrastructure.Identidade;
 using Helinho.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -27,7 +28,7 @@ public sealed class RecuperarSenhaModel(UserManager<AppUser> users, IEmailSender
             return Page();
         }
 
-        var user = await users.FindByEmailAsync(Input.Email);
+        var user = await users.FindByUniqueEmailAsync(Input.Email, cancellationToken);
         if (user?.Email is { } address && await HasPanelRoleAsync(user))
         {
             // Sem token nem link: a redefinição real é outra Issue. O corpo não carrega segredo.
