@@ -39,7 +39,10 @@ public static class GetQuestion
     }
 }
 
-/// <summary>Cria (rascunho) ou edita (volta a rascunho) uma questão. A validação é do domínio.</summary>
+/// <summary>
+/// Cria (rascunho) ou edita (volta a rascunho) uma questão. A validação é do domínio. Com <c>editedAt</c>, a edição de
+/// questão de origem IA registra <c>AiEditedAt</c> (ADR-0004 §9.4, D5); questão da equipe ignora a hora.
+/// </summary>
 public static class SaveQuestion
 {
     public const int StatementMax = 500;
@@ -50,19 +53,9 @@ public static class SaveQuestion
     /// <exception cref="DomainException">Dado inválido (mensagem em português).</exception>
     public static async Task<Guid?> HandleAsync(
         IAppDbContext db, Guid? id, QuizType quizType, AgeBand ageBand, string? statement, string? explanation,
-        IReadOnlyList<string?> options, int? correctIndex, CancellationToken cancellationToken)
+        IReadOnlyList<string?> options, int? correctIndex, CancellationToken cancellationToken, DateTimeOffset? editedAt = null)
     {
-        if (!Enum.IsDefined(quizType) || !Enum.IsDefined(ageBand))
-        {
-            throw new DomainException("Escolha o tipo de quiz e a faixa etária.");
-        }
-
-        if (statement?.Trim().Length > StatementMax || explanation?.Trim().Length > ExplanationMax || options.Any(o => o?.Trim().Length > OptionMax))
-        {
-            throw new DomainException("Algum texto passou do tamanho máximo.");
-        }
-
-        var items = options.Select((o, i) => (o ?? "", i == correctIndex)).ToList();
+        var items = ValidatedOptions(quizType, ageBand, statement, explanation, options, correctIndex);
         if (id is null)
         {
             var created = new Question(quizType, ageBand, statement ?? "", explanation ?? "", items);
@@ -77,9 +70,27 @@ public static class SaveQuestion
             return null;
         }
 
-        question.Update(quizType, ageBand, statement ?? "", explanation ?? "", items);
+        question.Update(quizType, ageBand, statement ?? "", explanation ?? "", items, editedAt);
         await db.SaveChangesAsync(cancellationToken);
         return question.Id;
+    }
+
+    /// <summary>As checagens de tipo, faixa e tamanho, e as alternativas com a correta marcada. Também usada ao criar questão a partir de sugestão da IA.</summary>
+    /// <exception cref="DomainException">Dado inválido (mensagem em português).</exception>
+    internal static List<(string Label, bool IsCorrect)> ValidatedOptions(
+        QuizType quizType, AgeBand ageBand, string? statement, string? explanation, IReadOnlyList<string?> options, int? correctIndex)
+    {
+        if (!Enum.IsDefined(quizType) || !Enum.IsDefined(ageBand))
+        {
+            throw new DomainException("Escolha o tipo de quiz e a faixa etária.");
+        }
+
+        if (statement?.Trim().Length > StatementMax || explanation?.Trim().Length > ExplanationMax || options.Any(o => o?.Trim().Length > OptionMax))
+        {
+            throw new DomainException("Algum texto passou do tamanho máximo.");
+        }
+
+        return [.. options.Select((o, i) => (o ?? "", i == correctIndex))];
     }
 }
 
