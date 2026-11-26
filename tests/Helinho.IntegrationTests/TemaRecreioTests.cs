@@ -168,18 +168,87 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
         Assert.Equal(HttpStatusCode.NotFound, fonte.StatusCode);
     }
 
+    // Sprint 4 (#286 e #294): os componentes de IA entram no tema, só na camada de componentes, e o lilás (--ai)
+    // continua exclusivo deles. Telas e movimento seguem sem IA (TemaTelasCssTests).
     [Fact]
-    public async Task Tema_nao_tem_seletor_de_ia()
+    public async Task Tema_tem_os_componentes_de_ia_so_na_camada_de_componentes_e_so_neles_usa_o_lilas()
     {
         await using var factory = await NewFactoryAsync();
         using var client = factory.CreateAnonymousClient();
 
         var css = await client.GetStringAsync("/css/theme.css", Ct);
 
-        foreach (var forbidden in new[] { ".btn-ai", ".tag-ai", ".note.ai", ".ai-help", ".ai-filled", ".ai-flag", ".ai-panel" })
+        var fora = new System.Text.StringBuilder();
+        var camada = new System.Text.StringBuilder();
+        var nivel = 0;
+        var emComponentes = false;
+        foreach (var linha in css.Split('\n'))
         {
-            Assert.DoesNotContain(forbidden, css);
+            if (nivel == 0 && linha.StartsWith("@layer components {", StringComparison.Ordinal))
+            {
+                emComponentes = true;
+            }
+
+            (emComponentes ? camada : fora).AppendLine(linha);
+            nivel += linha.Count(c => c == '{') - linha.Count(c => c == '}');
+            if (nivel == 0)
+            {
+                emComponentes = false;
+            }
         }
+
+        // Regra 1: todo seletor de IA (lote, criador e lista) existe, e só dentro da camada de componentes.
+        var elementosDeIa = new Regex(@"\.btn-ai|\.tag-ai|\.note\.ai|\.ai-|\.rcard|ai-fill");
+        foreach (var selector in new[] { ".btn-ai", ".tag-ai", ".note.ai", ".ai-panel", ".rcard", ".ai-help", ".ai-filled", ".ai-flag" })
+        {
+            Assert.Contains(selector, camada.ToString());
+        }
+
+        Assert.DoesNotMatch(elementosDeIa, fora.ToString());
+
+        // Regra 2: toda linha que usa o lilás pertence a um elemento de IA.
+        var vazamentos = css.Split('\n').Where(l => l.Contains("var(--ai", StringComparison.Ordinal) && !elementosDeIa.IsMatch(l)).ToList();
+        Assert.Empty(vazamentos);
+
+        // As duas frentes de tela (#286 e #294) trouxeram os mesmos seletores: fica uma declaração de cada.
+        foreach (var unico in new[] { "  .btn-ai {", "  .tag-ai {", "  .tag-ai svg {", "  .note.ai {", "  :root[data-theme=\"dark\"] .btn-ai {" })
+        {
+            Assert.Single(css.Split('\n'), l => l.StartsWith(unico, StringComparison.Ordinal));
+        }
+
+        Assert.DoesNotContain(".ai-progress", css); // sem uso em nenhuma tela
+
+        // #294, critérios 3 e 4: elemento de IA só anima sem movimento reduzido, e a ajuda empilha no celular.
+        var media = "";
+        List<(string Media, string Regra)> animadas = [];
+        List<string> ajudaNoCelular = [];
+        foreach (var linha in camada.ToString().Split('\n').Select(l => l.TrimEnd()))
+        {
+            if (linha.StartsWith("  @media ", StringComparison.Ordinal))
+            {
+                media = linha.Trim();
+            }
+            else if (linha == "  }")
+            {
+                media = "";
+            }
+            else if (elementosDeIa.IsMatch(linha) && linha.Contains("animation:", StringComparison.Ordinal))
+            {
+                animadas.Add((media, linha.Trim()));
+            }
+            else if (media == "@media (max-width: 767.98px) {" && linha.Contains(".ai-help", StringComparison.Ordinal))
+            {
+                ajudaNoCelular.Add(linha.Trim());
+            }
+        }
+
+        Assert.Equal(2, animadas.Count);
+        Assert.All(animadas, a => Assert.Equal("@media (prefers-reduced-motion: no-preference) {", a.Media));
+        Assert.Contains(animadas, a => a.Regra.StartsWith(".ai-filled { animation:", StringComparison.Ordinal));
+        Assert.Contains(animadas, a => a.Regra.StartsWith(".ai-result[tabindex] { animation:", StringComparison.Ordinal));
+        Assert.Equal(2, ajudaNoCelular.Count);
+        Assert.Equal(".ai-help { grid-template-columns: auto minmax(0, 1fr); }", ajudaNoCelular[0]);
+        Assert.Equal(".ai-help .btn { grid-column: 1 / -1; }", ajudaNoCelular[1]);
     }
 
     [Fact]

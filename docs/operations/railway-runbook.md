@@ -1,7 +1,7 @@
 # Runbook — homologação na Railway com Terraform
 
 **Para quem:** Henrique, sozinho, na própria máquina (macOS). **Escrito em:** 18/11/2026. **Revisto em:** 19/11/2026, depois da leitura "no papel" (Issue #117), e em 22/11/2026 para a decisão D3 (Issue #226).
-**Descreve:** o Terraform de `infra/railway/` (PRs #110, #113 e #116, que chegam à `main` pelo PR #100), o ADR-0002 (`docs/architecture/ADR-0002-hospedagem-railway.md`, PR #101) e o `Dockerfile` da raiz.
+**Descreve:** o Terraform de `infra/railway/` (esqueleto no PR #100; recursos no PR #322, da Issue #107; testes no PR #323; domínio próprio no PR #330; todos já na `main`), o ADR-0002 (`docs/architecture/ADR-0002-hospedagem-railway.md`, PR #101) e o `Dockerfile` da raiz.
 
 > **Nada deste runbook foi executado.** Nenhum agente rodou `plan`, `apply`, criou conta, token ou recurso. Os passos de painel foram conferidos na documentação da Railway em 18 e 19/11/2026 (seção [Fontes](#fontes); as marcas `[F1]`, `[F2]`… apontam para ela). Onde a documentação não dá o nome do botão, o texto diz "o nome pode variar". Onde um comportamento não pôde ser confirmado, o passo traz **Confira:** com o que fazer em cada caso; o índice desses pontos está em [Fatos não confirmados](#fatos-não-confirmados-e-onde-cada-um-é-tratado).
 
@@ -12,13 +12,14 @@ Só dados sintéticos em homologação. Produção não é ligada por este runbo
 - **D1 do ADR-0002: só homologação por enquanto.** Depois de subir tudo, o ambiente fica parado para o desenvolvedor Unity testar com estabilidade. Produção é etapa posterior ([`ambientes.md`](ambientes.md#o-que-falta-para-ligar-a-produção)).
 - **D3: auto-deploy ligado em homologação** (`auto_deploy = true` no `terraform.tfvars`). Cada merge na `main` publica sozinho. O padrão da variável no Terraform continua `false`; quem liga é o `terraform.tfvars`.
 - **Risco aceito para homologação:** com auto-deploy, a opção **Wait for CI** da Railway **não espera build nem testes**, porque o workflow `validate` só roda em `pull_request`; no push para a `main` só roda o `security`. O Henrique aceitou isso em homologação (dado sintético) em 22/11/2026 ([registro na Issue #225](https://github.com/henriqueluza/universo-do-helinho/issues/225#issuecomment-7089221462); ADR-0002, D3). A Issue #225 (rodar o `validate` também no commit que chega à `main`) continua aberta e é **pré-requisito de produção**. O que segura um commit ruim hoje é a proteção da `main` (PR, `validate`, `semgrep`, `gitleaks` e `pr-size` antes do merge). Detalhes: [Wait for CI](#58-ligar-wait-for-ci).
+- **D4 aceita:** as chaves do Data Protection ficam numa tabela do PostgreSQL, com o pacote oficial (PR #120, já na `main`). O painel não desloga a cada deploy.
 - **Senha do seed:** valor genérico, só para testes, definido por ele em `TF_VAR_seed_password` na máquina dele. Nunca em arquivo versionado. A Issue #115 (senha separada para alunos) fica de lado.
-- **Domínio próprio do painel:** entra depois, pela variável `dominio_proprio` (PR #221, na branch `issue-99-terraform-esqueleto`; passo a passo em `docs/operations/railway-dominio.md` quando o #100 chegar à `main`). Os exemplos usam `paineladm.example.org`. O domínio real nunca entra no repositório.
+- **Domínio próprio do painel:** entra depois, pela variável `dominio_proprio` (já na `main`, PR #330; passo a passo em `docs/operations/railway-dominio.md`). Os exemplos usam `paineladm.example.org`. O domínio real nunca entra no repositório.
 
 ## O caminho feliz em 10 linhas
 
 1. **Igor:** entrar no workspace da contratante na Railway como Admin e saber o plano (Hobby ou Pro) e o teto de gasto. → [Passo 1](#passo-1--o-que-pedir-ao-igor)
-2. **Repositório e ferramentas:** PRs #100 (Terraform), #101 (ADR) e #104 (`/health/ready`) mergeados na `main`; o do Data Protection (Issue #103) só se a decisão D4 for a opção A; Terraform 1.16 ou 1.17 e `tflint` 0.66+. → [Passo 2](#passo-2--ferramentas-e-token-da-railway)
+2. **Repositório e ferramentas:** PRs #100 (Terraform), #101 (ADR), #104 (`/health/ready`) e #120 (Data Protection, D4 aceita) já estão na `main`: só confira; Terraform 1.16 ou 1.17 e `tflint` 0.66+. → [Passo 2](#passo-2--ferramentas-e-token-da-railway)
 3. **Token:** criar um token de **workspace** em `railway.com/account/tokens` e guardar no gerenciador de senhas. → [2.5](#25-criar-o-token-de-workspace)
 4. **GitHub App:** instalar a app da Railway na conta do GitHub com acesso a `universo-do-helinho`. → [Passo 3](#passo-3--github-app-da-railway-no-repositório)
 5. **Entradas:** copiar `terraform.tfvars.example` para `terraform.tfvars` e descomentar `auto_deploy = true`; `read -rs` de `RAILWAY_TOKEN` e `TF_VAR_seed_password` em um terminal só do Terraform. → [Passo 4](#passo-4--terraformtfvars-e-variáveis-de-ambiente)
@@ -80,14 +81,14 @@ O Igor é o contato da contratante para a conta da Railway (C19). Mande as pergu
 
 ### 2.1 Conferir que a `main` tem tudo
 
-**Pré-requisitos do primeiro `apply`, mergeados na `main`:**
+**Pré-requisitos do primeiro `apply`, todos já mergeados na `main` (conferido em 25/11/2026):**
 
-| PR | O que traz | Obrigatório? | Sem ele |
-|---|---|---|---|
-| #100 | O Terraform de `infra/railway/` (os PRs #110, #113 e #116 já foram mergeados dentro da branch dele) | sim | Não há o que aplicar |
-| #101 | ADR-0002 e `docs/operations/custos.md` | sim | As decisões D1 a D3 não estão aceitas |
-| #104 | A rota `/health/ready` | sim | O healthcheck do serviço aponta para ela: **o primeiro deploy falha no healthcheck** |
-| O da Issue #103 | Chaves do Data Protection no PostgreSQL (pacote e migração) | **só se a decisão D4 do ADR-0002 for a opção A** | Cada deploy derruba as sessões do painel |
+| PR | O que traz | Sem ele |
+|---|---|---|
+| #100, #322, #323, #330 | O Terraform de `infra/railway/`: esqueleto e workflow `infra.yml`, recursos (projeto, serviços, banco, variáveis), testes das validações e domínio próprio | Não há o que aplicar |
+| #101 | ADR-0002 e `docs/operations/custos.md` | As decisões D1 a D5 não estão registradas |
+| #104 | A rota `/health/ready` | O healthcheck do serviço aponta para ela: **o primeiro deploy falha no healthcheck** |
+| #120 | Chaves do Data Protection no PostgreSQL (pacote e migração), decisão D4 aceita | Cada deploy derruba as sessões do painel |
 
 Já estão na `main`: #102 (`migrate`), #105 (`Dockerfile`) e #106 (proxy).
 
@@ -113,28 +114,19 @@ grep -c '"/health/ready"' src/Helinho.Web/Composition/HealthEndpoint.cs
 
 **Se der errado:** imprime `0` ou falta arquivo → algum PR ainda não foi mergeado. **Pare aqui.** Sem a rota `/health/ready` (PR #104) o healthcheck da Railway nunca recebe 2xx e todo deploy falha depois de 120 segundos.
 
-**Data Protection: depende da decisão D4** (ADR-0002 §9 e §12), que é sua e pode ainda estar aberta. O PR da Issue #103 implementa a opção A e pode ser fechado sem merge se você escolher outra.
-
-| Decisão D4 | O que fazer aqui |
-|---|---|
-| **A** (tabela no PostgreSQL com o pacote oficial) | Espere o PR da Issue #103 entrar e confira com o `grep` abaixo |
-| **B** ou **C** (repositório próprio, ou volume no web) | A persistência chega por outro PR. O `grep` abaixo imprime `0` para sempre e não quer dizer nada; confira pelo PR da opção escolhida |
-| **D** (não persistir) | Siga. Cada deploy derruba as sessões do painel (todo mundo entra de novo), e isso passa a ser o comportamento esperado |
-| Ainda aberta | Você pode subir a homologação sem esperar: o sistema funciona, só desloga o painel a cada deploy. Registre em `docs/operations/ambientes.md`, na linha "Sessões do painel" |
-
-Só para a opção A:
+**Data Protection (D4 aceita pelo Henrique em 22/11/2026):** tabela no PostgreSQL com o pacote oficial, PR #120, já na `main`. Confira com o `grep` abaixo; as sessões do painel persistem entre deploys.
 
 ```sh
 grep -c 'DataProtection.EntityFrameworkCore' Directory.Packages.props
 ```
 
-**✔ Confira:** imprime `1` (o PR da Issue #103 entrou).
+**✔ Confira:** imprime `1`.
 
-**Se der errado:** imprime `0` com a D4 na opção A → o PR ainda não foi mergeado. Espere por ele, ou siga sabendo que cada deploy desloga o painel até ele entrar (a migração nova dele roda sozinha no pre-deploy do deploy seguinte).
+**Se der errado:** imprime `0` → a `main` local está desatualizada; refaça o `git pull --ff-only`.
 
 ### 2.2 Terraform na versão fixada
 
-`infra/railway/versions.tf` aceita `>= 1.16.0, < 1.18.0`. O workflow `infra` do CI, quando existir, usará a 1.17.2, que era a estável em 18/11/2026 [F19]; em 19/11/2026 ele ainda não estava na branch do PR #100.
+`infra/railway/versions.tf` aceita `>= 1.16.0, < 1.18.0`. O workflow `infra.yml` do CI (PR #100) usa a 1.17.2, que era a estável em 18/11/2026 [F19].
 
 ```sh
 terraform version
@@ -345,7 +337,7 @@ terraform -chdir=infra/railway plan -out="$HOME/.helinho-infra/homologacao.tfpla
 3. **Não existe** `railway_tcp_proxy`, e o **único** `railway_service_domain` é o `.web`. O banco não tem endereço público.
 4. Em `railway_service.web`: `source_repo = "henriqueluza/universo-do-helinho"`, `source_repo_branch = "main"`, `watch_patterns = []` (com `auto_deploy = true`; se aparecer `["/.auto-deploy-desligado"]`, o `terraform.tfvars` está sem a linha do [4.1](#41-criar-o-terraformtfvars)), `predeploy_command = "tini -- dotnet Helinho.Web.dll migrate"`, `predeploy_timeout = 300`, `healthcheck_path = "/health/ready"`, `healthcheck_timeout = 120`.
 5. Em `railway_service.postgres`: `source_image = "postgres:17.12"` e o volume `postgres-dados` em `/var/lib/postgresql/data`.
-6. `railway_variable_collection.web` e, em `Changes to Outputs`, a saída `ambientes` (`variaveis_web`) listam **13 nomes**: `ASPNETCORE_ENVIRONMENT`, `PORT`, `Proxy__TrustForwardedHeaders`, `ConnectionStrings__Default`, `Seed__Enabled`, `HELINHO_SEED_PASSWORD`, os cinco `Api__Auth__*`, `Email__Provider` e `Ai__Provider`. Nenhuma variável de Brevo ou de IA além dessas (as vazias não são enviadas; ADR-0002 §16, item 6: não se sabe se a API da Railway aceita valor vazio).
+6. `railway_variable_collection.web` e, em `Changes to Outputs`, a saída `ambientes` (`variaveis_web`) listam **17 nomes**: `ASPNETCORE_ENVIRONMENT`, `PORT`, `Proxy__TrustForwardedHeaders`, `ConnectionStrings__Default`, `Seed__Enabled`, `HELINHO_SEED_PASSWORD`, os cinco `Api__Auth__*`, `Email__Provider`, `Email__DailyLimit`, `Ai__Provider`, `Ai__TimeoutSeconds`, `Ai__DailyQuotaPerAdmin` e `Ai__DailyGlobalLimit`. Nenhuma variável de Brevo ou de IA além dessas (as vazias não são enviadas; ADR-0002 §16, item 6: não se sabe se a API da Railway aceita valor vazio). Conferido na `main` de 25/11/2026, já com as variáveis de e-mail e de IA da Issue #229 (PRs #333 e #344) e com o `dominio_proprio` ainda vazio (com ele, `App__PublicBaseUrl` é a 18ª).
 7. **Nenhum segredo na tela:** todos os valores de variável aparecem como `(sensitive value)`, inclusive os que não são segredo.
 
 Duas conferências por comando, que não imprimem o segredo:
@@ -377,6 +369,12 @@ O primeiro `plan`, sem estado, provavelmente não fala com a Railway: um token e
 **✔ Confira:** o ruleset está ativo na `main`, exige PR e lista os quatro checks.
 
 **Se der errado:** o ruleset não exige os checks, ou a `main` aceita push direto → **não rode o `apply`** com `auto_deploy = true`. Avise o Henrique.
+
+**Três avisos sobre o estado do Terraform, antes do primeiro `apply`** (decisão D2, aceita em 22/11/2026; o backend remoto fica para antes de produção, Issue #317):
+
+- **O estado é local e guarda segredos em texto:** a senha do banco, a senha do seed e, quando houver, as chaves da Brevo e da IA. Quem lê `infra/railway/terraform.tfstate`, ou o `terraform.tfstate.backup` que o Terraform deixa ao lado dele, lê tudo isso. Nenhum dos dois vai para o git. O plano salvo (`~/.helinho-infra/*.tfplan`) também guarda os segredos e é apagado depois do `apply`.
+- **Ele fica dentro da pasta de onde você roda o Terraform** (`infra/railway/`, do clone onde você roda), e não em outro lugar.
+- **`git worktree remove` e `git clean -x` nessa pasta apagam o estado sem avisar** (o arquivo é ignorado pelo git, e o `-x` remove os ignorados). Sem o estado o Terraform não conhece o que criou e tentará criar tudo de novo. Rode o `apply` num clone fixo, nunca numa worktree descartável, e faça o backup cifrado do [5.7](#57-backup-cifrado-do-estado) logo depois.
 
 Abra o painel da Railway em outra janela para acompanhar. O `apply` cria, nesta ordem: projeto → senha → serviço `Postgres` → variáveis do `Postgres` (reimplanta) → serviço `helinho-web` → domínio e variáveis do web (reimplanta).
 
@@ -473,7 +471,7 @@ terraform -chdir=infra/railway output
 No painel, projeto `helinho-homologacao`, ambiente `homologacao`:
 
 - **`Postgres`:** nas configurações de rede do serviço **não há** domínio público nem TCP proxy; o volume `postgres-dados` está montado em `/var/lib/postgresql/data`; a aba **Variables** tem 9 variáveis.
-- **`helinho-web`:** origem `henriqueluza/universo-do-helinho`, branch `main`; **sem** watch path (com `auto_deploy = true`; um watch path `/.auto-deploy-desligado` quer dizer auto-deploy desligado); pre-deploy command `tini -- dotnet Helinho.Web.dll migrate`; healthcheck `/health/ready`; aba **Variables** com 13 variáveis.
+- **`helinho-web`:** origem `henriqueluza/universo-do-helinho`, branch `main`; **sem** watch path (com `auto_deploy = true`; um watch path `/.auto-deploy-desligado` quer dizer auto-deploy desligado); pre-deploy command `tini -- dotnet Helinho.Web.dll migrate`; healthcheck `/health/ready`; aba **Variables** com 17 variáveis.
 
 **Se der errado:** o `Postgres` tem domínio público ou TCP proxy → alguém clicou no painel. Remova na hora e rode `terraform plan`; o banco só pode existir na rede privada.
 
@@ -1348,13 +1346,13 @@ Nada disto é feito agora. Cada item tem dono e condição.
 
 | Item | Por que fica para depois | Como será feito |
 |---|---|---|
-| **Domínio próprio e DNS** | A contratante não definiu (C15). O Henrique decidiu em 22/11/2026 que entra depois do primeiro deploy | Variável `dominio_proprio` dentro de `ambientes` (PR #221, na branch `issue-99-terraform-esqueleto`), exemplo `paineladm.example.org`; os registros DNS saem em `terraform output dns_dominio_proprio`; passo a passo em `docs/operations/railway-dominio.md`. HSTS com `includeSubDomains` e `preload` só então |
+| **Domínio próprio e DNS** | O domínio de produção é decisão da contratante (C15, pendência M5, ainda sem resposta no repositório). O Henrique decidiu em 22/11/2026 que o domínio entra depois do primeiro deploy | Variável `dominio_proprio` dentro de `ambientes` (já na `main`, PR #330), exemplo `paineladm.example.org`; os registros DNS saem em `terraform output dns_dominio_proprio`; passo a passo em `docs/operations/railway-dominio.md`. HSTS com `includeSubDomains` e `preload` só então |
 | **Ambiente de produção** | Decisão D1 do Henrique (22/11/2026): só homologação por enquanto. Pré-requisitos de produção: Issue #225 (`validate` no commit que chega à `main`), Issue #222 (primeiro master sem o seed) e `auto_deploy` por ambiente (ADR-0002 §7.5). Lista em [`ambientes.md`](ambientes.md#o-que-falta-para-ligar-a-produção). Exige também ADR próprio para dado real, resposta sobre região e fornecedores (C14, Issue #39), teto de gasto (C04), estado separado e `Seed__Enabled=false` (ADR-0002 §5.2) | Acrescentar `producao` em `ambientes` cria um **segundo projeto** (`helinho-producao`). **Não acrescente agora.** **Confira (ADR-0002 §16, item 5):** nunca crie um segundo ambiente **dentro** do projeto de homologação, nem pelo painel: o provider só lê serviço e volume do ambiente padrão, e o comportamento com dois ambientes não foi testado |
-| **Brevo (Sprint 3)** | E-mail real ainda não existe; `Email__Provider = "Fake"` | `TF_VAR_brevo_api_key` + `variaveis_web` (`Email__Provider`, `Brevo__SenderEmail`, `Brevo__SenderName`, `App__PublicBaseUrl`); runbook próprio. A chave passa a ficar em texto no estado |
-| **IA (Sprint 4)** | `Ai__Provider = "Fake"` | `TF_VAR_ai_api_key` + `Ai__Provider`, `Ai__Model`; runbook próprio. A chave passa a ficar em texto no estado |
+| **Brevo (Sprint 3)** | `Email__Provider = "Fake"`: o adaptador da Brevo já está na `main`, mas o envio real espera a conta, a chave e a medição do link; as variáveis de e-mail do Terraform já estão na `main` (Issue #229, PR #333) | `TF_VAR_brevo_api_key` + `variaveis_web` (`Email__Provider`, `Brevo__SenderEmail`, `Brevo__SenderName`, `App__PublicBaseUrl`); runbook próprio. A chave passa a ficar em texto no estado |
+| **IA (Sprint 4)** | `Ai__Provider = "Fake"`: o adaptador da Anthropic já está na `main`, mas falta a chave e o aval da contratante; as variáveis de IA do Terraform já estão na `main` (Issues #229 e #182, PR #344) | `TF_VAR_ai_api_key` + `Ai__Provider`, `Ai__Model`; runbook próprio. A chave passa a ficar em texto no estado |
 | **`railway connect` para o banco** | O ADR-0002 §11 descarta o comando neste desenho: ele exige `DATABASE_URL` no serviço `Postgres`, que o Terraform não define, e imprime a senha ([8.4](#84-pg_dump-para-fora-da-plataforma)) | Só com ADR e Issue em `infra/`, se um dia fizer falta |
 | **Senha própria para o aluno de teste** | Hoje todos os usuários do seed têm a mesma senha (genérica, só para testes, definida pelo Henrique em `TF_VAR_seed_password`); risco aberto no ADR-0002 §10.4. A Issue #115 fica de lado | Issue #115, no código do seed |
-| **Chaves do Data Protection** | Depende da decisão D4 ([2.1](#21-conferir-que-a-main-tem-tudo)) | Opção A: PR da Issue #103 |
+| ~~Chaves do Data Protection~~ | Feito: D4 aceita em 22/11/2026, PR #120 na `main` ([2.1](#21-conferir-que-a-main-tem-tudo)) | Nada a fazer |
 | **Wait for CI que espera build e testes** | D3 foi escolhida (auto-deploy ligado em homologação), mas o Wait for CI não espera build nem testes: o `validate` só roda em `pull_request` | Issue #225 (editar workflow exige autorização do Henrique). Pré-requisito de produção; aceito sem ela em homologação |
 | **Estado remoto com lock** | Um operador, um ambiente | ADR próprio, junto com produção |
 

@@ -159,8 +159,8 @@ Hoje o e-mail sobe em `Fake` e nada é enviado. Para ligar o envio real (ADR-000
    variaveis_web = {
      Email__Provider    = "Brevo"
      Brevo__SenderEmail = "nao-responda@example.org" # remetente de um domínio autenticado na Brevo
-     Brevo__SenderName  = "Universo do Hélinho"
-     App__PublicBaseUrl = "https://painel.example.org" # dispensável se o ambiente tiver dominio_proprio
+     Brevo__SenderName  = "Universo do Hélinho · FUNDHAS" # proposta M4 do runbook da Brevo; até 70 caracteres
+     App__PublicBaseUrl = "https://paineladm.example.org" # dispensável se o ambiente tiver dominio_proprio
    }
    ```
 
@@ -212,11 +212,11 @@ Opcional e desligado por padrão. Em `terraform.tfvars`:
 
 ```hcl
 ambientes = {
-  homologacao = { seed_enabled = true, dominio_proprio = "painel.example.org" }
+  homologacao = { seed_enabled = true, dominio_proprio = "paineladm.example.org" }
 }
 ```
 
-Com o campo preenchido, o módulo cria `railway_custom_domain.web` e `App__PublicBaseUrl` passa a valer `https://painel.example.org`. Para outro valor, defina `variaveis_web.App__PublicBaseUrl`: o valor explícito vence. Quem lê essa variável são as opções de e-mail da aplicação (PR #211), que a exigem com `Email__Provider = "Brevo"`. O domínio `*.up.railway.app` continua existindo, e `url_publica` e `url_api` continuam apontando para ele.
+Com o campo preenchido, o módulo cria `railway_custom_domain.web` e `App__PublicBaseUrl` passa a valer `https://paineladm.example.org`. Para outro valor, defina `variaveis_web.App__PublicBaseUrl`: o valor explícito vence. Quem lê essa variável são as opções de e-mail da aplicação (PR #211), que a exigem com `Email__Provider = "Brevo"`. O domínio `*.up.railway.app` continua existindo, e `url_publica` e `url_api` continuam apontando para ele.
 
 Depois do `apply`, `terraform output dns_dominio_proprio` traz os dois registros que a Railway exige: o `CNAME` do host e o `TXT` de verificação de posse. O `TXT` vai para o DNS público e não é segredo. `nome` é relativo à `zona`. O passo a passo (ordem em relação ao primeiro deploy, DNS, `dig`, certificado) está em `docs/operations/railway-dominio.md`.
 
