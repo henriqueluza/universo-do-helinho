@@ -10,7 +10,12 @@ output "url_api" {
   value       = { for nome, a in module.ambiente : nome => "${a.url_publica}/api" }
 }
 
+output "dns_dominio_proprio" {
+  description = "Registros a cadastrar no DNS do domínio próprio (tipo, nome, zona, valor), por ambiente. Lista vazia sem domínio."
+  value       = { for nome, a in module.ambiente : nome => a.dns_dominio_proprio }
+}
+
 output "ambientes" {
-  description = "Ids e nomes que o runbook usa (projeto, ambiente, serviços, variáveis enviadas ao web), por ambiente."
+  description = "Ids e nomes que o runbook usa (projeto, ambiente, serviços, variáveis enviadas ao web, App__PublicBaseUrl), por ambiente."
   value       = { for nome, a in module.ambiente : nome => a.resumo }
 }
