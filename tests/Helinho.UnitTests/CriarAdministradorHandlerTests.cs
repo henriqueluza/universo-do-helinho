@@ -74,6 +74,18 @@ public class CriarAdministradorHandlerTests
     }
 
     [Fact]
+    public async Task Recusa_e_mail_ja_usado_por_outra_conta_mesmo_de_outra_unidade()
+    {
+        _gateway.Admins.Add(new AdminAccount("outro", "ADM.NORTE@example.test", Guid.NewGuid(), null));
+
+        var result = await _handler.HandleAsync(Account(), Ct);
+
+        Assert.Equal(CriarAdministradorStatus.EmailInUse, result.Status);
+        Assert.Single(_gateway.Admins);
+        Assert.False(_gateway.Committed);
+    }
+
+    [Fact]
     public async Task Unidade_inexistente_e_recusada_sem_abrir_lock()
     {
         var result = await _handler.HandleAsync(Account() with { UnitId = Guid.NewGuid() }, Ct);
@@ -114,6 +126,9 @@ public class CriarAdministradorHandlerTests
 
         public Task<IReadOnlyList<AdminAccount>> ListAdminsAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AdminAccount>>(Admins.ToList());
+
+        public Task<bool> EmailInUseAsync(string email, CancellationToken cancellationToken) =>
+            Task.FromResult(LockOpened && Admins.Exists(a => string.Equals(a.Email, email, StringComparison.OrdinalIgnoreCase)));
 
         public Task<IAdminUnitLock> BeginUnitLockAsync(Guid unitId, CancellationToken cancellationToken)
         {
