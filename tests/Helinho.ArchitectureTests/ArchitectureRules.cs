@@ -49,6 +49,30 @@ public class ArchitectureRules
         Assert.False(Types.InAssembly(typeof(AppDbContext).Assembly).ShouldNot().HaveDependencyOnAny(sdk).GetResult().IsSuccessful);
     }
 
+    /// <summary>
+    /// ADR-0003 §5.3 (#270): o tratador de e-mail não grava nada e não escreve destinatário, token, link nem corpo em
+    /// log. Ele nem tem como: não depende de <c>ILogger</c>, do EF Core nem do contexto do banco.
+    /// </summary>
+    [Fact]
+    public void Tratador_de_email_nao_tem_como_gravar_nem_escrever_em_log()
+    {
+        string[] forbidden =
+        [
+            "Microsoft.Extensions.Logging", "Microsoft.EntityFrameworkCore",
+            typeof(AppDbContext).FullName!, typeof(Helinho.Application.Abstractions.IAppDbContext).FullName!,
+        ];
+        var infrastructure = typeof(AppDbContext).Assembly;
+        var handler = Types.InAssembly(infrastructure).That().HaveName("EmailJobHandler");
+
+        var result = handler.ShouldNot().HaveDependencyOnAny(forbidden).GetResult();
+
+        Assert.True(result.IsSuccessful, Describe(result));
+
+        // Controle: a regra achou o tratador e enxerga log e banco onde eles de fato são usados.
+        Assert.Single(handler.GetTypes());
+        Assert.False(Types.InAssembly(infrastructure).ShouldNot().HaveDependencyOnAny(forbidden).GetResult().IsSuccessful);
+    }
+
     [Fact]
     public void Web_nao_usa_DbContext_concreto_nem_Npgsql()
     {
