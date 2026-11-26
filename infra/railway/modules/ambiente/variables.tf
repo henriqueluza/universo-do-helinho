@@ -4,6 +4,7 @@ variable "nome" { type = string }
 variable "workspace_id" { type = string }
 variable "aspnetcore_environment" { type = string }
 variable "subdominio" { type = string }
+variable "dominio_proprio" { type = string }
 variable "repositorio" { type = string }
 variable "branch" { type = string }
 variable "auto_deploy" { type = bool }

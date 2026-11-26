@@ -12,6 +12,7 @@ module "ambiente" {
   workspace_id           = var.workspace_id
   aspnetcore_environment = local.aspnetcore_environment[each.key]
   subdominio             = coalesce(each.value.subdominio, "helinho-${each.key}")
+  dominio_proprio        = each.value.dominio_proprio
   repositorio            = var.repositorio
   branch                 = var.branch
   auto_deploy            = var.auto_deploy

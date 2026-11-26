@@ -1,6 +1,6 @@
 # Infra da Railway (Terraform)
 
-Root module do Terraform que descreve a hospedagem do backend na Railway, conforme o ADR-0002 (`docs/architecture/ADR-0002-hospedagem-railway.md`, PR #101). Um `apply` cria, por ambiente: o projeto, o PostgreSQL 17 com volume, o serviço web ligado ao repositório, as variáveis dos dois serviços e o domínio `*.up.railway.app`.
+Root module do Terraform que descreve a hospedagem do backend na Railway, conforme o ADR-0002 (`docs/architecture/ADR-0002-hospedagem-railway.md`, PR #101). Um `apply` cria, por ambiente: o projeto, o PostgreSQL 17 com volume, o serviço web ligado ao repositório, as variáveis dos dois serviços e o domínio `*.up.railway.app`. O domínio próprio é opcional (seção [Domínio próprio](#domínio-próprio)).
 
 **`terraform plan`, `apply` e `destroy` são executados só pelo Henrique.** Agentes e o CI ficam em `fmt`, `init -backend=false`, `validate` e `tflint`, que não falam com a Railway e não precisam de token. O passo a passo de operação (token, estado, primeiro `apply`, rollback, backup) vai para o runbook `docs/operations/railway-runbook.md`, em Issue própria.
 
@@ -29,6 +29,7 @@ Root module do Terraform que descreve a hospedagem do backend na Railway, confor
 | `railway_variable_collection.postgres` | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `PGDATA` e os espelhos `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` |
 | `railway_service.web` | Serviço `helinho-web`: repositório GitHub, branch `main`, Dockerfile da raiz; pre-deploy `tini -- dotnet Helinho.Web.dll migrate` (300 s); healthcheck `/health/ready` (120 s); restart `ON_FAILURE` com 5 tentativas |
 | `railway_service_domain.web` | Domínio `<subdomínio>.up.railway.app` apontando para a porta 8080 |
+| `railway_custom_domain.web` | **Só com `dominio_proprio` preenchido:** o domínio próprio do serviço web, na porta 8080 |
 | `railway_variable_collection.web` | Variáveis do serviço web (tabela abaixo) |
 
 O Dockerfile não é indicado por atributo: havendo `Dockerfile` na raiz, a Railway sempre usa ele (ADR-0002 §4.2). Não existe `railway.toml`.
@@ -83,7 +84,8 @@ A senha do banco não é variável: o Terraform gera.
 | `HELINHO_SEED_PASSWORD` | `seed_password` | idem |
 | `Api__Auth__TokenLifetime`, `…MaxFailedAttempts`, `…LockoutDuration`, `…LoginRateLimit`, `…LoginRateWindow` | `08:00:00`, `5`, `00:15:00`, `10`, `00:01:00` | `variaveis_web` |
 | `Email__Provider`, `Ai__Provider` | `Fake` | `variaveis_web` |
-| `Brevo__SenderEmail`, `Brevo__SenderName`, `App__PublicBaseUrl`, `Ai__Model` | não enviadas enquanto vazias | `variaveis_web` |
+| `Brevo__SenderEmail`, `Brevo__SenderName`, `Ai__Model` | não enviadas enquanto vazias | `variaveis_web` |
+| `App__PublicBaseUrl` | `https://<dominio_proprio>` quando o ambiente tem domínio próprio; não enviada sem domínio | `variaveis_web`, se preenchida (vence o domínio); senão `ambientes.<nome>.dominio_proprio` |
 | `Brevo__ApiKey`, `Ai__ApiKey` | não enviadas enquanto vazias | `brevo_api_key`, `ai_api_key` |
 
 `variaveis_web` é um objeto fechado: só aceita as chaves declaradas em `variables.tf`. Variável nova entra por PR. De propósito, **não** são definidas `ASPNETCORE_FORWARDEDHEADERS_ENABLED` nem `AllowedHosts` (o healthcheck da Railway chega com `Host: healthcheck.railway.app`).
@@ -96,6 +98,7 @@ O `plan` falha, antes de falar com a Railway, quando:
 
 - algum ambiente diferente de `homologacao` tem `seed_enabled = true`;
 - o nome do ambiente não é `homologacao` nem `producao`;
+- `dominio_proprio` não é só um nome de host em minúsculas (tem `https://`, barra, porta, curinga, maiúscula ou um rótulo só);
 - o seed está ligado e `seed_password` está ausente ou é fraca;
 - `Email__Provider` não é `Fake` nem `Brevo`, ou é `Brevo` sem `brevo_api_key`;
 - `Ai__Provider` é diferente de `Fake` sem `ai_api_key`;
@@ -109,9 +112,36 @@ O `plan` falha, antes de falar com a Railway, quando:
 |---|---|
 | `url_publica` | `https://<subdomínio>.up.railway.app`, por ambiente |
 | `url_api` | a URL pública com `/api`, por ambiente |
-| `ambientes` | por ambiente: `projeto_id`, `ambiente_id`, nome e id dos serviços, e os nomes das variáveis enviadas ao web |
+| `dns_dominio_proprio` | por ambiente: os registros a cadastrar no DNS (`tipo`, `nome`, `zona`, `valor`); lista vazia sem domínio próprio |
+| `ambientes` | por ambiente: `projeto_id`, `ambiente_id`, nome e id dos serviços, os nomes das variáveis enviadas ao web e `url_base_app` (o valor de `App__PublicBaseUrl`; vazio = não enviada) |
 
 Nenhuma saída carrega segredo. A senha do banco se lê no painel (variável `PGPASSWORD` do serviço `Postgres`) quando o runbook precisar dela.
+
+## Domínio próprio
+
+Opcional e desligado por padrão. Em `terraform.tfvars`:
+
+```hcl
+ambientes = {
+  homologacao = { seed_enabled = true, dominio_proprio = "painel.example.org" }
+}
+```
+
+Com o campo preenchido, o módulo cria `railway_custom_domain.web` e `App__PublicBaseUrl` passa a valer `https://painel.example.org`. Para outro valor, defina `variaveis_web.App__PublicBaseUrl`: o valor explícito vence. Hoje nenhum código da aplicação lê essa variável (ela é da Sprint 3). O domínio `*.up.railway.app` continua existindo, e `url_publica` e `url_api` continuam apontando para ele.
+
+Depois do `apply`, `terraform output dns_dominio_proprio` traz os dois registros que a Railway exige: o `CNAME` do host e o `TXT` de verificação de posse. O `TXT` vai para o DNS público e não é segredo. `nome` é relativo à `zona`. O passo a passo (ordem em relação ao primeiro deploy, DNS, `dig`, certificado) está em `docs/operations/railway-dominio.md`.
+
+Schema do `railway_custom_domain` no provider 0.6.3, conferido com `terraform providers schema -json` e no código da tag `v0.6.3` (`internal/provider/resource_custom_domain.go`):
+
+| Atributo | Tipo | Observação |
+|---|---|---|
+| `domain`, `environment_id`, `service_id` | obrigatórios | mudar qualquer um **recria** o recurso; os registros DNS mudam junto |
+| `target_port` | opcional | atualizado no lugar; aqui é sempre 8080 |
+| `host_label`, `zone`, `dns_record_value` | computados | o registro que aponta o host para a Railway. O provider não devolve o tipo: a documentação da Railway diz `CNAME` |
+| `verification_host_label`, `verification_record_value` | computados | o registro `TXT` de verificação |
+| `id`, `project_id` | computados | |
+
+Acrescentar o domínio a um ambiente que já existe muda `railway_variable_collection.web` (entra `App__PublicBaseUrl`): pelo L4, esse `apply` reimplanta o serviço web. A aplicação não restringe o host (`AllowedHosts` é `*`) e nada precisa mudar nela.
 
 ## Deploy contínuo (`auto_deploy`)
 
@@ -140,6 +170,7 @@ Provider `terraform-community-providers/railway` 0.6.3, conferido no código da 
 | L9 | Mudar `workspace_id` ou o nome do ambiente recria o projeto; mudar `project_id` recria os serviços | O `prevent_destroy` do serviço `Postgres` faz o `plan` falhar em vez de apagar o banco |
 | L10 | `subdomain` é obrigatório e único em toda a Railway | Padrão `helinho-<ambiente>`; se já existir, defina `ambientes.<nome>.subdominio` |
 | L11 | Não configura limite de CPU e memória, agenda de backup do volume, alerta de gasto nem Wait for CI | Cliques no painel, descritos no runbook |
+| L12 | `railway_custom_domain` só lê o primeiro registro DNS que a Railway devolve e falha na leitura (`Unable to find custom domain`) se o domínio for apagado pelo painel | Não apague o domínio pelo painel; para tirá-lo, esvazie `dominio_proprio` e aplique. Curinga (`*.`) é recusado pela validação, porque exige registros que o provider não expõe |
 
 O serviço `Postgres` tem `prevent_destroy`. Destruir a homologação de propósito exige remover essa linha em um commit; o runbook descreve.
 
