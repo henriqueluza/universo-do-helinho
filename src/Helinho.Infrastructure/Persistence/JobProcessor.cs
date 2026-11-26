@@ -32,6 +32,24 @@ public sealed partial class JobProcessor(IServiceScopeFactory scopes, TimeProvid
         return new(jobs.Count, suspended is null ? null : time.GetUtcNow() + suspended.PauseFor);
     }
 
+    public async Task<int> PurgeFinishedAsync(TimeSpan retention, int batchSize, CancellationToken cancellationToken)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var cutoff = time.GetUtcNow() - retention;
+        int deleted, total = 0;
+        do
+        {
+            deleted = await db.QueueJobs
+                .Where(j => j.Status != QueueJobStatus.Pending && j.Status != QueueJobStatus.Processing && j.FinishedAt < cutoff)
+                .OrderBy(j => j.FinishedAt).Take(batchSize).ExecuteDeleteAsync(cancellationToken);
+            total += deleted;
+        }
+        while (deleted == batchSize);
+
+        return total;
+    }
+
     /// <summary>§6.1: um comando só. O estado é filtrado no próprio comando e a tentativa é contada ao pegar.</summary>
     private async Task<List<QueueJob>> CaptureAsync(JobLane lane, CancellationToken cancellationToken)
     {
