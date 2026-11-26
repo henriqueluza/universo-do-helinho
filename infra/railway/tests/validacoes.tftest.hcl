@@ -29,10 +29,28 @@ run "padrao_cria_so_homologacao" {
     condition = toset(output.ambientes["homologacao"].variaveis_web) == toset([
       "ASPNETCORE_ENVIRONMENT", "PORT", "ConnectionStrings__Default", "Proxy__TrustForwardedHeaders",
       "Seed__Enabled", "HELINHO_SEED_PASSWORD", "Email__Provider", "Email__DailyLimit", "Ai__Provider",
+      "Ai__TimeoutSeconds", "Ai__DailyQuotaPerAdmin", "Ai__DailyGlobalLimit",
       "Api__Auth__TokenLifetime", "Api__Auth__MaxFailedAttempts", "Api__Auth__LockoutDuration",
       "Api__Auth__LoginRateLimit", "Api__Auth__LoginRateWindow",
     ])
     error_message = "Variável vazia não pode ser enviada, e as obrigatórias não podem faltar."
+  }
+  # O conjunto acima só confere os nomes; os valores padrão são critério da Issue #229 (ADR-0003 D7 e ADR-0004 D6).
+  assert {
+    condition     = var.variaveis_web.Email__DailyLimit == "300"
+    error_message = "O padrão de Email__DailyLimit é 300 (ADR-0003 D7)."
+  }
+  assert {
+    condition     = var.variaveis_web.Ai__TimeoutSeconds == "90"
+    error_message = "O padrão de Ai__TimeoutSeconds é 90 (ADR-0004 D6)."
+  }
+  assert {
+    condition     = var.variaveis_web.Ai__DailyQuotaPerAdmin == "60"
+    error_message = "O padrão de Ai__DailyQuotaPerAdmin é 60 (ADR-0004 D6)."
+  }
+  assert {
+    condition     = var.variaveis_web.Ai__DailyGlobalLimit == "300"
+    error_message = "O padrão de Ai__DailyGlobalLimit é 300 (ADR-0004 D6)."
   }
   assert {
     condition     = output.dns_dominio_proprio == { homologacao = [] }
@@ -123,6 +141,10 @@ run "producao_ligada_sem_seed" {
     condition     = contains(output.ambientes["producao"].variaveis_web, "Brevo__ApiKey")
     error_message = "Segredo com valor precisa ser enviado."
   }
+  assert {
+    condition     = [for nome in ["homologacao", "producao"] : output.ambientes[nome].provedor_ia] == ["Fake", "Off"]
+    error_message = "Sem Ai__Provider explícito, a IA é Fake em homologacao e Off em producao (ADR-0004 D9)."
+  }
 }
 
 run "recusa_seed_em_producao" {
@@ -169,7 +191,7 @@ run "recusa_provedor_real_sem_chave" {
   command = plan
 
   variables {
-    variaveis_web = { Email__Provider = "Brevo", Brevo__SenderEmail = "nao-responda@example.org", Brevo__SenderName = "Remetente sintético", App__PublicBaseUrl = "https://painel.example.org", Ai__Provider = "Real" }
+    variaveis_web = { Email__Provider = "Brevo", Brevo__SenderEmail = "nao-responda@example.org", Brevo__SenderName = "Remetente sintético", App__PublicBaseUrl = "https://painel.example.org", Ai__Provider = "Anthropic", Ai__Model = "modelo-sintetico-1" }
   }
 
   expect_failures = [var.brevo_api_key, var.ai_api_key]
@@ -180,7 +202,7 @@ run "recusa_chave_nula_com_provedor_real" {
   command = plan
 
   variables {
-    variaveis_web = { Email__Provider = "Brevo", Brevo__SenderEmail = "nao-responda@example.org", Brevo__SenderName = "Remetente sintético", App__PublicBaseUrl = "https://painel.example.org", Ai__Provider = "Real" }
+    variaveis_web = { Email__Provider = "Brevo", Brevo__SenderEmail = "nao-responda@example.org", Brevo__SenderName = "Remetente sintético", App__PublicBaseUrl = "https://painel.example.org", Ai__Provider = "Anthropic", Ai__Model = "modelo-sintetico-1" }
     brevo_api_key = null
     ai_api_key    = null
   }
