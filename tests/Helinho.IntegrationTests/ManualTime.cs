@@ -8,19 +8,24 @@ public sealed class ManualTime(DateTimeOffset start) : TimeProvider
 
     public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 
-    public override DateTimeOffset GetUtcNow() => _now;
+    public override DateTimeOffset GetUtcNow()
+    {
+        lock (_timers) // DateTimeOffset não é lido de forma atômica: a leitura fica sob a mesma trava de Advance
+        {
+            return _now;
+        }
+    }
 
-    public override long GetTimestamp() => _now.Ticks;
+    public override long GetTimestamp() => GetUtcNow().Ticks;
 
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
-        var timer = new ManualTimer(() => callback(state), _now + dueTime);
         lock (_timers)
         {
+            var timer = new ManualTimer(() => callback(state), _now + dueTime);
             _timers.Add(timer);
+            return timer;
         }
-
-        return timer;
     }
 
     public void Advance(TimeSpan by)
