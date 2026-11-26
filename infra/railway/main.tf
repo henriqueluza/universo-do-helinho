@@ -22,5 +22,9 @@ module "ambiente" {
   seed_enabled           = each.value.seed_enabled
   seed_password          = each.value.seed_enabled ? var.seed_password : null
   variaveis_web          = var.variaveis_web
-  segredos_web           = { Brevo__ApiKey = var.brevo_api_key, Ai__ApiKey = var.ai_api_key }
+  segredos_web = {
+    Brevo__ApiKey        = var.brevo_api_key
+    Brevo__WebhookSecret = var.brevo_webhook_secret
+    Ai__ApiKey           = var.ai_api_key
+  }
 }
