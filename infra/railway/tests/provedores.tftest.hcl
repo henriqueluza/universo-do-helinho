@@ -292,3 +292,30 @@ run "recusa_teto_de_email_negativo" {
 
   expect_failures = [var.variaveis_web]
 }
+
+# As fronteiras de Email__DailyLimit não mudam com a validação única das quatro faixas.
+run "aceita_teto_de_email_no_limite" {
+  command = plan
+
+  variables {
+    variaveis_web = { Email__DailyLimit = "100000" }
+  }
+
+  assert {
+    condition     = contains(output.ambientes["homologacao"].variaveis_web, "Email__DailyLimit")
+    error_message = "100000 é o maior teto aceito e precisa ser enviado."
+  }
+}
+
+run "teto_de_email_vazio_nao_e_enviado" {
+  command = plan
+
+  variables {
+    variaveis_web = { Email__DailyLimit = "" }
+  }
+
+  assert {
+    condition     = !contains(output.ambientes["homologacao"].variaveis_web, "Email__DailyLimit")
+    error_message = "Vazio é aceito e não é enviado: vale o padrão da aplicação."
+  }
+}

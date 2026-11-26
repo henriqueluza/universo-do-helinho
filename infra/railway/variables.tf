@@ -135,7 +135,7 @@ variable "variaveis_web" {
   validation {
     condition = (var.variaveis_web.Brevo__SenderEmail == "" ? var.variaveis_web.Email__Provider != "Brevo" :
     can(regex("^[^@\\s<>\"(),;:]+@[^@\\s<>\"(),;:]+\\.[^@\\s<>\"(),;:]+$", var.variaveis_web.Brevo__SenderEmail)))
-    error_message = "Brevo__SenderEmail precisa ser um e-mail válido e é obrigatório com Email__Provider = \"Brevo\"."
+    error_message = "Brevo__SenderEmail precisa ser um e-mail válido (só o endereço, sem nome nem os sinais <>\"(),;:) e é obrigatório com Email__Provider = \"Brevo\"."
   }
   validation {
     condition = length(var.variaveis_web.Brevo__SenderName) <= 70 && (
