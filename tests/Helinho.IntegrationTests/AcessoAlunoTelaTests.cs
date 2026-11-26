@@ -258,6 +258,9 @@ public class AcessoAlunoTelaTests(PostgresFixture postgres, AcessoAlunoTelaTests
         var userId = client.DefaultRequestHeaders.GetValues(TestAuthHandler.UserHeader).Single();
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Contains("os links j&#xE1; enviados deixaram de valer", list, StringComparison.Ordinal);
+        Assert.Contains($"/Alunos/Editar/{studentId}", list, StringComparison.Ordinal); // o aluno está na lista...
+        Assert.DoesNotContain("troca.depois@example.org", list, StringComparison.Ordinal); // ...e a lista continua sem o e-mail
+        Assert.DoesNotContain("troca.antes@example.org", list, StringComparison.Ordinal);
         Assert.Contains("id=\"acesso-situacao\">Envio cancelado em ", ficha, StringComparison.Ordinal); // o acesso do cadastro foi cancelado
         Assert.Contains($"E-mail do responsável do aluno {studentId} trocado pelo usuário {userId}.", shared.LogLines());
         Assert.DoesNotContain(shared.LogLines(), line => Regex.IsMatch(line, "troca\\.(antes|depois)|Dora Troca"));

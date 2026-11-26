@@ -47,7 +47,7 @@ public class Student
     /// <summary>E-mail do responsável (ADR-0003 §9). Não é único nem identificador de login; nulo nos alunos anteriores ao campo.</summary>
     public string? GuardianEmail { get; private set; }
 
-    /// <summary>Endereço anterior, guardado só enquanto o aviso de troca não termina (ADR-0003 §9 e §11.4). </summary>
+    /// <summary>Endereço anterior, guardado só enquanto o aviso de troca não termina (ADR-0003 §9 e §11.4).</summary>
     public string? PreviousGuardianEmail { get; private set; }
 
     public string ClassName { get; private set; } = "";

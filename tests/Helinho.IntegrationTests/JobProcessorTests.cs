@@ -152,9 +152,10 @@ public sealed class JobProcessorTests : IAsyncLifetime
         var ids = await EnqueueAsync(Request(), Request(), Request(), Request(), Request("email.password-reset"), Request("ai.question-drafts"));
         await SqlAsync($"""UPDATE "QueueJobs" SET "Status" = 'Cancelled' WHERE "Id" = {ids[3]}""");
         var captured = new ConcurrentQueue<string>();
+        var transactions = new ConcurrentQueue<bool>();
         _handle = async call =>
         {
-            Assert.Null(call.Db.Database.CurrentTransaction); // nenhuma transação aberta durante o tratador
+            transactions.Enqueue(call.Db.Database.CurrentTransaction is not null);
             captured.Enqueue(await StateAsync(call.Job.Id)); // a captura já está gravada: outra conexão a enxerga
             return Sent;
         };
@@ -165,6 +166,7 @@ public sealed class JobProcessorTests : IAsyncLifetime
         Assert.Equal(ids[..3], _calls.Select(c => c.Job.Id));
         Assert.All(_calls, c => Assert.Equal((1, Invite), (c.Job.Attempts, c.Job.Type)));
         Assert.All(_calls, c => Assert.Contains(Invite, c.Handler.Types)); // roteado pelo Type para o registro certo
+        Assert.Equal([false, false, false], transactions); // nenhuma transação aberta durante o tratador
         Assert.All(captured, state => Assert.Equal("Processing|1||||12:02:00", state));
         Assert.Equal(3, _calls.Select(c => c.Db).Distinct().Count()); // escopo próprio por item
         var rows = await RowsAsync();
@@ -222,14 +224,16 @@ public sealed class JobProcessorTests : IAsyncLifetime
     {
         var ids = await EnqueueAsync(Request(), Request());
         using var stopping = new CancellationTokenSource();
+        bool? cancelled = null;
         _handle = async call =>
         {
             await stopping.CancelAsync();
-            Assert.False(call.Token.IsCancellationRequested); // o sinal de parada, sozinho, não cancela o item
+            cancelled = call.Token.IsCancellationRequested;
             return Sent;
         };
 
         await PassAsync(stopping: stopping);
+        Assert.False(cancelled); // o sinal de parada, sozinho, não cancela o item
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => PassAsync(stopping: stopping)); // nenhum lote novo
 
         Assert.Equal("Succeeded|1||msg-1|12:00|12:02:00", await StateAsync(ids[0]));
@@ -258,7 +262,38 @@ public sealed class JobProcessorTests : IAsyncLifetime
         Assert.StartsWith("Pending|1|handler_exception|", State(row), StringComparison.Ordinal);
         Assert.InRange(row.NextAttemptAt, _time.GetUtcNow().AddSeconds(48), _time.GetUtcNow().AddSeconds(72)); // 1 minuto, ±20%
         Assert.Equal(0, await FollowUpsAsync());
-        Assert.Contains(_log.Lines, l => l.Text.EndsWith("exceção TaskCanceledException.", StringComparison.Ordinal));
+        Assert.Contains(_log.Lines, l => l.Text.EndsWith("CanceledException.", StringComparison.Ordinal)); // Task ou Operation
+    }
+
+    [Fact]
+    public async Task Ultima_tentativa_que_estoura_o_tempo_maximo_da_ao_gancho_um_token_vivo_e_grava_o_que_ele_deixou_com_o_Failed()
+    {
+        var id = (await EnqueueAsync(Request()))[0];
+        await SqlAsync($"""UPDATE "QueueJobs" SET "Attempts" = 7 WHERE "Id" = {id}"""); // a captura conta a oitava, a última
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _handle = async call =>
+        {
+            entered.SetResult();
+            await Task.Delay(Timeout.Infinite, call.Token);
+            return Sent;
+        };
+        bool? cancelled = null;
+        _onAbandoned = async call =>
+        {
+            cancelled = call.Token.IsCancellationRequested;
+            call.Token.ThrowIfCancellationRequested(); // como qualquer I/O que recebe o token
+            await call.Queue.EnqueueAsync(Request(Follow), call.Token);
+        };
+
+        var pass = PassAsync();
+        await entered.Task;
+        _time.Advance(Email.ItemTimeout);
+        await pass;
+
+        Assert.Equal(["max_attempts"], _abandoned);
+        Assert.False(cancelled); // o token do gancho é próprio: o do tratador acabou de vencer
+        Assert.Equal("Failed|8|max_attempts||12:00|12:02:00", await StateAsync(id));
+        Assert.Equal(1, await FollowUpsAsync()); // o que o gancho deixou sai na mesma gravação do Failed
     }
 
     [Fact]
@@ -436,5 +471,8 @@ public sealed class JobProcessorTests : IAsyncLifetime
         Assert.False(services.GetRequiredService<IOptions<FilaOptions>>().Value.Worker.Enabled); // §6.4: desligado na fábrica
         Assert.Contains(services.GetServices<IHostedService>(), service => service is JobWorker);
         Assert.IsType<JobProcessor>(services.GetRequiredService<IJobProcessor>());
+        // Issue #297: o host real tem um relógio só. O IClock dos casos de uso lê o TimeProvider do processador.
+        Assert.Same(TimeProvider.System, services.GetRequiredService<TimeProvider>());
+        Assert.IsType<Helinho.Infrastructure.Fakes.SystemClock>(services.GetRequiredService<IClock>());
     }
 }

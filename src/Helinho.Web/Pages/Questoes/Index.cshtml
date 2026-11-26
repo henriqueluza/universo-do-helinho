@@ -9,9 +9,18 @@
 <div class="page-head">
     <p class="sub">Toda questão nasce como rascunho e só chega ao jogo depois de aprovada.</p>
     <div class="page-actions">
+        @if (Model.AiEnabled)
+        {
+            <a class="btn btn-ai" href="/Questoes/Ia"><svg class="fill" aria-hidden="true"><use href="#i-ai"/></svg>Gerar com IA</a>
+        }
         <a class="btn btn-primary" asp-page="Editar"><svg aria-hidden="true"><use href="#i-plus"/></svg>Nova questão</a>
     </div>
 </div>
+
+@if (Model.PendingDrafts is { Count: > 0, OldestJobId: { } oldest })
+{
+    <div class="note ai" id="ia-pendentes"><svg aria-hidden="true"><use href="#i-ai"/></svg><span><b>@(Model.PendingDrafts.Count == 1 ? "1 sugestão da IA esperando revisão." : $"{Model.PendingDrafts.Count} sugestões da IA esperando revisão.")</b> <a class="link-btn" href="/Questoes/Ia/@oldest">Revisar agora</a></span></div>
+}
 
 @if (Model.Saved is not null)
 {
@@ -49,6 +58,19 @@
             }
         </select>
     </div>
+    @if (Model.ShowOrigin)
+    {
+        <div class="field">
+            <label for="origem">Origem</label>
+            <select id="origem" name="origem" class="select">
+                <option value="">Todas</option>
+                @foreach (var o in Enum.GetValues<QuestionOrigin>())
+                {
+                    <option value="@o" selected="@(o == Model.Origem)">@IndexModel.OriginLabel(o)</option>
+                }
+            </select>
+        </div>
+    }
     <button type="submit" class="btn">Aplicar</button>
     @if (Model.HasFilters)
     {
@@ -64,7 +86,7 @@
             @if (Model.HasFilters)
             {
                 <b>Nenhuma questão encontrada.</b>
-                <p>Ajuste o tipo de quiz, a faixa etária ou o status para ver outras questões.</p>
+                <p>Ajuste os filtros para ver outras questões.</p>
                 <a class="btn" href="@Url.Page("/Questoes/Index")">Limpar filtros</a>
             }
             else
@@ -94,21 +116,28 @@ else
                             <td><span class="tag tag-type @tema.Css"><img src="~/img/@tema.Imagem" width="@tema.Largura" height="@tema.Altura" alt="" />@tema.Nome<span class="visually-hidden"> (personagem @tema.Personagem)</span></span></td>
                             <td>@IndexModel.BandLabel(q.AgeBand)</td>
                             <td>
-                                @if (q.Status == QuestionStatus.Approved)
-                                {
-                                    <span class="tag tag-ok">Aprovada</span>
-                                }
-                                else
-                                {
-                                    <span class="tag tag-draft">Rascunho</span>
-                                }
+                                <div class="cell-tags">
+                                    @if (q.Status == QuestionStatus.Approved)
+                                    {
+                                        <span class="tag tag-ok">Aprovada</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="tag tag-draft">Rascunho</span>
+                                    }
+                                    @if (q.Origin == QuestionOrigin.Ai)
+                                    {
+                                        @* Selo de origem: aparece mesmo com a IA desligada, porque a origem é um fato sobre o texto. *@
+                                        <span class="tag tag-ai"><svg aria-hidden="true"><use href="#i-ai"/></svg>IA@(q.AiEdited ? " · editada" : "")<span class="visually-hidden"> (@(q.AiEdited ? "sugerida pela IA e editada pela equipe" : "sugerida pela IA"))</span></span>
+                                    }
+                                </div>
                             </td>
                             <td class="actions">
                                 <div class="row-actions">
                                     <a class="link-btn" asp-page="Editar" asp-route-id="@q.Id">Editar<span class="visually-hidden"> questão: @q.Statement</span></a>
                                     @if (q.Status == QuestionStatus.Draft)
                                     {
-                                        <form method="post" asp-page-handler="Aprovar" asp-route-id="@q.Id" asp-route-tipo="@Model.Tipo" asp-route-faixa="@Model.Faixa" asp-route-status="@Model.Status" asp-route-pagina="@Model.Pagina">
+                                        <form method="post" asp-page-handler="Aprovar" asp-route-id="@q.Id" asp-route-tipo="@Model.Tipo" asp-route-faixa="@Model.Faixa" asp-route-status="@Model.Status" asp-route-origem="@Model.Origem" asp-route-pagina="@Model.Pagina">
                                             <button class="btn btn-sm btn-primary" type="submit">Aprovar<span class="visually-hidden"> questão: @q.Statement</span></button>
                                         </form>
                                     }

@@ -1,7 +1,9 @@
 using Helinho.Application.Abstractions;
+using Helinho.Application.Ai;
 using Helinho.Domain;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Helinho.Web.Panel;
 
@@ -27,7 +29,7 @@ public sealed record PanelUserModel(string Name, string Role, string Unit, IRead
 }
 
 /// <summary>Dados do menu lateral: itens permitidos ao papel, nome, papel e unidade do usuário (PRD B1).</summary>
-public sealed class PanelUserViewComponent(ICurrentUser currentUser, IAppDbContext db) : ViewComponent
+public sealed class PanelUserViewComponent(ICurrentUser currentUser, IAppDbContext db, IOptions<AiOptions> ai) : ViewComponent
 {
     public async Task<IViewComponentResult> InvokeAsync()
     {
@@ -43,7 +45,7 @@ public sealed class PanelUserViewComponent(ICurrentUser currentUser, IAppDbConte
             HttpContext.User.Identity?.Name ?? "Usuário",
             isMaster ? "Master" : "Administrador de unidade",
             unit,
-            NavMenu.For(currentUser.IsInRole));
+            NavMenu.For(currentUser.IsInRole, ai.Value.IsEnabled));
         return View(model);
     }
 }

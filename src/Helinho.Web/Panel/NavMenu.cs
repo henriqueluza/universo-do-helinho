@@ -27,6 +27,17 @@ public static class NavMenu
         new("Administradores", "/Administradores", "i-adm", 8, GroupManagement, MasterOnly: true),
     ];
 
-    public static IReadOnlyList<NavItem> For(Func<string, bool> isInRole) =>
-        All.Where(i => !i.MasterOnly || isInRole(RoleNames.Master)).ToList();
+    /// <summary>Só existe com a IA ligada (ADR-0004 §14): desligada, a tela responde 404 e o menu não a anuncia.</summary>
+    private static readonly NavItem Ai = new("Rascunhos de IA", "/Questoes/Ia", "i-ai", 5, GroupContent);
+
+    public static IReadOnlyList<NavItem> For(Func<string, bool> isInRole, bool aiEnabled = false)
+    {
+        var items = All.Where(i => !i.MasterOnly || isInRole(RoleNames.Master)).ToList();
+        if (aiEnabled)
+        {
+            items.Insert(items.FindIndex(i => i.Path == "/Questoes") + 1, Ai);
+        }
+
+        return items;
+    }
 }
