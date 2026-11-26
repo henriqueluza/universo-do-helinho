@@ -1,0 +1,92 @@
+@page "/Questoes/Ia/{jobId:guid}/editar/{id:guid}"
+@using Helinho.Domain
+@using Helinho.Web.Painel
+@model Helinho.Web.Pages.Questoes.Ia.EditarModel
+@{
+    ViewData["Title"] = "Editar sugestão da IA";
+    string? Err(string field) => ModelState["Input." + field]?.Errors.FirstOrDefault()?.ErrorMessage;
+    string? Bad(string field) => Err(field) is null ? null : "true";
+    string? Desc(string field) => Err(field) is null ? null : "Input_" + field + "-erro";
+    var letters = new[] { "A", "B", "C", "D" };
+    var optionFields = new[] { "OptionA", "OptionB", "OptionC", "OptionD" };
+    var optionValues = new[] { Model.Input.OptionA, Model.Input.OptionB, Model.Input.OptionC, Model.Input.OptionD };
+}
+<div>
+    <a class="back" href="/Questoes/Ia/@Model.JobId"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Sugestões da IA</a>
+    <div class="page-head">
+        <p class="sub">Ajuste o que for preciso. Nada é salvo até você clicar em Salvar como rascunho.</p>
+    </div>
+</div>
+
+<div class="note ai"><svg aria-hidden="true"><use href="#i-ai"/></svg><span><span class="tag tag-ai">Sugerida pela IA</span> Ao salvar, a questão fica como rascunho com origem IA e precisa ser aprovada em Questões. @IaTexto.CheckNotice</span></div>
+
+<partial name="_ResumoErros" />
+
+<form class="maker-form" method="post" novalidate>
+    <fieldset class="step">
+        <legend class="step-h">Tema e faixa etária</legend>
+        <div class="form-grid">
+            <div class="field">
+                <label for="Input_QuizType">Tipo de quiz <span class="req">(obrigatório)</span></label>
+                <select id="Input_QuizType" name="Input.QuizType" class="select select-lg" aria-invalid="@Bad("QuizType")" aria-describedby="@Desc("QuizType")">
+                    @foreach (var t in Enum.GetValues<QuizType>())
+                    {
+                        <option value="@t" selected="@(t == Model.Input.QuizType)">@TemaQuiz.Of(t).Nome (@TemaQuiz.Of(t).Personagem)</option>
+                    }
+                </select>
+                @if (Err("QuizType") is { } quizError) { <span class="field-error" id="Input_QuizType-erro">@quizError</span> }
+            </div>
+            <div class="field">
+                <label for="Input_AgeBand">Faixa etária <span class="req">(obrigatório)</span></label>
+                <select id="Input_AgeBand" name="Input.AgeBand" class="select select-lg" aria-invalid="@Bad("AgeBand")" aria-describedby="@Desc("AgeBand")">
+                    @foreach (var b in Enum.GetValues<AgeBand>())
+                    {
+                        <option value="@b" selected="@(b == Model.Input.AgeBand)">@Helinho.Web.Pages.Questoes.IndexModel.BandLabel(b)</option>
+                    }
+                </select>
+                @if (Err("AgeBand") is { } ageError) { <span class="field-error" id="Input_AgeBand-erro">@ageError</span> }
+            </div>
+        </div>
+    </fieldset>
+
+    <fieldset class="step">
+        <legend class="step-h">A pergunta</legend>
+        <div class="field">
+            <label for="Input_Statement">Enunciado <span class="req">(obrigatório)</span></label>
+            <textarea class="input textarea" id="Input_Statement" name="Input.Statement" rows="3" maxlength="500" aria-invalid="@Bad("Statement")" aria-describedby="Input_Statement-ajuda@(Err("Statement") is null ? "" : " Input_Statement-erro")">@Model.Input.Statement</textarea>
+            <small id="Input_Statement-ajuda">Até 500 caracteres.</small>
+            @if (Err("Statement") is { } statementError) { <span class="field-error" id="Input_Statement-erro">@statementError</span> }
+        </div>
+        <fieldset class="alts">
+            <legend>Alternativas <span class="req">(preencha as quatro e marque a correta)</span></legend>
+            @for (var i = 0; i < 4; i++)
+            {
+                var field = optionFields[i];
+                <div class="alt">
+                    <span class="key" aria-hidden="true">@letters[i]</span>
+                    <div>
+                        <label class="visually-hidden" for="Input_@field">Alternativa @letters[i]</label>
+                        <input class="input" id="Input_@field" name="Input.@field" value="@optionValues[i]" maxlength="300" autocomplete="off" aria-invalid="@Bad(field)" aria-describedby="@Desc(field)" />
+                    </div>
+                    <label class="correct">
+                        <input type="radio" name="Input.Correct" id="@(i == 0 ? "Input_Correct" : "Input_Correct_" + i)" value="@i" checked="@(Model.Input.Correct == i)" aria-invalid="@Bad("Correct")" aria-describedby="@Desc("Correct")" />
+                        Certa<span class="visually-hidden"> (alternativa @letters[i])</span>
+                    </label>
+                </div>
+                @if (Err(field) is { } optionError) { <span class="field-error" id="Input_@(field)-erro">@optionError</span> }
+            }
+            @if (Err("Correct") is { } correctError) { <span class="field-error" id="Input_Correct-erro">@correctError</span> }
+        </fieldset>
+        <div class="field">
+            <label for="Input_Explanation">Explicação <span class="req">(obrigatório)</span></label>
+            <textarea class="input textarea" id="Input_Explanation" name="Input.Explanation" rows="3" maxlength="1000" aria-invalid="@Bad("Explanation")" aria-describedby="Input_Explanation-ajuda@(Err("Explanation") is null ? "" : " Input_Explanation-erro")">@Model.Input.Explanation</textarea>
+            <small id="Input_Explanation-ajuda">Mostrada ao aluno depois que ele responde.</small>
+            @if (Err("Explanation") is { } explanationError) { <span class="field-error" id="Input_Explanation-erro">@explanationError</span> }
+        </div>
+    </fieldset>
+
+    <div class="maker-bar">
+        <button class="btn btn-primary" type="submit">Salvar como rascunho</button>
+        <a class="link" href="/Questoes/Ia/@Model.JobId">Cancelar</a>
+    </div>
+</form>
