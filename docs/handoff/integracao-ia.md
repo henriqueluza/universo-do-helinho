@@ -1,8 +1,8 @@
 # Handoff — integração da IA (Sprint 4, ADR-0004)
 
-Rascunhos de questões por IA com revisão humana. As quatro pilhas paralelas (backend, tela do lote, criador e lista, trabalhador da fila) foram costuradas, as lacunas entre elas fechadas e o conjunto provado de ponta a ponta com o gerador Fake. **Nenhum PR aberto**: tudo é branch com push.
+Rascunhos de questões por IA com revisão humana. As quatro pilhas paralelas (backend, tela do lote, criador e lista, trabalhador da fila) foram costuradas, as lacunas entre elas fechadas e o conjunto provado de ponta a ponta com o gerador Fake. A entrega é feita em **8 PRs de bloco** contra a branch padrão (seção 6). As branches citadas nas seções 1, 2, 3 e 7 são de trabalho: ficam como histórico da integração e não entram na branch padrão.
 
-## 1. Branches
+## 1. Branches de trabalho (histórico)
 
 | O quê | Branch | Base |
 |---|---|---|
@@ -12,8 +12,8 @@ Rascunhos de questões por IA com revisão humana. As quatro pilhas paralelas (b
 | Costura: revisão pertence ao pedido | `issue-299-ia-revisao-pertence-ao-pedido` | #298 |
 | Costura: lista com "Gerar com IA" e pendentes | `issue-300-ia-lista-gerar-e-pendentes` | #299 |
 | Ponta a ponta (Issue 14 do ADR) | `issue-301-ia-ponta-a-ponta` | #300 |
-| Testes de tela separados por fatia | `issue-303-ia-testes-por-fatia-1`, `-2`, `-3` (a `-3` é a branch final, com este handoff) | #301 |
-| **Cadeia de entrega** (é dela que saem os PRs) | `entrega-ia-00-base` … `entrega-ia-22-ponta-a-ponta` | seção 6 |
+| Testes de tela separados por fatia | `issue-303-ia-testes-por-fatia-1`, `-2`, `-3` (a `-3` foi a branch final da integração) | #301 |
+| **Cadeia de entrega** (22 passos, agrupados em 8 blocos; os PRs saem dos blocos) | `entrega-ia-00-base` … `entrega-ia-22-ponta-a-ponta` | seção 6 |
 
 ## 2. Conflitos dos merges de `ia-integrada` e como foram resolvidos
 
@@ -63,51 +63,33 @@ Chromium do cache do Playwright, app com `--no-launch-profile`, Postgres em cont
 - Sem rolagem horizontal em nenhuma captura; nenhum erro de console. Contraste conferido a olho, sem ferramenta.
 - Observações, sem correção: em 375 px o selo fica na coluna "Status", que rola dentro da tabela (a lista já era assim); em captura de página inteira a barra fixa do criador aparece sobre o formulário (efeito da captura). Nenhum defeito corrigido nesta etapa.
 
-## 6. Cadeia de entrega (uma fatia ≤ 400 linhas por PR, uma por vez, base na branch padrão)
+## 6. Cadeia de entrega (8 PRs de bloco, um por vez, base na branch padrão)
 
-`entrega-ia-00-base` = `issue-228-fila-trabalhador-5` + branch padrão (até o PR #302) + `refs/pull/120/head` (PR #120 final). Cada `entrega-ia-NN` é a anterior mais uma fatia; tamanho por `python3 scripts/pr-size.py <anterior>`; cada uma compilou com `-warnaserror`, passou no `dotnet format --verify-no-changes` e teve as classes de teste da fatia verdes antes do push. O corpo de cada PR está em `scratchpad/entrega-ia/NN.md` (caminho completo no relatório da sessão).
+A cadeia tem 22 passos (branches de trabalho `entrega-ia-01` a `entrega-ia-22`, cada uma a anterior mais um passo). Os passos são entregues em **blocos**: um PR por bloco, contra a branch padrão, com o diff acumulado dos passos do bloco. Esta tabela não cita commit nem número de PR, que mudam a cada merge por squash: o PR de cada bloco é o que fechou as Issues da linha (campo "Development" da Issue).
 
-| NN | Branch | Commit de topo | Issue | Tamanho |
-|---|---|---|---|---|
-| 00 | `entrega-ia-00-base` | `6efbb0f` | — (ponto de partida, sem PR) | — |
-| 01 | `entrega-ia-01-migracao` | `f27dae9` | Closes #257 | 400 |
-| 02 | `entrega-ia-02-dominio` | `ecd9e05` | Closes #263 | 246 |
-| 03 | `entrega-ia-03-pedir-rascunhos` | `5ee9b4f` | Closes #258 | 399 |
-| 03a | `entrega-ia-03a-health-falha-na-requisicao` (**PR #306**, aberto direto para a branch padrão) | `cacac79` | Closes #305 | 7 |
-| 04 | `entrega-ia-04-tratador` | `8aa6ee4` | Closes #259; Parte de #298 | 363 |
-| 05 | `entrega-ia-05-leitura-pedido` | `69274e9` | Closes #275 | 225 |
-| 06 | `entrega-ia-06-revisao` | `6d0f0a1` | Closes #260 | 348 |
-| 07 | `entrega-ia-07-sugestao-avulsa` | `b54fb25` | Closes #261 | 326 |
-| 08 | `entrega-ia-08-componentes-tema` | `8f08d3e` | Closes #294; Parte de #286 | 100 |
-| 09 | `entrega-ia-09-ai-edited-at` | `e88d0cf` | Closes #287 | 107 |
-| 10 | `entrega-ia-10-lote-acompanhar` | `c6a1314` | Parte de #286 | 391 |
-| 11 | `entrega-ia-11-lote-pedir` | `f4747ac` | Parte de #286 | 397 |
-| 12 | `entrega-ia-12-lote-menu` | `4ebef7c` | Parte de #286 | 104 |
-| 13 | `entrega-ia-13-lote-editar` | `e11a3f8` | Parte de #286; Parte de #299 | 349 |
-| 14 | `entrega-ia-14-lote-decidir` | `5bcb9bd` | Closes #286; Closes #299 | 223 |
-| 15 | `entrega-ia-15-criador-sugerir` | `44752fd` | Parte de #288 | 366 |
-| 16 | `entrega-ia-16-criador-sugerir-retorno` | `fa17942` | Closes #288 | 101 |
-| 17 | `entrega-ia-17-criador-salvar-origem` | `20e0a4f` | Closes #295 | 86 |
-| 18 | `entrega-ia-18-lista-selo-filtro` | `01824ee` | Closes #289 | 240 |
-| 19 | `entrega-ia-19-relogio-unico` | `bf9e2b2` | Closes #297 | 34 |
-| 20 | `entrega-ia-20-tratador-no-trabalhador` | `90b24b4` | Closes #298 | 256 |
-| 21 | `entrega-ia-21-lista-gerar-e-pendentes` | `4176681` | Closes #300 | 120 |
-| 22 | `entrega-ia-22-ponta-a-ponta` | topo da branch | Closes #301; Closes #303 | 281 |
+| Bloco | Passos | O que entra | Issues |
+|---|---|---|---|
+| 1 | 01–02 | migração única `AddAiQuestionDrafts`; regras e transições do domínio | Closes #257, #263 |
+| 2 | 03–05 | pedir rascunhos (cota, pedido, fila); tratador do trabalho; leitura do pedido | Closes #258, #259, #275; Parte de #298 |
+| 3 | 06–07 | revisão humana das sugestões; sugestão avulsa | Closes #260, #261 |
+| 4 | 08–09 | componentes de IA do tema; `AiEditedAt` | Closes #294, #287; Parte de #286 |
+| 5 | 10–14 | tela do lote: acompanhar, pedir, menu, editar, aprovar e descartar | Closes #286, #299 |
+| 6 | 15–17 | criador: "Sugerir", retorno no `painel.js`, salvar com origem IA | Closes #288, #295 |
+| 7 | 18–21 | lista (selo e filtro Origem); relógio único; tratador no trabalhador real; "Gerar com IA" e pendentes | Closes #289, #297, #298, #300 |
+| 8 | 22 | ponta a ponta e os handoffs da integração | Closes #301, #303 |
 
-**Antes da cadeia:** o PR #120 (chaves do Data Protection; a branch dele traz junto a fila `QueueJobs` da #237 e a #245) e as cinco fatias do trabalhador (#228). A IA não depende das fatias de e-mail. As fatias do adaptador (#251, repetição em 429/5xx) são independentes da cadeia.
+**Antes da cadeia (pré-requisitos na branch padrão):** as chaves do Data Protection (PR #120), a fila `QueueJobs` e os contratos do tratador (#223 e #234), o trabalhador (#228, cuja última fatia, o PR #331, entra antes do bloco 1) e o PR #306 (#305): `HealthTests.Falha_inesperada_na_consulta_vira_503_sem_detalhe` quebrava a subida do host assim que um tratador da fila passa a existir, o que acontece no passo 04; a correção é só de teste e já está na branch padrão. A repetição em 429/5xx do adaptador (#251) é independente da cadeia e já foi entregue. A IA não depende das fatias de e-mail.
 
-**Como abrir cada PR:** quando o passo anterior estiver na branch padrão, crie a branch do PR a partir dela e aplique só a fatia: `git diff origin/entrega-ia-(NN-1) origin/entrega-ia-NN | git apply --index --3way`. Abrir o PR direto de `entrega-ia-NN` mostraria de novo as fatias anteriores (a base comum é antiga). A migração `20261123011145_AddAiQuestionDrafts` fica depois de `AddQueueJobs` e `AddStudentGuardianEmail` e **não** foi regenerada; o retrato do modelo aplicou sem conflito sobre o PR #120 final.
+**Migração:** `20261123011145_AddAiQuestionDrafts` fica depois de `AddQueueJobs` e `AddStudentGuardianEmail` e não foi regenerada. É a única migração da cadeia.
 
-**Onde a ordem difere da pedida, e por quê:**
-- **Handoff por fatia (segunda passada):** o `docs/handoff/<issue>.md` de cada passo descreve só aquele passo (base na branch padrão, arquivos e testes da fatia) e, quando a Issue tem mais de um PR (#286, #288, #298, #299), traz no topo a tabela "Entrega em fatias", atualizada a cada passo. Os ajustes entraram por commits novos, propagados por merge de cada branch para a seguinte.
-- **Passo 03a (#305), agora PR #306:** `HealthTests.Falha_inesperada_na_consulta_vira_503_sem_detalhe` quebrava a subida do host assim que um tratador da fila passa a existir (passo 04). O defeito só apareceu na conferência do topo, com 04 a 22 já publicadas; a correção (7 linhas, só teste) está em `entrega-ia-03a-health-falha-na-requisicao`, sobre a 03, e **tem de entrar antes da 04**. O topo da cadeia não a contém: `HealthTests` fica 5/6 nele e 6/6 com ela (conferido). A outra cadeia (e-mails) precisa dela antes do tratador de e-mail.
-- A linha que une as opções de IA (parte da #298) entra no passo 04, com o tratador: é ali que o defeito passa a existir (o teste de `AiProviderTests` ficaria vermelho de 04 a 20).
-- A #299 não tem passo próprio: a conferência "pertence ao pedido" está nos mesmos arquivos de página que os passos 13 e 14 trazem no estado final.
+**Handoffs:** cada `docs/handoff/<issue>.md` entra no bloco que fecha (ou avança) a Issue; Issue com mais de um passo traz a tabela "Entrega em fatias".
+
+**Onde a ordem difere do plano do ADR, e por quê:**
+- A linha que une as opções de IA (parte da #298) entra no passo 04 (bloco 2), com o tratador: é ali que o defeito passa a existir.
+- A #299 não tem passo próprio: a conferência "pertence ao pedido" está nos arquivos de página dos passos 13 e 14 (bloco 5).
 - No lote, "editar" (13) vem antes de "aprovar e descartar" (14), para o link Editar dos cartões nunca apontar para uma página inexistente.
-- A #298 (20) vem depois do relógio (19) e da tela de pedir (11), que os testes dela usam; a #300 (21) depois da #289 (18).
-- A #303 não tem passo próprio: os arquivos de teste já entram separados nos passos 10 a 16; o passo 22 a fecha.
-
-**Árvore final:** `entrega-ia-22-ponta-a-ponta` tem a mesma árvore de `issue-303-ia-testes-por-fatia-3` mais o que a branch padrão (PR #302) e o PR #120 final trouxeram. Conferido com `git diff` (resultado no relatório da sessão).
+- A #298 (passo 20) vem depois do relógio (19) e da tela de pedir (11), que os testes dela usam; a #300 (21) depois da #289 (18).
+- A #303 não tem passo próprio: os arquivos de teste entram separados nos passos 10 a 16 (blocos 5 e 6); o bloco 8 a fecha.
 
 ## 7. Como as quatro fatias grandes foram cortadas
 
@@ -120,21 +102,28 @@ Chromium do cache do Playwright, app com `--no-launch-profile`, Postgres em cont
 
 Exigiu mexer em código só de teste (#303): `AiTelaAcompanharTests`, `AiTelaPedirTests`, `AiTelaRevisarTests` e `QuestoesSugerirIaTests` viraram classes parciais em dois arquivos; métodos movidos sem alteração, mesma contagem de testes (15, 7, 9 e 15).
 
+Com a entrega por bloco, os dois cortes de cada fatia chegam juntos ou em blocos vizinhos (blocos 4 e 5 para a primeira linha; bloco 5 para a segunda e a terceira; bloco 6 para a quarta). As branches da coluna "Fatia original" são de trabalho.
+
 ## 8. Divergências do ADR-0004 que ficaram
 
-1. **§14 "nenhum trabalhador de IA roda":** com `Off` a raia existe e consulta a fila (costura 2).
-2. **§15 *polling* com JavaScript:** não há; o `<meta refresh>` de 5 s é o único caminho (decisão da #286). O handler `?handler=Status` também não existe.
-3. **§15 "Sugerir" respondendo JSON e campo "Assunto" no criador:** não há (decisões da #288 e da #261).
-4. **§9.4 marca "editada":** questão que nasce de sugestão editada na entrada não leva a marca (só edição posterior, por `AiEditedAt`). Se a contratante quiser, é uma linha em `ListQuestions` (sugestão com `Status == Edited`).
-5. **§10.2 repetição em 429/5xx dentro do adaptador:** é a #251, fora desta cadeia.
+Cada uma é decisão registrada no bloco em que nasce e tem Issue de continuação; mudar qualquer uma passa pela Issue.
+
+1. **§14 "nenhum trabalhador de IA roda":** com `Off` a raia existe e consulta a fila (costura 2; bloco 7). Continuação: #339.
+2. **§15 *polling* com JavaScript:** não há; o `<meta refresh>` de 5 s é o único caminho, e o handler `?handler=Status` não existe (decisão da #286, bloco 5). Continuação: #340.
+3. **§15 "Sugerir" respondendo JSON e campo "Assunto" no criador:** não há (decisões da #288 e da #261, blocos 6 e 3). Continuação: #341.
+4. **§9.4 marca "editada":** questão que nasce de sugestão editada na entrada não leva a marca (só edição posterior, por `AiEditedAt`); o comportamento é fixado por `AiPontaAPontaTests` (bloco 8). Continuação: #342.
+
+A repetição em 429/5xx dentro do adaptador (§10.2) não é divergência: foi entregue pela #251, fora desta cadeia.
 
 ## 9. O que ficou por fazer
 
-- Abrir os 23 PRs na ordem da seção 6 (o 03a antes do 04) (cada um passa por `review-pr`).
-- Issue 13 do plano do ADR (purga das sugestões descartadas, D7) e `scripts/demo.sh` da Issue 14: sem Issue aberta.
+- Purga das sugestões descartadas (Issue 13 do plano do ADR-0004, depende da D7): #337.
+- `scripts/demo.sh` com a IA (a outra metade da Issue 14 do plano; a #301 o deixa fora): #338. O script existente sobe o sistema sem `Ai__Provider`, isto é, com a IA desligada.
+- Divergências do ADR-0004 (seção 8): #339, #340, #341 e #342.
+- Contraste de dois pares que o tema já tinha e ficam abaixo do mínimo (letra branca sobre `--ok` em `.rcard ol li.right b`, 3,7:1; borda de reforço de `.rcard:hover`): #343.
+- Issues abertas da IA fora desta cadeia: #229 (variáveis de IA no Terraform) e #256 (limite de gasto vira `ProviderUnavailable`).
 - Trabalho de fila de tipo sem tratador registrado nunca expira nem é apagado (decisão da #228): com a raia da IA sempre registrada isso não ocorre para `ai.question-drafts`.
-- Medir contraste com ferramenta; `qa-tester`, `docs-writer`, `static-analysis` e `insecure-defaults` na abertura dos PRs.
 
 ## 10. O que não rodou
 
-A suíte completa (regra da máquina: uma classe por vez, pela trava). Rodaram verdes, por classe: todas as classes de teste tocadas em cada passo da cadeia (lista no relatório da sessão), mais `ArchitectureTests`, `JobWorkerTests`, `PanelTests`, `PainelQuestoesTests`, `QuestoesRecreioTests`, `QuestoesListaRecreioTests`, `TemaTelasCssTests` e `PainelSemStyleInlineTests` na branch final. No topo da cadeia rodaram também `AiProviderTests` (11), `HospedagemTests` (8), `JobWorkerTests` (6), `ArchitectureTests` (4) e `HealthTests` (5/6 sem o passo 03a, 6/6 com ele). Como só rodaram as classes tocadas, outro teste que quebre um serviço na subida pode ter o mesmo problema do 03a: só a suíte completa do CI mostra.
+A suíte completa não rodou localmente (regra da máquina: uma classe por vez, pela trava); o CI roda em cada PR. `static-analysis` e `insecure-defaults` como skills separadas não rodaram. Rodaram verdes, por classe: as classes de teste tocadas em cada passo da cadeia (a lista está no handoff de cada Issue), mais `ArchitectureRules`, `JobWorkerTests`, `PanelTests`, `PainelQuestoesTests`, `QuestoesRecreioTests`, `QuestoesListaRecreioTests`, `TemaTelasCssTests` e `PainelSemStyleInlineTests` na branch final da integração. No topo da cadeia rodaram também `AiProviderTests` (11), `HospedagemTests` (8), `JobWorkerTests` (6), `ArchitectureRules` (4) e `HealthTests` (6, com a correção do PR #306). Como só rodaram as classes tocadas, outro teste que quebre um serviço na subida pode ter o mesmo problema da #305: só a suíte completa do CI mostra.
