@@ -36,7 +36,7 @@ Registro do que está publicado e de como acessar. Quem mantém é o Henrique, d
 | Banco | Só na rede privada do projeto: sem domínio público e sem TCP proxy |
 | Seed | Ligado (`Seed__Enabled=true`); roda no pre-deploy `migrate` |
 | E-mail e IA | `Email__Provider=Fake`, `Ai__Provider=Fake` |
-| Sessões do painel | `<a preencher: persistem entre deploys (decisão D4, opção A, com o PR da Issue #103) ou caem a cada deploy (D4 aberta ou opção D)>` |
+| Sessões do painel | Persistem entre deploys: D4 aceita pelo Henrique em 22/11/2026 (tabela no PostgreSQL com o pacote oficial, PR #120, já na `main`) |
 | Publicação | **Automática** a cada merge na `main` (`auto_deploy = true` no `terraform.tfvars`, decisão D3 do Henrique em 22/11/2026). **Wait for CI não espera build nem testes** (o `validate` só roda em `pull_request`); risco aceito só para homologação. Como voltar atrás: commit quebrado publicado → [runbook, 8.2](railway-runbook.md#82-rollback-para-o-deploy-anterior); parar a publicação automática → [Deixar a homologação parada](railway-runbook.md#deixar-a-homologação-parada-para-o-teste-do-jogo) |
 | Infraestrutura como código | `infra/railway/` (Terraform); `plan` e `apply` só pelo Henrique |
 | Estado do Terraform | Local, na máquina do Henrique, fora do git, com backup cifrado ([runbook, 8.9](railway-runbook.md#89-onde-fica-o-estado-do-terraform)) |
@@ -103,14 +103,14 @@ Pendências de decisão e de código, além da lista do ADR-0002 §5.2 abaixo:
 - **Issue #225:** rodar o `validate` também no commit que chega à `main`. Sem ela o Wait for CI não espera build nem testes. O Henrique aceitou isso só em homologação (22/11/2026); em produção é **pré-requisito**.
 - **Issue #222:** primeiro master sem o seed. Em produção o seed é proibido, então é preciso outro jeito de criar o primeiro master.
 - **D1 do ADR-0002:** hoje aceita na opção A (só homologação). Ligar a produção é decisão nova do Henrique.
-- **`auto_deploy` por ambiente:** a variável é única no Terraform; o `true` da homologação não pode valer para a produção (ADR-0002 §7.5).
+- **`auto_deploy` por ambiente:** a variável é única no Terraform; o `true` da homologação não pode valer para a produção (ADR-0002 §7.5; Issue #326).
 
 Antes de ligar (ADR-0002 §5.2):
 
 1. ADR próprio para receber dado real de menor (ADR-0001 §7).
 2. Resposta da contratante sobre região e fornecedores permitidos (C14, Issue #39): os dados ficariam nos Estados Unidos.
 3. Teto de gasto aprovado (C04).
-4. Estado do Terraform separado por ambiente, em backend remoto com lock.
+4. Estado do Terraform separado por ambiente, em backend remoto com lock (Issue #317).
 5. `Seed__Enabled` desligado. O Terraform recusa o seed em `producao`.
 6. Domínio próprio e DNS (C15).
 

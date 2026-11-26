@@ -5,13 +5,13 @@
 
 > **Nada deste runbook foi executado.** Nenhum agente rodou `plan` ou `apply`, criou domínio ou registro DNS. O schema do provider foi lido com `terraform providers schema -json` e no código da tag `v0.6.3`; o comportamento da Railway vem da documentação consultada em 22/11/2026 ([Fontes](#fontes), marcas `[D1]`…). O que não tem fonte está em [Fatos não confirmados](#fatos-não-confirmados).
 
-Todos os exemplos usam `painel.example.org`. Troque pelo domínio real **só no seu `terraform.tfvars`**, que o git ignora; o domínio real não entra no repositório.
+Todos os exemplos usam `paineladm.example.org`. Troque pelo domínio real **só no seu `terraform.tfvars`**, que o git ignora; o domínio real não entra no repositório.
 
 ## Antes de começar
 
 | Pergunta | Resposta |
 |---|---|
-| Subdomínio ou domínio raiz? | **Prefira subdomínio** (`painel.example.org`): um `CNAME` comum funciona em qualquer provedor de DNS. Domínio raiz (`example.org`) só funciona em provedor com *CNAME flattening* ou `ALIAS` dinâmico; a Railway cita Cloudflare, DNSimple, Namecheap e bunny.net como compatíveis, e AWS Route 53, Azure DNS, Hostinger, GoDaddy, NameSilo, Hurricane Electric e SquareSpace como **não** compatíveis. A saída indicada é mover os nameservers para a Cloudflare [D1] |
+| Subdomínio ou domínio raiz? | **Prefira subdomínio** (`paineladm.example.org`): um `CNAME` comum funciona em qualquer provedor de DNS. Domínio raiz (`example.org`) só funciona em provedor com *CNAME flattening* ou `ALIAS` dinâmico; a Railway cita Cloudflare, DNSimple, Namecheap e bunny.net como compatíveis, e AWS Route 53, Azure DNS, Hostinger, GoDaddy, NameSilo, Hurricane Electric e SquareSpace como **não** compatíveis. A saída indicada é mover os nameservers para a Cloudflare [D1] |
 | Quantos domínios o plano permite? | Trial: 1. Hobby: 2 por serviço. Pro: 20 por serviço [D1] |
 | Quem mexe no DNS? | Quem administra a zona do domínio (Igor ou a contratante). Você vai precisar criar **dois** registros |
 | Curinga (`*.example.org`)? | Não é aceito: exige registros que o provider não expõe |
@@ -30,13 +30,13 @@ Em `infra/railway/terraform.tfvars`, descomente `ambientes` e preencha `dominio_
 
 ```hcl
 ambientes = {
-  homologacao = { seed_enabled = true, dominio_proprio = "painel.example.org" }
+  homologacao = { seed_enabled = true, dominio_proprio = "paineladm.example.org" }
 }
 ```
 
 Se você já tinha definido `subdominio`, mantenha-o na mesma linha. Só o nome do host, em minúsculas: sem `https://`, sem barra, sem porta.
 
-`App__PublicBaseUrl` passa a valer `https://painel.example.org` sem você definir nada. Só preencha `variaveis_web.App__PublicBaseUrl` se quiser outro valor (o explícito vence).
+`App__PublicBaseUrl` passa a valer `https://paineladm.example.org` sem você definir nada. Só preencha `variaveis_web.App__PublicBaseUrl` se quiser outro valor (o explícito vence).
 
 ## Passo 2 — `plan`
 
@@ -49,9 +49,9 @@ terraform -chdir=infra/railway plan -out="$HOME/.helinho-infra/homologacao.tfpla
 **✔ Confira (caminho A):**
 
 1. Resumo **`Plan: 1 to add, 1 to change, 0 to destroy.`**
-2. A criar: `module.ambiente["homologacao"].railway_custom_domain.web[0]`, com `domain = "painel.example.org"` e `target_port = 8080`.
+2. A criar: `module.ambiente["homologacao"].railway_custom_domain.web[0]`, com `domain = "paineladm.example.org"` e `target_port = 8080`.
 3. A alterar no lugar: `module.ambiente["homologacao"].railway_variable_collection.web` (os valores aparecem como sensíveis).
-4. Em `Changes to Outputs`: `dns_dominio_proprio` (conhecido só depois do `apply`) e, em `ambientes`, `url_base_app = "https://painel.example.org"` e `App__PublicBaseUrl` na lista `variaveis_web`.
+4. Em `Changes to Outputs`: `dns_dominio_proprio` (conhecido só depois do `apply`) e, em `ambientes`, `url_base_app = "https://paineladm.example.org"` e `App__PublicBaseUrl` na lista `variaveis_web`.
 
 **Se der errado:**
 
@@ -105,7 +105,7 @@ Cadastre os dois no provedor de DNS da zona, copiando `nome` e `valor` como vier
 | `CNAME` | Aponta o host para a Railway | O domínio não resolve |
 | `TXT` | Prova a posse do domínio. É público e não é segredo | O domínio não é verificado e responde `404`, mesmo com o `CNAME` certo [D1] |
 
-Os dois são obrigatórios [D1]. `nome` é relativo à `zona`: se o seu provedor pede o nome completo, junte os dois (`painel.example.org`). **Confira:** os mesmos registros aparecem no painel (`helinho-web` → **Settings** → **Public Networking** → o domínio); se o painel mostrar nome ou valor diferente da saída, vale o painel, e isso vira Issue.
+Os dois são obrigatórios [D1]. `nome` é relativo à `zona`: se o seu provedor pede o nome completo, junte os dois (`paineladm.example.org`). **Confira:** os mesmos registros aparecem no painel (`helinho-web` → **Settings** → **Public Networking** → o domínio); se o painel mostrar nome ou valor diferente da saída, vale o painel, e isso vira Issue.
 
 Na Cloudflare, crie o `CNAME` como **DNS only** (nuvem cinza) até o domínio ser verificado. Se depois ligar o proxy (nuvem laranja), o modo SSL/TLS tem de ser **Full**; **Full (Strict) não funciona** [D1].
 
@@ -114,16 +114,16 @@ Na Cloudflare, crie o `CNAME` como **DNS only** (nuvem cinza) até o domínio se
 Troque pelos nomes da sua saída:
 
 ```sh
-dig +short CNAME painel.example.org
+dig +short CNAME paineladm.example.org
 ```
 
 ```sh
-dig +short TXT _railway-verify.painel.example.org
+dig +short TXT _railway-verify.paineladm.example.org
 ```
 
 **✔ Confira:** o primeiro imprime o `valor` do `CNAME` (com um ponto no fim) e o segundo, o `valor` do `TXT` entre aspas. Repita com `@1.1.1.1` e `@8.8.8.8` depois de `dig` para ver resolvedores públicos.
 
-**Se der errado:** saída vazia → o registro ainda não propagou ou foi criado com o nome errado (nome duplicado, como `painel.example.org.example.org`, é o erro comum). A propagação pode levar até 72 horas [D1]; em geral são minutos.
+**Se der errado:** saída vazia → o registro ainda não propagou ou foi criado com o nome errado (nome duplicado, como `paineladm.example.org.example.org`, é o erro comum). A propagação pode levar até 72 horas [D1]; em geral são minutos.
 
 ## Passo 6 — Conferir a verificação e o certificado
 
@@ -132,18 +132,18 @@ A Railway emite o certificado sozinha (Let's Encrypt, 90 dias, renovação autom
 No painel, em **Public Networking**, o domínio ganha uma marca verde quando é verificado [D1]. No terminal:
 
 ```sh
-curl -sS -o /dev/null -w '%{http_code}\n' https://painel.example.org/health/ready
+curl -sS -o /dev/null -w '%{http_code}\n' https://paineladm.example.org/health/ready
 ```
 
 **✔ Confira:** imprime `200`.
 
 ```sh
-echo | openssl s_client -connect painel.example.org:443 -servername painel.example.org 2>/dev/null | openssl x509 -noout -subject -issuer -dates
+echo | openssl s_client -connect paineladm.example.org:443 -servername paineladm.example.org 2>/dev/null | openssl x509 -noout -subject -issuer -dates
 ```
 
 **✔ Confira:** `subject` com o seu domínio, `issuer` da Let's Encrypt e `notAfter` cerca de 90 dias à frente.
 
-Depois repita, com `BASE=https://painel.example.org`, as conferências 6.5 a 6.7 do runbook principal (login no painel, `POST /api/login`, cookie `Secure` e HSTS). O cookie de sessão vale por host: quem entrou pelo endereço `*.up.railway.app` entra de novo pelo domínio próprio.
+Depois repita, com `BASE=https://paineladm.example.org`, as conferências 6.5 a 6.7 do runbook principal (login no painel, `POST /api/login`, cookie `Secure` e HSTS). O cookie de sessão vale por host: quem entrou pelo endereço `*.up.railway.app` entra de novo pelo domínio próprio.
 
 ### Se o certificado não sair
 
@@ -160,7 +160,7 @@ Depois repita, com `BASE=https://painel.example.org`, as conferências 6.5 a 6.7
 ## Passo 7 — Registrar
 
 1. Em `docs/operations/ambientes.md`, registre a URL do domínio próprio ao lado da `url_publica`.
-2. Para o desenvolvedor Unity, a base da API passa a ser `https://painel.example.org/api`. As saídas `url_publica` e `url_api` continuam com o endereço `*.up.railway.app`, que segue funcionando.
+2. Para o desenvolvedor Unity, a base da API passa a ser `https://paineladm.example.org/api`. As saídas `url_publica` e `url_api` continuam com o endereço `*.up.railway.app`, que segue funcionando.
 3. HSTS com `includeSubDomains` e `preload` continua fora (Passo 9 do runbook principal): é mudança de aplicação, em Issue própria.
 
 ## Remover o domínio próprio

@@ -3,9 +3,17 @@
 **Data:** 19/11/2026 · **Status:** aceito em 22/11/2026 (ver seção 16) · **Decisor:** Henrique
 **Base:** ADR-0001 (§2, provedores externos atrás de portas; §7, ameaças; e o parágrafo "Dados" da §1, que este ADR revisa), ADR-0002 (§9 Data Protection, §10 variáveis), Issue #176, skills `engineering-standards`, `owasp-security`, `site-compliance` e `devops-standards`, respostas da contratante C05, C13, C14, C15 e C20.
 
-Os códigos C04, C05, C09, C13, C14, C15, C20 e A01 são itens do Q&A com a contratante, "Perguntas e Respostas — Universo do Hélinho", mantido pelo Henrique fora do repositório. O ADR-0002 ainda não está na `main`: foi lido em `origin/issue-93-adr-hospedagem` (PR #101).
+Os códigos C04, C05, C09, C13, C14, C15, C20 e A01 são itens do Q&A com a contratante, "Perguntas e Respostas — Universo do Hélinho", mantido pelo Henrique fora do repositório. O ADR-0002 foi lido, na época, em `origin/issue-93-adr-hospedagem`; hoje ele (PR #101) e este ADR (PR #185) estão na `main`.
 
 Este ADR não muda código. Ele fecha as decisões da Sprint 3 para que as Issues de código possam ser abertas.
+
+> **Nota de situação, 25/11/2026.** O texto abaixo é o de 22/11/2026 e não foi reescrito; onde ele diverge do que existe hoje, vale esta nota.
+>
+> - **Ordem da medição (§8.4 condição 1, §16 e §18 item 5).** O texto diz que a medição do link vem antes da Issue dos tokens. Decisão do Henrique em 22/11/2026: os tokens e a página são implementados antes, com `Email__Provider=Fake`; **a medição trava ligar `Email__Provider=Brevo`, não a construção.**
+> - **§11.3, "manda para a tela de entrar".** Implementado (Issue #240, PR #252) como tela de sucesso própria: o `POST` redireciona para `?definida=True`, confirma a senha gravada e oferece "Entrar no painel". Não há login automático (F20). Motivo: a mesma página serve ao responsável do aluno, que não entra no painel.
+> - **§13, Terraform.** `Email__Provider`, `Brevo__SenderEmail`, `Brevo__SenderName`, `App__PublicBaseUrl` e `brevo_api_key` já estão na `main`, e a URL pública é derivada de `dominio_proprio` (PR #330), não preenchida à mão. `Email__DailyLimit`, `brevo_webhook_secret` e as validações de remetente e de URL estão **em entrega** (Issue #229; PRs #333 e #233, abertos).
+> - **Já na `main`:** adaptador da Brevo (#210), opções e registro `Fake`/`Brevo` (#211), modelos (#212), caixa de saída de desenvolvimento (#283), provedores de token (#244), página `/conta/definir-senha` (#252), fila (tabela, porta, contratos, processador e limites: #304, #310, #311, #314, #316, #321, #325) e e-mail do responsável no cadastro do aluno (#312). Chaves do Data Protection: #120.
+> - **Em entrega** (PRs abertos, sem data): o `BackgroundService` da fila (Issue #228), o tratador de e-mail, o convite de administrador, a redefinição de senha, o acesso do aluno e a rota do webhook.
 
 **Este ADR revisa um ponto do ADR-0001** (aceito): o parágrafo "Dados" diz que "não há caso para consistência eventual, cache distribuído ou fila" (`docs/architecture/ADR-0001-stack.md:23`). Agora há caso para fila. A revisão está na seção 5 e foi aceita pelo Henrique em 22/11/2026 (seção 16, D15).
 

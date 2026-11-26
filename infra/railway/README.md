@@ -123,11 +123,11 @@ Opcional e desligado por padrão. Em `terraform.tfvars`:
 
 ```hcl
 ambientes = {
-  homologacao = { seed_enabled = true, dominio_proprio = "painel.example.org" }
+  homologacao = { seed_enabled = true, dominio_proprio = "paineladm.example.org" }
 }
 ```
 
-Com o campo preenchido, o módulo cria `railway_custom_domain.web` e `App__PublicBaseUrl` passa a valer `https://painel.example.org`. Para outro valor, defina `variaveis_web.App__PublicBaseUrl`: o valor explícito vence. Hoje nenhum código da aplicação lê essa variável (ela é da Sprint 3). O domínio `*.up.railway.app` continua existindo, e `url_publica` e `url_api` continuam apontando para ele.
+Com o campo preenchido, o módulo cria `railway_custom_domain.web` e `App__PublicBaseUrl` passa a valer `https://paineladm.example.org`. Para outro valor, defina `variaveis_web.App__PublicBaseUrl`: o valor explícito vence. Hoje nenhum código da aplicação lê essa variável (ela é da Sprint 3). O domínio `*.up.railway.app` continua existindo, e `url_publica` e `url_api` continuam apontando para ele.
 
 Depois do `apply`, `terraform output dns_dominio_proprio` traz os dois registros que a Railway exige: o `CNAME` do host e o `TXT` de verificação de posse. O `TXT` vai para o DNS público e não é segredo. `nome` é relativo à `zona`. O passo a passo (ordem em relação ao primeiro deploy, DNS, `dig`, certificado) está em `docs/operations/railway-dominio.md`.
 

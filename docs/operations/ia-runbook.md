@@ -1,7 +1,7 @@
 # Runbook — geração de rascunhos de questões por IA
 
 **Para quem:** Henrique, sozinho, no navegador e na própria máquina (macOS). **Escrito em:** 22/11/2026 (Issue #253).
-**Descreve:** o ADR-0004 (`docs/architecture/ADR-0004-ia-geracao-questoes.md`, aceito em 22/11/2026), o Terraform de `infra/railway/` na versão do PR #233 (ainda não mesclado) e o código do núcleo da IA: porta, opções, gerador desligado, gerador fake e prompt v1 já estão na branch padrão (Issues #224, #227, #231, #232); validador, analisador e adaptador da Anthropic ainda estão fora dela (Issues #236, #246, #249, #250, #251). Formato e terminal do Terraform: o mesmo do [runbook da Railway](railway-runbook.md) e do [runbook da Brevo](brevo-runbook.md).
+**Descreve:** o ADR-0004 (`docs/architecture/ADR-0004-ia-geracao-questoes.md`, aceito em 22/11/2026), o Terraform de `infra/railway/` da branch padrão (conferido em 25/11/2026; as variáveis restantes da Issue #229 estão no PR #233, ainda aberto) e o código do núcleo da IA, **todo já na branch padrão**: porta, opções, gerador desligado, gerador fake, prompt v1, analisador, validador, adaptador da Anthropic com repetição e registro (PRs #230, #254, #262, #264, #273, #282, #284, #296 e #302). Faltam, em entrega, a migração, os casos de uso e as telas. Formato e terminal do Terraform: o mesmo do [runbook da Railway](railway-runbook.md) e do [runbook da Brevo](brevo-runbook.md).
 
 > **Nada deste runbook foi executado.** Nenhum agente criou conta, chave ou limite de gasto, nem chamou a API da Anthropic, nem rodou `terraform plan` ou `apply`. Os passos do console da Anthropic **não foram conferidos na tela**: vêm do ADR-0004 (fontes lidas em 19/11/2026) e estão marcados **Confira**. O console muda; se a tela não bater com o texto, vale a tela.
 
@@ -9,7 +9,7 @@ Só dados sintéticos fora da produção. Nenhum exemplo traz chave, e-mail ou d
 
 ## Resumo
 
-**O que existe hoje.** O gerador fake e o adaptador do Claude Haiku (Anthropic) estão escritos e testados com cliente falso, atrás de `Ai__Provider`. O Terraform (PR #233) já tem as variáveis. A aplicação sobe com a IA `Off` (padrão do código), `Fake` ou `Anthropic`.
+**O que existe hoje.** O gerador fake e o adaptador do Claude Haiku (Anthropic) estão escritos e testados com cliente falso, atrás de `Ai__Provider`. Na branch padrão o Terraform tem só `Ai__Provider`, `Ai__Model` e `ai_api_key`; o resto das variáveis e as validações estão em entrega (Issue #229, PR #233). A aplicação sobe com a IA `Off` (padrão do código), `Fake` ou `Anthropic`.
 
 **O que falta.**
 1. **A chave da Anthropic e o aval da contratante** (ADR-0004 D8, o Marcos). Chegam depois. Hoje a homologação sobe em `Fake` (sugestões fictícias) e a produção em `Off`.
@@ -33,6 +33,8 @@ Só dados sintéticos fora da produção. Nenhum exemplo traz chave, e-mail ou d
 | `Ai__TimeoutSeconds` | Não vem do provedor | `variaveis_web` | não | `90` (5 a 300) |
 | `Ai__DailyQuotaPerAdmin` | Não vem do provedor | `variaveis_web` | não | `60` |
 | `Ai__DailyGlobalLimit` | Não vem do provedor | `variaveis_web` | não | `300` |
+
+As três últimas linhas (`Ai__TimeoutSeconds` e as duas cotas) só passam a existir em `variaveis_web` quando o PR #233 entrar; até lá a aplicação usa os padrões do código.
 
 `Ai:Fake:DelayMilliseconds` e `Ai:Fake:Failure` são chaves **só de desenvolvimento e teste**; não entram no Terraform e não se usam em ambiente publicado.
 
@@ -83,7 +85,7 @@ O modelo vem **sempre** de `Ai__Model`; o código não tem nome de modelo.
 
 ## 3. Ligar pelo Terraform
 
-> **Confira contra o código mesclado.** As variáveis, as validações e a saída `provedor_ia` desta seção vêm do PR #233 (branch `issue-229-terraform-email-ia`), ainda **fora da branch padrão**. Antes do `plan`, abra `infra/railway/variables.tf` e `infra/railway/README.md` na branch padrão; se divergirem deste texto, vale o código mesclado.
+> **Confira contra o código mesclado.** Na branch padrão só existem `Ai__Provider`, `Ai__Model` e `ai_api_key`, e a única validação é "`Ai__Provider` diferente de `Fake` exige a chave" (por isso `Off` ainda pede chave: Issue #182). As demais variáveis (`Ai__TimeoutSeconds`, as cotas), as validações de modelo e a saída `provedor_ia` desta seção vêm do PR #233 (Issue #229), **em entrega**. Antes do `plan`, abra `infra/railway/variables.tf` e `infra/railway/README.md` na branch padrão; se divergirem deste texto, vale o código mesclado.
 
 Terminal do Terraform, na raiz do repositório, como no [runbook da Railway, 4.3](railway-runbook.md#43-exportar-os-segredos-sem-deixá-los-no-histórico). **Você** roda `plan` e `apply`; nenhum agente roda.
 
@@ -131,7 +133,7 @@ Esta parte será escrita quando as telas de `/questoes/ia` existirem (ADR-0004 �
 
 ### 4.3 O que cada motivo de falha significa
 
-O adaptador classifica toda falha num motivo fechado (`QuestionDraftFailure`, já na branch padrão). A classificação por código HTTP vem do adaptador, ainda fora da branch padrão (branch `issue-250-ia-registro-anthropic`): **confira contra o código mesclado**. Na fila, o motivo vira `ai_timeout`, `ai_unavailable` etc. (ADR-0004 §10.2). O que cada um pede de quem opera:
+O adaptador classifica toda falha num motivo fechado (`QuestionDraftFailure`, já na branch padrão). A classificação por código HTTP vem do adaptador, já na branch padrão (`AnthropicQuestionDraftGenerator.cs`; PRs #284 e #296). Na fila, o motivo vira `ai_timeout`, `ai_unavailable` etc. (ADR-0004 §10.2). O que cada um pede de quem opera:
 
 | Motivo | Quando acontece | O que fazer |
 |---|---|---|
@@ -215,24 +217,26 @@ Com `Off`, os botões e avisos de IA somem, as rotas de IA respondem 404 (quando
 - **Não defina `ANTHROPIC_LOG=debug` em produção** (nem em homologação com texto real). **Confira** na documentação do SDK C# (`https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/csharp`) o que esse nível registra; o risco é gravar requisições com cabeçalhos e texto no log. O adaptador por si só nunca grava nada disso (item 4.4).
 - **`ANTHROPIC_BASE_URL` não é usado** pelo adaptador. O endereço da API é fixo no código, em HTTPS. Também não valem `ANTHROPIC_API_KEY` nem `ANTHROPIC_AUTH_TOKEN`: endereço e chave são passados na construção do cliente (handoff 249). Há teste para `ANTHROPIC_BASE_URL` e `ANTHROPIC_AUTH_TOKEN` (`AnthropicQuestionDraftGeneratorTests`); para `ANTHROPIC_API_KEY`, **ainda não há teste**. Não existe `Ai__BaseUrl`. A chave só vale vinda de `Ai__ApiKey`.
 - **Em `Development` o provedor efetivo nunca é o real:** `Anthropic` vira `Fake` com aviso no log. Teste local não chama a API mesmo com chave no ambiente.
-- **O cliente HTTP do adaptador não segue redirecionamento**, para que uma resposta 307 não reenvie a chave a outro endereço (`AllowAutoRedirect = false` em `Composition/Areas/Ia.cs`, coberto por `AiProviderTests`, na branch `issue-250-ia-registro-anthropic`).
+- **O cliente HTTP do adaptador não segue redirecionamento**, para que uma resposta 307 não reenvie a chave a outro endereço (`AllowAutoRedirect = false` em `Composition/Areas/Ia.cs`, coberto por `AiProviderTests`; PR #302).
 - **Não cadastre chave real em máquina de desenvolvimento nem em CI.** Nenhum teste chama a API; se um teste pedir chave real, é defeito.
 
 ## O que ainda não existe
 
 O runbook descreve o que **vale hoje**. Para não prometer o que o código não faz, esta é a lista do que **falta** (ADR-0004 §19; os números são as Issues do plano, quando existirem):
 
-| Peça | Estado em 22/11/2026 | Efeito no runbook |
+| Peça | Estado em 25/11/2026 | Efeito no runbook |
 |---|---|---|
 | Porta, opções `Ai__*`, gerador desligado, gerador `Fake` e prompt v1 (#224, #227, #231, #232) | Na branch padrão | Valem no próximo deploy |
-| Validador e analisador da saída (#236, #246) | Fora da branch padrão | Sem eles o adaptador não entra |
-| Adaptador da Anthropic, repetição, registro na porta (#249, #251, #250) | Escritos, fora da branch padrão; **nunca falaram com a API real** | A primeira chamada real é o teste de fumaça deste runbook, quando a UI existir |
-| Variáveis `Ai__*` no Terraform (PR #233) | Aprovado, **não mesclado** | O passo 3 só funciona depois do merge |
-| **Migração** (`AiGenerationJobs`, `AiQuestionSuggestions`, proveniência em `Question`) | Não existe | Sem tabelas, não há registro de uso, cota nem sugestões |
-| **Casos de uso** (`RequestAiDrafts`, tratador na fila, aprovar, descartar, editar, "Sugerir") | Não existem | Cotas ainda **não são cobradas**; os limites da seção 5 são só configuração |
-| **Fila** (`QueueJobs`) e worker (ADR-0003, #223 e #228) | Não existem | Sem a fila, nada chama o gerador |
-| **Telas `/questoes/ia`**, selo "IA", filtro de origem, botão "Gerar com IA", filtro 404 com `Off` | Em construção | A conferência de ponta a ponta ([4.2](#42-quando-a-ui-entrar-a-completar)) e a mensagem de cada motivo na tela serão escritas quando a UI entrar |
-| Purga das sugestões descartadas (30 dias) e retenção do "assunto" (IA-2) | Não existe | Sem prazo de apagamento hoje |
+| Analisador e validador da saída (#236, #246; PRs #273 e #282) | **Na branch padrão** | — |
+| Adaptador da Anthropic, repetição e registro na porta (#249, #251, #250; PRs #284, #296 e #302) | **Na branch padrão**; **nunca falaram com a API real** | A primeira chamada real é o teste de fumaça deste runbook, quando a UI existir |
+| Variáveis `Ai__*` no Terraform (Issue #229, PR #233) | **Em entrega** (aprovado, não mesclado). Na branch padrão só `Ai__Provider`, `Ai__Model` e `ai_api_key` | Cotas e prazo não são enviados à Railway; o passo 3 usa só o que já existe |
+| `Ai__Provider=Off` sem chave no Terraform (Issue #182) | **Em entrega** | Até lá o Terraform pede chave para `Off` também |
+| Ajuste do limite de gasto para `ProviderUnavailable` (Issue #256) | **Em entrega** | Vale o que diz a seção "Diferenças", item 1 |
+| **Migração** (`AiGenerationJobs`, `AiQuestionSuggestions`, proveniência em `Question`) | **Em entrega** (PR #257, aberto) | Sem tabelas, não há registro de uso, cota nem sugestões |
+| **Casos de uso** (`RequestAiDrafts`, tratador na fila, aprovar, descartar, editar, "Sugerir") | **Em entrega** (PRs #258 a #261, #263, #275, #287, #295, #298, #299 e #301, abertos) | Cotas ainda **não são cobradas**; os limites da seção 5 são só configuração |
+| **Fila** (`QueueJobs`) e trabalhador (ADR-0003, #223 e #228) | **Na branch padrão:** tabela, porta, contratos, processador e limites (#304, #310, #311, #314, #316, #321, #325). **Em entrega:** o `BackgroundService` (Issue #228, PR #331) | Sem o trabalhador em segundo plano, nada chama o gerador |
+| **Telas `/questoes/ia`**, selo "IA", filtro de origem, botão "Gerar com IA", filtro 404 com `Off` | **Em entrega** (PRs #286, #288, #289, #294 e #300, abertos) | A conferência de ponta a ponta ([4.2](#42-quando-a-ui-entrar-a-completar)) e a mensagem de cada motivo na tela serão escritas quando a UI entrar |
+| Purga das sugestões descartadas (30 dias) e retenção do "assunto" (IA-2) | Não existe, sem Issue aberta | Sem prazo de apagamento hoje |
 
 **Quando a UI entrar, este runbook deve ser atualizado** em: 4.2 (roteiro de verificação com cliques), a tabela de motivos (texto exato das mensagens e onde ver a linha da fila) e a seção 5 (onde ver a cota restante e o uso por pedido).
 
@@ -244,13 +248,13 @@ O runbook segue o **código** onde ele difere do ADR, e diz isso aqui.
 2. **Faixas de cota.** O código só exige cotas maiores que zero. O Terraform é mais estrito (`Ai__DailyQuotaPerAdmin` de 1 a 10000 e `Ai__DailyGlobalLimit` de 1 a 100000). O Terraform manda no ambiente; as duas coisas não conflitam.
 3. **Atraso do fake.** O ADR sugere 1500 ms na demonstração; o código padrão é 0 (o ADR e o handoff da #232 dizem que quem liga é o ambiente ou `scripts/demo.sh`). `Ai:Fake:DelayMilliseconds` não está no Terraform.
 4. **`Timeout` no fake.** Não lança `Timeout`: espera até o prazo de quem chamou. Só importa para quem testa localmente.
-5. **SDK.** O ADR §6.4 diz "SDK oficial" (D4) e o código usa o pacote `Anthropic` 13.10.0 (`Directory.Packages.props` e handoff 249); a tentativa do SDK é desligada (`MaxRetries = 0`, em `AnthropicQuestionDraftGenerator.cs`; handoffs 249 e 251) e a repetição é nossa, só para 429 e 5xx. Tudo isso está na branch `issue-250-ia-registro-anthropic`. Não há diferença para quem opera.
-6. **Terraform e o ADR §14.** Os dois ajustes que o ADR pedia ao Terraform (chave só com `Anthropic`; `Fake`/`Off` sem chave) estão no PR #233, junto com a exigência de `Ai__Model` e a recusa de `latest`.
+5. **SDK.** O ADR §6.4 diz "SDK oficial" (D4) e o código usa o pacote `Anthropic` 13.10.0 (`Directory.Packages.props` e handoff 249); a tentativa do SDK é desligada (`MaxRetries = 0`, em `AnthropicQuestionDraftGenerator.cs`; handoffs 249 e 251) e a repetição é nossa, só para 429 e 5xx. Tudo isso já está na branch padrão. Não há diferença para quem opera.
+6. **Terraform e o ADR §14.** Os dois ajustes que o ADR pedia ao Terraform (chave só com `Anthropic`; `Fake`/`Off` sem chave) **não estão na branch padrão**: estão em entrega no PR #233 (Issue #229) e na Issue #182, junto com a exigência de `Ai__Model` e a recusa de `latest`. Hoje o Terraform exige chave para qualquer valor diferente de `Fake`.
 
 ## Fontes
 
 - ADR-0004, seções 6.1 (fatos da API na data), 11, 13, 14, 16 e 18; `docs/context/pendencias-ia.md`.
-- `infra/railway/README.md` do PR #233 (branch `issue-229-terraform-email-ia`): variáveis, padrões, validações, `terraform output ambientes`.
+- `infra/railway/README.md` da branch padrão e, para o que ainda está em entrega, do PR #233 (branch `issue-229-terraform-email-ia`): variáveis, padrões, validações, `terraform output ambientes`.
 - Handoffs 227, 232, 249, 250 e 251 (branch `issue-250-ia-registro-anthropic`): nomes das opções, motivos de falha, repetição, log, `Development`.
 - Branch padrão, conferida em 22/11/2026: `src/Helinho.Application/Ai/AiOptions.cs` (nomes, padrões e mensagens das opções) e `src/Helinho.Web/Composition/Areas/Ia.cs` (aviso em `Development`).
 - Documentação da Anthropic citada pelo ADR-0004, lida em 19/11/2026 e **não reconferida** para este runbook: `https://platform.claude.com/docs/en/about-claude/models/overview`, `.../api/errors`, `.../api/rate-limits`, `.../cli-sdks-libraries/sdks/csharp`.
