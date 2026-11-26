@@ -16,11 +16,11 @@ Este ADR não cria conta, não fecha contrato e não chama modelo nenhum. O prov
 
 > **Nota de situação, 25/11/2026.** O texto abaixo é o de 22/11/2026 e não foi reescrito; onde ele diverge do que existe hoje, vale esta nota. Os trechos que dizem "não existe fila em `main`" ou "o ADR-0003 ainda não está em `main`" (§1, F25 e §19, item 10) descrevem o dia da escrita.
 >
-> - **Já na `main`:** porta de geração (#230), opções `Ai__*` (#254), prompt v1 (#262), gerador fake (#264), analisador estrito (#273), validador e deduplicação (#282), adaptador da Anthropic (#284), repetição em 429 e 5xx (#296) e o registro do adaptador (#302). Da fila, a tabela, a porta, os contratos e o processador com limites (#304, #310, #311, #314, #316, #321, #325).
-> - **Em entrega** (PRs e Issues abertos, sem data): o `BackgroundService` da fila (Issue #228), a migração da IA (#257), as regras do domínio (#263), os casos de uso (pedir em lote, tratador, revisão, sugestão avulsa) e as telas `/questoes/ia` e do criador de questões.
+> - **Já na `main`:** porta de geração (#230), opções `Ai__*` (#254), prompt v1 (#262), gerador fake (#264), analisador estrito (#273), validador e deduplicação (#282), adaptador da Anthropic (#284), repetição em 429 e 5xx (#296) e o registro do adaptador (#302). Da fila, a tabela, a porta, os contratos e o processador com limites (#304, #310, #311, #314, #316, #321, #325) e o `BackgroundService` (Issue #228, PR #331). A migração da IA e as regras do domínio (Issues #257 e #263, PR #345). O pedido em lote, o tratador e a leitura do pedido (Issues #258, #259 e #275, PR #349).
+> - **Em entrega** (PRs e Issues abertos, sem data): a revisão e a sugestão avulsa (Issues #260 e #261, PR #351) e as telas `/questoes/ia` e do criador de questões.
 > - **§6.2, limite de gasto.** O código só manda para `ProviderUnavailable` o 429 de teto de gasto da camada; o 400 do limite próprio do console e o 402 caem em `Misconfigured`. O ajuste está na Issue #256 (aberta).
 > - **§5, atraso do fake.** O padrão no código é 0 ms, e não 1500: quem liga o atraso é o ambiente local ou o script de demonstração. `Ai:Fake:DelayMilliseconds` não está no Terraform.
-> - **§14, Terraform.** `Ai__Provider` e `Ai__Model` já estão na `main`; as validações restantes e o `Ai__Provider=Off` sem chave estão em entrega (Issues #229 e #182; PR #233).
+> - **§14, Terraform.** As variáveis `Ai__*`, as validações e o `Ai__Provider=Off` sem chave estão na `main` (Issues #229 e #182, PR #344).
 
 ---
 

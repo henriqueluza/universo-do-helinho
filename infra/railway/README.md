@@ -159,7 +159,7 @@ Hoje o e-mail sobe em `Fake` e nada é enviado. Para ligar o envio real (ADR-000
    variaveis_web = {
      Email__Provider    = "Brevo"
      Brevo__SenderEmail = "nao-responda@example.org" # remetente de um domínio autenticado na Brevo
-     Brevo__SenderName  = "Universo do Hélinho"
+     Brevo__SenderName  = "Universo do Hélinho · FUNDHAS" # proposta M4 do runbook da Brevo; até 70 caracteres
      App__PublicBaseUrl = "https://paineladm.example.org" # dispensável se o ambiente tiver dominio_proprio
    }
    ```
