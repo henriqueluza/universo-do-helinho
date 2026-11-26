@@ -1,0 +1,3 @@
+# Exemplo de terraform.tfvars. Copie para terraform.tfvars (ignorado pelo git) quando houver variáveis.
+# Ainda não há variável declarada em variables.tf; os exemplos entram com os recursos.
+# Nunca coloque segredo aqui: o token da Railway vem da variável de ambiente RAILWAY_TOKEN.

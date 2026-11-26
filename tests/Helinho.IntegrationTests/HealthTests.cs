@@ -100,8 +100,13 @@ public class HealthTests(PostgresFixture postgres)
     [Fact]
     public async Task Falha_inesperada_na_consulta_vira_503_sem_detalhe()
     {
-        await using var factory = new HelinhoWebFactory(postgres, configure: s => s.AddScoped<IAppDbContext>(_ => throw new InvalidOperationException("Host=banco-interno")));
+        // A falha é da consulta, não da subida: o trabalhador da fila resolve os tratadores (e o contexto deles) ao
+        // subir, então o contexto só passa a falhar depois que o host está no ar.
+        var up = false;
+        await using var factory = new HelinhoWebFactory(postgres, configure: s => s.AddScoped<IAppDbContext>(
+            provider => up ? throw new InvalidOperationException("Host=banco-interno") : provider.GetRequiredService<Helinho.Infrastructure.Persistence.AppDbContext>()));
         using var client = factory.CreateClient();
+        up = true;
 
         var response = await client.GetAsync("/health/ready", TestContext.Current.CancellationToken);
 
