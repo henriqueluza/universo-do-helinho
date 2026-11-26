@@ -1,9 +1,12 @@
+using System.Net;
+using System.Text.RegularExpressions;
 using Helinho.Application.Abstractions;
 using Helinho.Application.Questions;
 using Helinho.Domain;
 using Helinho.Domain.Entities;
 using Helinho.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
 namespace Helinho.IntegrationTests;
@@ -26,6 +29,8 @@ public class AiEditedAtTests(PostgresFixture postgres)
         public Guid? UnitId => null;
         public bool IsInRole(string role) => false;
     }
+
+    private sealed record FixedClock(DateTimeOffset UtcNow) : IClock;
 
     private AppDbContext NewContext() =>
         new(new DbContextOptionsBuilder<AppDbContext>()
@@ -90,5 +95,47 @@ public class AiEditedAtTests(PostgresFixture postgres)
 
         await using var read = NewContext();
         Assert.Null((await read.Questions.AsNoTracking().SingleAsync(q => q.Id == id, Ct)).AiEditedAt);
+    }
+
+    // Critério 1 da #287: a hora vem do relógio da aplicação, passada pela página Editar (um host só nesta classe).
+    [Fact]
+    public async Task Pagina_Editar_grava_AiEditedAt_com_a_hora_do_relogio_da_aplicacao()
+    {
+        await using var factory = new HelinhoWebFactory(postgres, clock: new FixedClock(EditedAt));
+        await factory.EnsureDatabaseAsync();
+        Guid id;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var job = new AiGenerationJob(AiJobKind.Single, QuizType.Cultural, AgeBand.Age8To10, 1, null, Guid.NewGuid(), GeneratedAt);
+            db.AiGenerationJobs.Add(job);
+            List<(string, bool)> items = [("Um", true), ("Dois", false), ("Três", false), ("Quatro", false)];
+            var question = Question.FromAi(QuizType.Cultural, AgeBand.Age8To10, "Qual é a questão sintética?", "Explicação.", items, job.Id, "gerar-questoes.v1", GeneratedAt);
+            db.Questions.Add(question);
+            await db.SaveChangesAsync(Ct);
+            id = question.Id;
+        }
+
+        using var client = factory.CreateClientAs(RoleNames.Master);
+        var url = $"/Questoes/Editar/{id}";
+        var token = Regex.Match(await client.GetStringAsync(url, Ct), "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
+        using var response = await client.PostAsync(url, new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["Input.QuizType"] = "Cultural",
+            ["Input.AgeBand"] = "Age8To10",
+            ["Input.Statement"] = "Qual é a questão editada na página?",
+            ["Input.OptionA"] = "Um",
+            ["Input.OptionB"] = "Dois",
+            ["Input.OptionC"] = "Três",
+            ["Input.OptionD"] = "Quatro",
+            ["Input.Correct"] = "1",
+            ["Input.Explanation"] = "Explicação nova.",
+            ["__RequestVerificationToken"] = token,
+        }), Ct);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        await using var leitura = factory.Services.CreateAsyncScope();
+        var saved = await leitura.ServiceProvider.GetRequiredService<AppDbContext>().Questions.AsNoTracking().SingleAsync(q => q.Id == id, Ct);
+        Assert.Equal((QuestionOrigin.Ai, EditedAt, QuestionStatus.Draft), (saved.Origin, saved.AiEditedAt, saved.Status));
     }
 }
