@@ -53,6 +53,6 @@ public sealed class LoginIdentityGateway(AppDbContext db, UserManager<AppUser> u
             return await users.FindByIdAsync(byEnrollment.ToString());
         }
 
-        return await users.FindByNameAsync(login) ?? await users.FindByEmailAsync(login);
+        return await users.FindByNameAsync(login) ?? await users.FindByUniqueEmailAsync(login, cancellationToken);
     }
 }
