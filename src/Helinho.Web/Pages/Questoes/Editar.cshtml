@@ -23,6 +23,8 @@
     var explanation = Model.Input.Explanation?.Trim();
     if (explanation is { Length: > 160 }) { explanation = explanation[..160] + "…"; }
     var correct = Model.Input.Correct;
+    var filled = Model.AiState == AiState.Filled ? " ai-filled" : "";
+    var aiUrl = Url.Page("/Questoes/Editar", "Sugerir");
     var checklist = new (string Key, string Label, bool Done)[]
     {
         ("tema", "Tema escolhido", quiz is not null),
@@ -46,6 +48,15 @@
 
 <div class="maker" data-maker>
     <form class="maker-form" method="post" novalidate>
+        @if (Model.AiEnabled)
+        {
+            @* Botão padrão do Enter: o primeiro botão de envio do formulário é o que o Enter aciona, e o "Sugerir" vem antes do "Salvar". *@
+            <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">Salvar</button>
+            @if (Model.AiJobId is { } aiJobId)
+            {
+                <input type="hidden" name="AiJobId" value="@aiJobId" />
+            }
+        }
         @if (errors.Count > 0)
         {
             <div class="alert" role="alert" tabindex="-1" id="resumo-erros" autofocus>
@@ -98,9 +109,39 @@
 
         <fieldset class="step">
             <legend class="step-h"><span class="n" aria-hidden="true">3</span>Escreva a pergunta</legend>
+            @if (Model.AiEnabled)
+            {
+                <div class="ai-help">
+                    <svg aria-hidden="true"><use href="#i-ai"/></svg>
+                    <span><b>Sem ideia?</b> A IA sugere uma pergunta do tema e da faixa escolhidos. Você confere e edita antes de salvar.@if (Model.AiDemo) { <small>Modo de demonstração: sugestões fictícias.</small> }</span>
+                    <button class="btn btn-ai btn-sm" type="submit" formaction="@aiUrl" data-sugerir><svg class="fill" aria-hidden="true"><use href="#i-ai"/></svg><span data-sugerir-rotulo>Sugerir</span></button>
+                    @* Anúncio do "sugerindo": o painel.js escreve aqui, fora do resultado, para não apagar o botão que está enviando. *@
+                    <span class="visually-hidden" role="status" data-sugerir-aviso></span>
+                </div>
+                @* Resultado do "Sugerir": o foco vai para cá depois que a página recarrega, e o leitor de tela lê o que mudou. Texto da IA só pela codificação do Razor. *@
+                <div class="ai-result" id="ia-resultado" role="status" aria-live="polite" tabindex="@(Model.AiState != AiState.None ? "-1" : null)" autofocus="@(Model.AiState != AiState.None ? "autofocus" : null)">
+                    @if (Model.AiState == AiState.Filled || (Model.AiState == AiState.None && Model.AiJobId is not null))
+                    {
+                        <span class="tag tag-ai ai-flag"><svg aria-hidden="true"><use href="#i-ai"/></svg>Sugerida pela IA · confira antes de salvar</span>
+                        @if (Model.AiState == AiState.Filled)
+                        {
+                            <small>Os campos abaixo foram preenchidos. Nada foi salvo ainda: edite o que quiser e clique em Salvar.</small>
+                        }
+                    }
+                    else if (Model.AiState == AiState.Confirm)
+                    {
+                        <div class="note ai"><svg aria-hidden="true"><use href="#i-ai"/></svg><span>Você já escreveu neste formulário. A sugestão da IA vai trocar o que está nos campos.
+                            <button class="btn btn-ai btn-sm" type="submit" formaction="@aiUrl" name="Substituir" value="true" data-sugerir><svg class="fill" aria-hidden="true"><use href="#i-ai"/></svg><span data-sugerir-rotulo>Trocar pela sugestão</span></button></span></div>
+                    }
+                    else if (Model.AiState == AiState.Failed)
+                    {
+                        <div class="note"><svg aria-hidden="true"><use href="#i-alert"/></svg><span>@Model.AiMessage O que você escreveu continua aqui.</span></div>
+                    }
+                </div>
+            }
             <div class="field">
                 <label asp-for="Input.Statement">Enunciado <span class="req">(obrigatório)</span></label>
-                <textarea class="input textarea" asp-for="Input.Statement" rows="3" maxlength="500" aria-invalid="@Bad("Statement")" aria-describedby="Input_Statement-ajuda@(Err("Statement") is null ? "" : " Input_Statement-erro")" data-bind="q"></textarea>
+                <textarea class="@("input textarea" + filled)" asp-for="Input.Statement" rows="3" maxlength="500" aria-invalid="@Bad("Statement")" aria-describedby="Input_Statement-ajuda@(Err("Statement") is null ? "" : " Input_Statement-erro")" data-bind="q"></textarea>
                 @* Contador: só o painel.js o mostra (#160), na mesma linha da ajuda; sem JS a tela fica igual. *@
                 <small id="Input_Statement-ajuda">Até 500 caracteres.<span class="count-hint" data-count-for="Input_Statement" hidden></span></small>
                 @if (Err("Statement") is { } statementError)
@@ -117,7 +158,7 @@
                         <span class="key" aria-hidden="true">@letters[i]</span>
                         <div>
                             <label class="visually-hidden" for="Input_@field">Alternativa @letters[i]</label>
-                            <input class="input" id="Input_@field" name="Input.@field" value="@optionValues[i]" maxlength="300" autocomplete="off"
+                            <input class="@("input" + filled)" id="Input_@field" name="Input.@field" value="@optionValues[i]" maxlength="300" autocomplete="off"
                                    aria-invalid="@Bad(field)" aria-describedby="@Desc(field)" data-bind="a@(i)" />
                         </div>
                         <label class="correct">
@@ -137,7 +178,7 @@
             </fieldset>
             <div class="field">
                 <label asp-for="Input.Explanation">Explicação <span class="req">(obrigatório)</span></label>
-                <textarea class="input textarea" asp-for="Input.Explanation" rows="3" maxlength="1000" data-bind="why" aria-invalid="@Bad("Explanation")" aria-describedby="Input_Explanation-ajuda@(Err("Explanation") is null ? "" : " Input_Explanation-erro")"></textarea>
+                <textarea class="@("input textarea" + filled)" asp-for="Input.Explanation" rows="3" maxlength="1000" data-bind="why" aria-invalid="@Bad("Explanation")" aria-describedby="Input_Explanation-ajuda@(Err("Explanation") is null ? "" : " Input_Explanation-erro")"></textarea>
                 <small id="Input_Explanation-ajuda">Mostrada ao aluno depois que ele responde.</small>
                 @if (Err("Explanation") is { } explanationError)
                 {
