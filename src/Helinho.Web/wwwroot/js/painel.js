@@ -287,6 +287,7 @@ const calmo = () => reduz.matches;
   botoes[0].form?.addEventListener('submit', (e) => {
     const botao = e.submitter;
     if (!botao || !botao.hasAttribute('data-sugerir')) return;
+    if (botao.getAttribute('aria-busy') === 'true') { e.preventDefault(); return; }
     botao.setAttribute('aria-busy', 'true');
     const rotulo = botao.querySelector('[data-sugerir-rotulo]');
     if (rotulo) rotulo.textContent = 'Sugerindo…';

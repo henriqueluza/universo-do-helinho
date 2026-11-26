@@ -74,6 +74,9 @@ public partial class QuestoesSugerirIaTests
         Assert.Contains("ai-filled", first.Html, StringComparison.Ordinal);
         Assert.Equal(1, shared.Generator.Calls);
         Assert.Contains("Você chegou ao limite de sugestões da IA por hoje. Tente mais tarde.", html, StringComparison.Ordinal);
+        Assert.Equal(
+            "O limite diário de sugestões da IA foi atingido. Tente mais tarde.",
+            Helinho.Web.Pages.Questoes.EditarModel.Message(new SuggestSingleDraftResult(SuggestSingleDraftStatus.QuotaExceeded, Quota: new AiQuotaExceeded(true, 300, 0, null))));
     }
 
     [Fact]
@@ -103,10 +106,15 @@ public partial class QuestoesSugerirIaTests
         }
 
         var viaAi = await PostAsync(ana, Url, Save("Qual é a pergunta salva com origem IA no teste?", jobId));
+        var avisoIa = WebUtility.HtmlDecode(await ana.GetStringAsync("/Questoes", Ct));
         var semPedido = await PostAsync(ana, Url, Save("Qual é a pergunta da equipe sem pedido?", null));
+        var avisoEquipe = WebUtility.HtmlDecode(await ana.GetStringAsync("/Questoes", Ct));
         var deOutraPessoa = await PostAsync(bia, Url, Save("Qual é a pergunta da equipe com pedido alheio?", jobId));
 
         Assert.All(new[] { viaAi.Status, semPedido.Status, deOutraPessoa.Status }, s => Assert.Equal(HttpStatusCode.Redirect, s));
+        Assert.Contains("Questão criada como rascunho, com origem IA.", avisoIa, StringComparison.Ordinal);
+        Assert.Contains("Questão criada como rascunho.", avisoEquipe, StringComparison.Ordinal);
+        Assert.DoesNotContain("rascunho, com origem IA", avisoEquipe, StringComparison.Ordinal);
         await using var scope = factory.Services.CreateAsyncScope();
         var questions = await scope.ServiceProvider.GetRequiredService<AppDbContext>().Questions.AsNoTracking().ToListAsync(Ct);
         var ai = questions.Single(q => q.Statement.Contains("origem IA", StringComparison.Ordinal));
@@ -136,6 +144,24 @@ public partial class QuestoesSugerirIaTests
 
         Assert.DoesNotContain("ai-help", page, StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.NotFound, post.StatusCode);
+        Assert.Equal(0, shared.Generator.Calls);
+    }
+
+    [Fact]
+    public async Task Sugerir_sem_antiforgery_e_recusado_e_quem_esta_fora_da_politica_Panel_nao_chega_a_IA()
+    {
+        var factory = await StartAsync(draft: Draft("Qual é a pergunta que não deve ser pedida sem token?"));
+        using var admin = factory.CreateClientAs(RoleNames.Admin);
+        using var aluno = factory.CreateClientAs(RoleNames.Student);
+        using var anonimo = factory.CreateAnonymousClient();
+
+        using var semToken = await admin.PostAsync(Sugerir, new FormUrlEncodedContent(Form()), Ct);
+        using var foraDoPainel = await aluno.PostAsync(Sugerir, new FormUrlEncodedContent(Form()), Ct);
+        using var semLogin = await anonimo.PostAsync(Sugerir, new FormUrlEncodedContent(Form()), Ct);
+
+        Assert.Equal(HttpStatusCode.BadRequest, semToken.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, foraDoPainel.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, semLogin.StatusCode);
         Assert.Equal(0, shared.Generator.Calls);
     }
 }
