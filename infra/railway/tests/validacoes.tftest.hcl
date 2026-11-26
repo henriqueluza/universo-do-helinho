@@ -29,6 +29,7 @@ run "padrao_cria_so_homologacao" {
     condition = toset(output.ambientes["homologacao"].variaveis_web) == toset([
       "ASPNETCORE_ENVIRONMENT", "PORT", "ConnectionStrings__Default", "Proxy__TrustForwardedHeaders",
       "Seed__Enabled", "HELINHO_SEED_PASSWORD", "Email__Provider", "Email__DailyLimit", "Ai__Provider",
+      "Ai__TimeoutSeconds", "Ai__DailyQuotaPerAdmin", "Ai__DailyGlobalLimit",
       "Api__Auth__TokenLifetime", "Api__Auth__MaxFailedAttempts", "Api__Auth__LockoutDuration",
       "Api__Auth__LoginRateLimit", "Api__Auth__LoginRateWindow",
     ])
@@ -123,6 +124,10 @@ run "producao_ligada_sem_seed" {
     condition     = contains(output.ambientes["producao"].variaveis_web, "Brevo__ApiKey")
     error_message = "Segredo com valor precisa ser enviado."
   }
+  assert {
+    condition     = [for nome in ["homologacao", "producao"] : output.ambientes[nome].provedor_ia] == ["Fake", "Off"]
+    error_message = "Sem Ai__Provider explícito, a IA é Fake em homologacao e Off em producao (ADR-0004 D9)."
+  }
 }
 
 run "recusa_seed_em_producao" {
@@ -169,7 +174,7 @@ run "recusa_provedor_real_sem_chave" {
   command = plan
 
   variables {
-    variaveis_web = { Email__Provider = "Brevo", Brevo__SenderEmail = "nao-responda@example.org", Brevo__SenderName = "Remetente sintético", App__PublicBaseUrl = "https://painel.example.org", Ai__Provider = "Real" }
+    variaveis_web = { Email__Provider = "Brevo", Brevo__SenderEmail = "nao-responda@example.org", Brevo__SenderName = "Remetente sintético", App__PublicBaseUrl = "https://painel.example.org", Ai__Provider = "Anthropic", Ai__Model = "modelo-sintetico-1" }
   }
 
   expect_failures = [var.brevo_api_key, var.ai_api_key]
@@ -180,7 +185,7 @@ run "recusa_chave_nula_com_provedor_real" {
   command = plan
 
   variables {
-    variaveis_web = { Email__Provider = "Brevo", Brevo__SenderEmail = "nao-responda@example.org", Brevo__SenderName = "Remetente sintético", App__PublicBaseUrl = "https://painel.example.org", Ai__Provider = "Real" }
+    variaveis_web = { Email__Provider = "Brevo", Brevo__SenderEmail = "nao-responda@example.org", Brevo__SenderName = "Remetente sintético", App__PublicBaseUrl = "https://painel.example.org", Ai__Provider = "Anthropic", Ai__Model = "modelo-sintetico-1" }
     brevo_api_key = null
     ai_api_key    = null
   }

@@ -15,7 +15,7 @@ Root module do Terraform que descreve a hospedagem do backend na Railway, confor
 | `outputs.tf` | URLs e ids por ambiente; nenhuma saída com segredo |
 | `modules/ambiente/` | Os recursos de um ambiente: projeto, `Postgres`, `helinho-web`, variáveis e domínio |
 | `tests/validacoes.tftest.hcl` | `terraform test` das validações, com providers simulados |
-| `tests/provedores.tftest.hcl` | `terraform test` do provedor de e-mail (Fake, Brevo) |
+| `tests/provedores.tftest.hcl` | `terraform test` dos provedores de e-mail e de IA (Fake, Brevo, Off, Anthropic) |
 | `terraform.tfvars.example` | Modelo de `terraform.tfvars` (o arquivo real é ignorado pelo git) |
 | `.terraform.lock.hcl` | Hashes dos providers para `linux_amd64`, `darwin_arm64` e `darwin_amd64`; fica versionado |
 | `.tflint.hcl` | Configuração do `tflint` (ruleset `terraform`, preset `recommended`) |
@@ -45,7 +45,7 @@ terraform -chdir=infra/railway validate
 terraform -chdir=infra/railway test
 ```
 
-O `terraform test` roda os arquivos de `tests/` com os dois providers simulados (`mock_provider`): só planeja em memória, sem token e sem falar com a Railway. É ele que exercita as validações de `variables.tf`, o caso com produção ligada e o provedor de e-mail. Chaves e segredos dos testes são sintéticos.
+O `terraform test` roda os arquivos de `tests/` com os dois providers simulados (`mock_provider`): só planeja em memória, sem token e sem falar com a Railway. É ele que exercita as validações de `variables.tf`, o caso com produção ligada e os provedores de e-mail e de IA. Chaves e segredos dos testes são sintéticos.
 
 Requer Terraform `>= 1.16.0, < 1.18.0` e, para o lint, `tflint` `>= 0.66`. O `--recursive` inclui `modules/ambiente`.
 
@@ -67,14 +67,14 @@ Tudo tem padrão, menos `seed_password`. Valores sem segredo vão em `terraform.
 | `regiao` | não | não | `terraform.tfvars` | `us-east4-eqdc4a` |
 | `serverless` | não | não | `terraform.tfvars` | `false` |
 | `postgres_imagem` | não | não | `terraform.tfvars` | `postgres:17.12` |
-| `variaveis_web` | não | não | `terraform.tfvars` | padrões do README da raiz para `Api__Auth__*`; e-mail na tabela abaixo; `Ai__Provider` em `Fake` e `Ai__Model` vazio |
+| `variaveis_web` | não | não | `terraform.tfvars` | tabela abaixo |
 | `brevo_api_key` | só com `Email__Provider = "Brevo"` | sim | `TF_VAR_brevo_api_key`; painel da Brevo | vazio |
 | `brevo_webhook_secret` | não; preenchido, exige 32 caracteres ou mais | sim | `TF_VAR_brevo_webhook_secret`; você gera | vazio (webhook desligado) |
-| `ai_api_key` | só com `Ai__Provider` diferente de `Fake` (Sprint 4) | sim | `TF_VAR_ai_api_key`; painel do provedor de IA | vazio |
+| `ai_api_key` | só com `Ai__Provider = "Anthropic"` | sim | `TF_VAR_ai_api_key`; console da Anthropic | vazio |
 
 A senha do banco não é variável: o Terraform gera.
 
-### E-mail em `variaveis_web`
+### E-mail e IA em `variaveis_web`
 
 Nenhuma destas é segredo. Valor vazio não é enviado à Railway, e a aplicação usa o padrão dela.
 
@@ -85,8 +85,13 @@ Nenhuma destas é segredo. Valor vazio não é enviado à Railway, e a aplicaç�
 | `Brevo__SenderEmail` | vazio | `Email__Provider = "Brevo"` | e-mail válido |
 | `Brevo__SenderName` | vazio | `Email__Provider = "Brevo"` | até 70 caracteres |
 | `App__PublicBaseUrl` | vazio | `Email__Provider = "Brevo"`, em ambiente sem `dominio_proprio` | `https://<host>`, sem caminho nem barra final |
+| `Ai__Provider` | `Fake` em `homologacao`, `Off` em `producao` (ADR-0004 D9) | — | `Off`, `Fake` ou `Anthropic`; valor explícito vale para todos os ambientes |
+| `Ai__Model` | vazio | `Ai__Provider = "Anthropic"` | identificador exato do modelo, sem apelido `latest` |
+| `Ai__TimeoutSeconds` | `90` | — | 5 a 300 |
+| `Ai__DailyQuotaPerAdmin` | `60` | — | 1 a 10000 |
+| `Ai__DailyGlobalLimit` | `300` | — | 1 a 100000 |
 
-O `0` de `Email__DailyLimit` vem do ADR-0003; o teto de 100000 só barra erro de digitação.
+Os limites inferiores e o prazo de 5 a 300 s vêm dos ADRs; os tetos de 10000 e 100000 só barram erro de digitação.
 
 ### Variáveis que o serviço web recebe
 
@@ -100,7 +105,8 @@ O `0` de `Email__DailyLimit` vem do ADR-0003; o teto de 100000 só barra erro de
 | `HELINHO_SEED_PASSWORD` | `seed_password` | idem |
 | `Api__Auth__TokenLifetime`, `…MaxFailedAttempts`, `…LockoutDuration`, `…LoginRateLimit`, `…LoginRateWindow` | `08:00:00`, `5`, `00:15:00`, `10`, `00:01:00` | `variaveis_web` |
 | `Email__Provider`, `Email__DailyLimit` | `Fake`, `300` | `variaveis_web` |
-| `Ai__Provider` | `Fake` | `variaveis_web` |
+| `Ai__Provider` | `Fake` em `homologacao`, `Off` em `producao` | `variaveis_web`, se preenchida; senão o padrão do ambiente (`main.tf`) |
+| `Ai__TimeoutSeconds`, `Ai__DailyQuotaPerAdmin`, `Ai__DailyGlobalLimit` | `90`, `60`, `300` | `variaveis_web` |
 | `Brevo__SenderEmail`, `Brevo__SenderName`, `Ai__Model` | não enviadas enquanto vazias | `variaveis_web` |
 | `App__PublicBaseUrl` | `https://<dominio_proprio>` quando o ambiente tem domínio próprio; não enviada sem domínio | `variaveis_web`, se preenchida (vence o domínio); senão `ambientes.<nome>.dominio_proprio` |
 | `Brevo__ApiKey`, `Brevo__WebhookSecret`, `Ai__ApiKey` | não enviadas enquanto vazias | `brevo_api_key`, `brevo_webhook_secret`, `ai_api_key` |
@@ -121,12 +127,13 @@ O `plan` falha, antes de falar com a Railway, quando:
 - `Email__Provider` é `Brevo` e falta `brevo_api_key`, `Brevo__SenderEmail`, `Brevo__SenderName` ou a `App__PublicBaseUrl` efetiva (a explícita ou, na falta dela, o `dominio_proprio` de **cada** ambiente);
 - `Brevo__SenderEmail` não é um e-mail, `Brevo__SenderName` passa de 70 caracteres ou `App__PublicBaseUrl` não é `https://<host>` (tem `http://`, caminho, barra final, query, usuário ou maiúscula), mesmo com `Fake`;
 - `brevo_webhook_secret` está preenchido com menos de 32 caracteres;
-- `Email__DailyLimit` não é inteiro ou está fora da faixa;
-- `brevo_api_key` ou `brevo_webhook_secret` tem espaço, quebra de linha ou caractere fora do ASCII visível (erro comum ao colar);
-- `Ai__Provider` é diferente de `Fake` sem `ai_api_key`;
+- `Ai__Provider` não é `Off`, `Fake` nem `Anthropic`;
+- `Ai__Provider` é `Anthropic` e falta `ai_api_key` ou `Ai__Model`, ou o modelo termina em `latest`;
+- `Email__DailyLimit`, `Ai__TimeoutSeconds`, `Ai__DailyQuotaPerAdmin` ou `Ai__DailyGlobalLimit` não é inteiro ou está fora da faixa;
+- uma chave ou segredo tem espaço, quebra de linha ou caractere fora do ASCII visível (erro comum ao colar);
 - `postgres_imagem` não é `postgres:17` ou `postgres:17.<minor>`.
 
-As regras de e-mail repetem no `plan` o que a aplicação recusa na subida (`EmailOptions`, PR #211): sem elas o erro só apareceria como deploy derrubado.
+As regras de e-mail repetem no `plan` o que a aplicação recusa na subida (`EmailOptions`, PR #211): sem elas o erro só apareceria como deploy derrubado. `Off` e `Fake` nunca exigem chave.
 
 `null` explícito vale o padrão da variável (`nullable = false`) e passa pelas mesmas validações. Só `workspace_id` e `seed_password` aceitam `null`, que neles quer dizer "não definido".
 
@@ -137,7 +144,7 @@ As regras de e-mail repetem no `plan` o que a aplicação recusa na subida (`Ema
 | `url_publica` | `https://<subdomínio>.up.railway.app`, por ambiente |
 | `url_api` | a URL pública com `/api`, por ambiente |
 | `dns_dominio_proprio` | por ambiente: os registros a cadastrar no DNS (`tipo`, `nome`, `zona`, `valor`); lista vazia sem domínio próprio |
-| `ambientes` | por ambiente: `projeto_id`, `ambiente_id`, nome e id dos serviços, os nomes das variáveis enviadas ao web, `url_base_app` (o valor de `App__PublicBaseUrl`; vazio = não enviada) e `provedor_email` |
+| `ambientes` | por ambiente: `projeto_id`, `ambiente_id`, nome e id dos serviços, os nomes das variáveis enviadas ao web, `url_base_app` (o valor de `App__PublicBaseUrl`; vazio = não enviada), `provedor_email` e `provedor_ia` |
 
 Nenhuma saída carrega segredo: das chaves e do segredo do webhook só aparece o **nome** da variável, quando enviada. A senha do banco se lê no painel (variável `PGPASSWORD` do serviço `Postgres`) quando o runbook precisar dela.
 
@@ -172,7 +179,32 @@ Hoje o e-mail sobe em `Fake` e nada é enviado. Para ligar o envio real (ADR-000
 
 Para voltar atrás: `Email__Provider = "Fake"` e `apply`. A chave pode ficar exportada; com `Fake` ela é enviada à Railway e ignorada pela aplicação.
 
-A chave e o segredo do webhook ficam em texto no estado do Terraform (seção [Estado](#estado)). **Antes de ligar a Brevo em produção, o estado precisa estar em backend cifrado e com acesso restrito**, separado por ambiente (ADR-0002 §5.2 e §10.3).
+## Para ligar o Claude Haiku
+
+Hoje a IA sobe em `Fake` na homologação (sugestões fictícias, sem chave) e em `Off` na produção. Para ligar o provedor real (ADR-0004), depois do aval da contratante (D8):
+
+1. No console da Anthropic: crie a chave de API e defina o limite de gasto mensal.
+2. Em `terraform.tfvars`, no mesmo bloco `variaveis_web`:
+
+   ```hcl
+   variaveis_web = {
+     Ai__Provider = "Anthropic"
+     Ai__Model    = "claude-haiku-5-5" # exemplo de 22/11/2026; confira o identificador no dia
+   }
+   ```
+
+3. No shell do Terraform:
+
+   ```sh
+   read -rs TF_VAR_ai_api_key && export TF_VAR_ai_api_key
+   ```
+
+4. `terraform plan` e `terraform apply`. O `apply` **reimplanta o serviço web**.
+5. Confira com `terraform output ambientes`: `provedor_ia = "Anthropic"`, com `Ai__ApiKey` e `Ai__Model` na lista de variáveis.
+
+O valor explícito de `Ai__Provider` vale para todos os ambientes do mesmo estado. Prazo e cotas já vão com os padrões da D6 (`90`, `60`, `300`). Para desligar a IA: `Ai__Provider = "Off"`, que não exige chave.
+
+As duas chaves ficam em texto no estado do Terraform (seção [Estado](#estado)). **Antes de ligar a Brevo ou a Anthropic em produção, o estado precisa estar em backend cifrado e com acesso restrito**, separado por ambiente (ADR-0002 §5.2 e §10.3).
 
 ## Domínio próprio
 
@@ -210,7 +242,7 @@ Com `auto_deploy = true` a lista fica vazia e todo push em `main` implanta. Ativ
 
 `producao` existe no código e nasce desligada: o padrão de `ambientes` só tem `homologacao`. Acrescentar a chave `producao` cria um segundo projeto Railway (`helinho-producao`) com o mesmo módulo. Antes disso o ADR-0002 §5.2 exige ADR próprio para dado real, resposta sobre região e fornecedores, teto de gasto e estado do Terraform separado por ambiente. O seed é recusado em produção.
 
-Provedores em produção: **o e-mail nasce em `Fake` e o Terraform não barra isso:** com `Fake`, convite e redefinição de senha não chegam a ninguém (ADR-0003 §7). Ligue a Brevo antes de abrir a produção a usuários.
+Provedores em produção: a IA nasce em `Off`. **O e-mail nasce em `Fake` e o Terraform não barra isso:** com `Fake`, convite e redefinição de senha não chegam a ninguém (ADR-0003 §7). Ligue a Brevo antes de abrir a produção a usuários.
 
 ## Limitações do provider comunitário e contornos
 

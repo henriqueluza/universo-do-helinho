@@ -1,6 +1,8 @@
 locals {
   # O modo da aplicação segue o nome do ambiente: não há como pedir Development nem seed em modo Production.
   aspnetcore_environment = { homologacao = "Staging", producao = "Production" }
+  # ADR-0004 D9: sem valor explícito, a IA é fake em homologação e desligada em produção.
+  ai_provider_padrao = { homologacao = "Fake", producao = "Off" }
 }
 
 # Um projeto Railway por ambiente (ADR-0002 §5.2): o provider só lê serviço e volume no ambiente padrão do projeto.
@@ -21,7 +23,9 @@ module "ambiente" {
   postgres_imagem        = var.postgres_imagem
   seed_enabled           = each.value.seed_enabled
   seed_password          = each.value.seed_enabled ? var.seed_password : null
-  variaveis_web          = var.variaveis_web
+  variaveis_web = merge(var.variaveis_web, {
+    Ai__Provider = coalesce(var.variaveis_web.Ai__Provider, lookup(local.ai_provider_padrao, each.key, "Off"))
+  })
   segredos_web = {
     Brevo__ApiKey        = var.brevo_api_key
     Brevo__WebhookSecret = var.brevo_webhook_secret

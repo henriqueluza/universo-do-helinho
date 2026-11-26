@@ -1,4 +1,4 @@
-# `terraform test` do provedor de e-mail: providers simulados, só `plan` em memória, sem token.
+# `terraform test` dos provedores de e-mail e de IA: providers simulados, só `plan` em memória, sem token.
 # Chaves e segredos daqui são sintéticos e sem formato de chave real, de propósito.
 mock_provider "railway" {}
 mock_provider "random" {}
@@ -11,9 +11,93 @@ run "padrao_e_fake" {
   command = plan
 
   assert {
-    condition     = output.ambientes["homologacao"].provedor_email == "Fake"
-    error_message = "Sem configuração, o e-mail sobe em Fake. O conjunto exato de variáveis enviadas está em validacoes.tftest.hcl."
+    condition     = output.ambientes["homologacao"].provedor_email == "Fake" && output.ambientes["homologacao"].provedor_ia == "Fake"
+    error_message = "Sem configuração, e-mail e IA sobem em Fake. O conjunto exato de variáveis enviadas está em validacoes.tftest.hcl."
   }
+}
+
+run "ia_off_sem_chave" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "Off" }
+  }
+
+  assert {
+    condition     = output.ambientes["homologacao"].provedor_ia == "Off" && !contains(output.ambientes["homologacao"].variaveis_web, "Ai__ApiKey")
+    error_message = "Off não exige chave e é enviado como Off (Issue #182)."
+  }
+}
+
+run "ia_fake_explicita_vence_o_padrao_de_producao" {
+  command = plan
+
+  variables {
+    ambientes     = { homologacao = { seed_enabled = true }, producao = {} }
+    variaveis_web = { Ai__Provider = "Fake" }
+  }
+
+  assert {
+    condition     = output.ambientes["producao"].provedor_ia == "Fake"
+    error_message = "Fake não exige chave, e o valor explícito vence o padrão do ambiente."
+  }
+}
+
+run "anthropic_com_chave_e_modelo" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "Anthropic", Ai__Model = "modelo-sintetico-1" }
+    ai_api_key    = "chave-sintetica"
+  }
+
+  assert {
+    condition     = length(setsubtract(["Ai__ApiKey", "Ai__Model"], output.ambientes["homologacao"].variaveis_web)) == 0
+    error_message = "Com Anthropic, a chave e o modelo precisam ser enviados."
+  }
+}
+
+run "recusa_anthropic_sem_chave" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "Anthropic", Ai__Model = "modelo-sintetico-1" }
+  }
+
+  expect_failures = [var.ai_api_key]
+}
+
+run "recusa_anthropic_sem_modelo" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "Anthropic" }
+    ai_api_key    = "chave-sintetica"
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_modelo_com_apelido_latest" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "Anthropic", Ai__Model = "modelo-sintetico-latest" }
+    ai_api_key    = "chave-sintetica"
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_provedor_de_ia_desconhecido" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "Real" }
+    ai_api_key    = "chave-sintetica"
+  }
+
+  expect_failures = [var.variaveis_web]
 }
 
 run "brevo_completa_com_webhook" {
@@ -113,9 +197,10 @@ run "recusa_chave_com_espaco" {
 
   variables {
     brevo_api_key = "chave sintetica"
+    ai_api_key    = "chave sintetica"
   }
 
-  expect_failures = [var.brevo_api_key]
+  expect_failures = [var.brevo_api_key, var.ai_api_key]
 }
 
 run "recusa_segredo_de_webhook_curto" {
@@ -126,6 +211,46 @@ run "recusa_segredo_de_webhook_curto" {
   }
 
   expect_failures = [var.brevo_webhook_secret]
+}
+
+run "recusa_prazo_de_ia_fora_da_faixa" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__TimeoutSeconds = "301" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_cota_de_ia_zerada" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__DailyQuotaPerAdmin = "0" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_teto_global_de_ia_zerado" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__DailyGlobalLimit = "0" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_teto_global_de_ia_acima_da_faixa" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__DailyGlobalLimit = "100001" }
+  }
+
+  expect_failures = [var.variaveis_web]
 }
 
 run "recusa_teto_de_email_acima_da_faixa" {
