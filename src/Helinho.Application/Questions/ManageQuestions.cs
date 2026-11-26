@@ -39,7 +39,10 @@ public static class GetQuestion
     }
 }
 
-/// <summary>Cria (rascunho) ou edita (volta a rascunho) uma questão. A validação é do domínio.</summary>
+/// <summary>
+/// Cria (rascunho) ou edita (volta a rascunho) uma questão. A validação é do domínio. Com <c>editedAt</c>, a edição de
+/// questão de origem IA registra <c>AiEditedAt</c> (ADR-0004 §9.4, D5); questão da equipe ignora a hora.
+/// </summary>
 public static class SaveQuestion
 {
     public const int StatementMax = 500;
@@ -50,7 +53,7 @@ public static class SaveQuestion
     /// <exception cref="DomainException">Dado inválido (mensagem em português).</exception>
     public static async Task<Guid?> HandleAsync(
         IAppDbContext db, Guid? id, QuizType quizType, AgeBand ageBand, string? statement, string? explanation,
-        IReadOnlyList<string?> options, int? correctIndex, CancellationToken cancellationToken)
+        IReadOnlyList<string?> options, int? correctIndex, CancellationToken cancellationToken, DateTimeOffset? editedAt = null)
     {
         var items = ValidatedOptions(quizType, ageBand, statement, explanation, options, correctIndex);
         if (id is null)
@@ -67,7 +70,7 @@ public static class SaveQuestion
             return null;
         }
 
-        question.Update(quizType, ageBand, statement ?? "", explanation ?? "", items);
+        question.Update(quizType, ageBand, statement ?? "", explanation ?? "", items, editedAt);
         await db.SaveChangesAsync(cancellationToken);
         return question.Id;
     }

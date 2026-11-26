@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace Helinho.Web.Pages.Questoes;
 
-public sealed class EditarModel(IAppDbContext db) : PageModel
+public sealed class EditarModel(IAppDbContext db, IClock clock) : PageModel
 {
     [BindProperty(SupportsGet = true)]
     public Guid? Id { get; set; }
@@ -51,7 +51,7 @@ public sealed class EditarModel(IAppDbContext db) : PageModel
             {
                 var i = Input;
                 var saved = await SaveQuestion.HandleAsync(db, Id, i.QuizType!.Value, i.AgeBand!.Value, i.Statement, i.Explanation,
-                    [i.OptionA, i.OptionB, i.OptionC, i.OptionD], i.Correct, ct);
+                    [i.OptionA, i.OptionB, i.OptionC, i.OptionD], i.Correct, ct, clock.UtcNow);
                 if (saved is null)
                 {
                     return NotFound();
