@@ -23,6 +23,8 @@ public sealed class HelinhoWebFactory(PostgresFixture postgres, string? seedPass
         builder.UseSetting("ConnectionStrings:Default", _connectionString);
         // Sem senha explícita, usa uma aleatória por fábrica (o seed exige a variável); "" simula a ausência.
         builder.UseSetting("HELINHO_SEED_PASSWORD", seedPassword ?? $"{Guid.NewGuid():N}Aa1!");
+        // ADR-0003 §6.4: o trabalhador da fila fica desligado nos testes; quem precisa chama IJobProcessor direto.
+        builder.UseSetting("Fila:Worker:Enabled", "false");
 
         builder.ConfigureServices(services =>
         {

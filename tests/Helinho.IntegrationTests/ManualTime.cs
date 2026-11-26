@@ -6,6 +6,9 @@ public sealed class ManualTime(DateTimeOffset start) : TimeProvider
     private readonly List<ManualTimer> _timers = [];
     private DateTimeOffset _now = start.ToUniversalTime();
 
+    /// <summary>Sinaliza cada temporizador criado: o teste espera o laço chegar à espera antes de avançar a hora.</summary>
+    public SemaphoreSlim TimerCreated { get; } = new(0);
+
     public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 
     public override DateTimeOffset GetUtcNow()
@@ -20,12 +23,15 @@ public sealed class ManualTime(DateTimeOffset start) : TimeProvider
 
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
-        lock (_timers)
+        ManualTimer timer;
+        lock (_timers) // _now é lido sob a mesma trava de Advance
         {
-            var timer = new ManualTimer(() => callback(state), _now + dueTime);
+            timer = new ManualTimer(() => callback(state), _now + dueTime);
             _timers.Add(timer);
-            return timer;
         }
+
+        TimerCreated.Release();
+        return timer;
     }
 
     public void Advance(TimeSpan by)
