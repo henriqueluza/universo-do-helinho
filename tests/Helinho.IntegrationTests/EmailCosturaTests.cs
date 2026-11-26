@@ -151,6 +151,20 @@ public class EmailCosturaTests(PostgresFixture postgres, EmailCosturaTests.Host 
     }
 
     [Theory]
+    [InlineData("network_extendedconnectnotsupported", "send_failed")] // 35 caracteres: não cabe no vocabulário da fila (30)
+    [InlineData("Falha ao enviar para alguem@example.com", "send_failed")] // texto livre do provedor nunca chega a LastError
+    [InlineData("http_500", "http_500")]
+    public async Task Codigo_do_provedor_so_chega_a_LastError_se_for_do_vocabulario_fechado(string doProvedor, string gravado)
+    {
+        var (job, _, _, _) = await EnfileirarAsync(EmailJobTypes.PasswordReset, aluno: false);
+        shared.Respostas[job] = new(EmailSendStatus.TransientFailure, ErrorCode: doProvedor);
+
+        var row = await ProcessarAsync(job);
+
+        Assert.Equal((QueueJobStatus.Pending, gravado, 1), (row.Status, row.LastError, row.Attempts)); // nova tentativa, com código fechado
+    }
+
+    [Theory]
     [InlineData("cancelado", "subject_missing")] // o cancelamento apaga a conta sem senha (#268)
     [InlineData("ja-tem-senha", "not_eligible")]
     public async Task Convite_cancelado_ou_de_conta_que_ja_tem_senha_falha_na_fila_sem_enviar(string cenario, string erro)
