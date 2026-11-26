@@ -49,6 +49,49 @@ public class ArchitectureRules
         Assert.False(Types.InAssembly(typeof(AppDbContext).Assembly).ShouldNot().HaveDependencyOnAny(sdk).GetResult().IsSuccessful);
     }
 
+    /// <summary>
+    /// ADR-0003 §5.3 (#270): o tratador de e-mail não grava nada e não escreve destinatário, token, link nem corpo em
+    /// log. Ele nem tem como: não depende de <c>ILogger</c>, do EF Core nem do contexto do banco.
+    /// </summary>
+    [Fact]
+    public void Tratador_de_email_nao_tem_como_gravar_nem_escrever_em_log()
+    {
+        string[] forbidden =
+        [
+            "Microsoft.Extensions.Logging", "Microsoft.EntityFrameworkCore",
+            typeof(AppDbContext).FullName!, typeof(Helinho.Application.Abstractions.IAppDbContext).FullName!,
+        ];
+        var infrastructure = typeof(AppDbContext).Assembly;
+        var handler = Types.InAssembly(infrastructure).That().HaveName("EmailJobHandler");
+
+        var result = handler.ShouldNot().HaveDependencyOnAny(forbidden).GetResult();
+
+        Assert.True(result.IsSuccessful, Describe(result));
+
+        // Controle: a regra achou o tratador e enxerga log e banco onde eles de fato são usados.
+        Assert.Single(handler.GetTypes());
+        Assert.False(Types.InAssembly(infrastructure).ShouldNot().HaveDependencyOnAny(forbidden).GetResult().IsSuccessful);
+    }
+
+    /// <summary>
+    /// ADR-0004 (segurança de LLM): nada do texto gerado, do prompt ou do assunto digitado vai para log. Os casos de uso
+    /// de IA nem têm como registrar: nenhum tipo de <c>Helinho.Application.Ai</c> depende de <c>ILogger</c>.
+    /// </summary>
+    [Fact]
+    public void Casos_de_uso_de_IA_nao_tem_como_escrever_em_log()
+    {
+        const string logging = "Microsoft.Extensions.Logging";
+
+        var result = Types.InAssembly(Application).That().ResideInNamespace("Helinho.Application.Ai")
+            .ShouldNot().HaveDependencyOn(logging).GetResult();
+
+        Assert.True(result.IsSuccessful, Describe(result));
+
+        // Controle: a regra enxerga o ILogger onde ele de fato é usado, e o namespace de IA não está vazio.
+        Assert.False(Types.InAssembly(typeof(AppDbContext).Assembly).ShouldNot().HaveDependencyOn(logging).GetResult().IsSuccessful);
+        Assert.NotEmpty(Types.InAssembly(Application).That().ResideInNamespace("Helinho.Application.Ai").GetTypes());
+    }
+
     [Fact]
     public void Web_nao_usa_DbContext_concreto_nem_Npgsql()
     {

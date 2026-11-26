@@ -5,13 +5,22 @@
 
 **Nível de arquitetura:** `clean` (ADR-0001, seção 3). Este ADR não muda o nível.
 
-**Dependências:** o **ADR-0003** (fila `QueueJobs`, aceito em 22/11/2026) ainda não está em `main`: está no PR #185, branch `issue-176-adr-emails-brevo`. Este ADR cita várias seções dele, sobretudo na seção 10. **Ordem de merge: o PR #185 entra antes do PR #181 (este ADR), ou junto com ele.** Se o #181 entrasse sozinho, as referências "ADR-0003 §x.y" apontariam para um arquivo ausente da `main`.
+**Dependências:** o **ADR-0003** (fila `QueueJobs`, aceito em 22/11/2026) está em `main` desde o PR #185 (na época da escrita, estava na branch `issue-176-adr-emails-brevo`). Este ADR cita várias seções dele, sobretudo na seção 10. **Ordem de merge (cumprida): o PR #185 entrou antes do PR #181 (este ADR).**
 
 **Escopo em relação à Issue #177:** a Issue pedia o adaptador "desenhado, sem implementar" e punha código fora de escopo. Em 22/11/2026 o Henrique mudou o escopo da sprint: o adaptador é implementado agora, nas Issues 15 e 16 do plano (seção 19). **Este PR continua só de documentação**; a mudança está registrada na seção 16 e em nota no corpo da Issue #177.
 
 **Regra da casa, registrada aqui:** **a IA sugere, a equipe decide.** Tudo o que a IA gera nasce como sugestão; nada gerado chega ao jogo sem que uma pessoa da equipe aprove; editar devolve a rascunho.
 
 Este ADR não cria conta, não fecha contrato e não chama modelo nenhum. O provedor de IA não está definido pela contratante (Perguntas e Respostas, item C20). A sprint entrega o fluxo inteiro com um gerador fake e, por decisão do Henrique em 22/11/2026, **também o adaptador real do Claude Haiku**: o adaptador é implementado e testado com cliente falso; nenhuma chamada real acontece sem a chave de API, que vem depois (seções 6 e 16).
+
+
+> **Nota de situação, 25/11/2026.** O texto abaixo é o de 22/11/2026 e não foi reescrito; onde ele diverge do que existe hoje, vale esta nota. Os trechos que dizem "não existe fila em `main`" ou "o ADR-0003 ainda não está em `main`" (§1, F25 e §19, item 10) descrevem o dia da escrita.
+>
+> - **Já na `main`:** porta de geração (#230), opções `Ai__*` (#254), prompt v1 (#262), gerador fake (#264), analisador estrito (#273), validador e deduplicação (#282), adaptador da Anthropic (#284), repetição em 429 e 5xx (#296) e o registro do adaptador (#302). Da fila, a tabela, a porta, os contratos e o processador com limites (#304, #310, #311, #314, #316, #321, #325) e o `BackgroundService` (Issue #228, PR #331). A migração da IA e as regras do domínio (Issues #257 e #263, PR #345). O pedido em lote, o tratador e a leitura do pedido (Issues #258, #259 e #275, PR #349).
+> - **Em entrega** (PRs e Issues abertos, sem data): a revisão e a sugestão avulsa (Issues #260 e #261, PR #351) e as telas `/questoes/ia` e do criador de questões.
+> - **§6.2, limite de gasto.** O código só manda para `ProviderUnavailable` o 429 de teto de gasto da camada; o 400 do limite próprio do console e o 402 caem em `Misconfigured`. O ajuste está na Issue #256 (aberta).
+> - **§5, atraso do fake.** O padrão no código é 0 ms, e não 1500: quem liga o atraso é o ambiente local ou o script de demonstração. `Ai:Fake:DelayMilliseconds` não está no Terraform.
+> - **§14, Terraform.** As variáveis `Ai__*`, as validações e o `Ai__Provider=Off` sem chave estão na `main` (Issues #229 e #182, PR #344).
 
 ---
 

@@ -480,6 +480,12 @@
   :is(.input, .select)[aria-invalid="true"] { border-color: var(--bad); }
   :is(.input, .select)[aria-invalid="true"]:focus-visible { box-shadow: 0 0 0 4px var(--bad-bg); }
   .field-error { color: var(--bad-ink); font-weight: 700; font-size: var(--fs-sm); }
+  /* caixa de saída de desenvolvimento (#281): um painel por e-mail, corpo em texto e em HTML */
+  .outbox { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); }
+  .outbox .panel-head { margin-bottom: 0; overflow-wrap: anywhere; }
+  .outbox-text { margin: 0; padding: var(--sp-3) var(--sp-4); border-radius: var(--r-md); background: var(--canvas); color: var(--ink); font: 600 var(--fs-sm)/1.5 var(--font); white-space: pre-wrap; overflow-wrap: anywhere; }
+  /* e-mail é desenhado para fundo claro: o quadro fica claro nos dois temas (cor de sistema, não valor solto) */
+  .outbox-frame { display: block; width: 100%; height: 420px; border: 2px solid var(--rule); border-radius: var(--r-md); color-scheme: light; background: Canvas; resize: vertical; }
   /* entrar */
   .auth { min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(460px, 1fr); background: var(--canvas); }
   /* lado da marca: azul FUNDHAS sólido, sem cenário */
