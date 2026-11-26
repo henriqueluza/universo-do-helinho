@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 
@@ -45,6 +46,9 @@ public static class DomainPersistenceExtensions
             options.UseNpgsql(WithoutGssNegotiation(configuration.GetConnectionString("Default"))));
         services.AddScoped<Helinho.Application.Abstractions.IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<Helinho.Application.Abstractions.IJobQueue, JobQueue>();
+        // Trabalhador da fila (ADR-0003 §6): o processador abre um escopo por item, por isso é singleton.
+        services.AddSingleton<Helinho.Application.Abstractions.IJobProcessor, JobProcessor>();
+        services.TryAddSingleton(TimeProvider.System);
 
         // ADR-0002 §9: chaves na tabela DataProtectionKeys, para o cookie do painel sobreviver a um redeploy.
         services.AddDataProtection()
