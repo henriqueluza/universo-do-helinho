@@ -8,6 +8,7 @@
     <link rel="icon" href="~/img/helinho-rosto.webp" type="image/webp" />
     <script src="~/js/tema.js" asp-append-version="true"></script>
     <link rel="stylesheet" href="~/css/theme.css" asp-append-version="true" />
+    @await RenderSectionAsync("Head", required: false)
 </head>
 <body>
     <partial name="_Icones" />
