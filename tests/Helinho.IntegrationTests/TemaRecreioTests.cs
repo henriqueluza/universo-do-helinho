@@ -217,6 +217,38 @@ public partial class TemaRecreioTests(PostgresFixture postgres)
         }
 
         Assert.DoesNotContain(".ai-progress", css); // sem uso em nenhuma tela
+
+        // #294, critérios 3 e 4: elemento de IA só anima sem movimento reduzido, e a ajuda empilha no celular.
+        var media = "";
+        List<(string Media, string Regra)> animadas = [];
+        List<string> ajudaNoCelular = [];
+        foreach (var linha in camada.ToString().Split('\n').Select(l => l.TrimEnd()))
+        {
+            if (linha.StartsWith("  @media ", StringComparison.Ordinal))
+            {
+                media = linha.Trim();
+            }
+            else if (linha == "  }")
+            {
+                media = "";
+            }
+            else if (elementosDeIa.IsMatch(linha) && linha.Contains("animation:", StringComparison.Ordinal))
+            {
+                animadas.Add((media, linha.Trim()));
+            }
+            else if (media == "@media (max-width: 767.98px) {" && linha.Contains(".ai-help", StringComparison.Ordinal))
+            {
+                ajudaNoCelular.Add(linha.Trim());
+            }
+        }
+
+        Assert.Equal(2, animadas.Count);
+        Assert.All(animadas, a => Assert.Equal("@media (prefers-reduced-motion: no-preference) {", a.Media));
+        Assert.Contains(animadas, a => a.Regra.StartsWith(".ai-filled { animation:", StringComparison.Ordinal));
+        Assert.Contains(animadas, a => a.Regra.StartsWith(".ai-result[tabindex] { animation:", StringComparison.Ordinal));
+        Assert.Equal(2, ajudaNoCelular.Count);
+        Assert.Equal(".ai-help { grid-template-columns: auto minmax(0, 1fr); }", ajudaNoCelular[0]);
+        Assert.Equal(".ai-help .btn { grid-column: 1 / -1; }", ajudaNoCelular[1]);
     }
 
     [Fact]
