@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Helinho.Application.Abstractions;
 using Helinho.Domain;
+using Helinho.Infrastructure.Email;
 using Helinho.Infrastructure.Fakes;
 using Helinho.Infrastructure.Persistence;
 using Helinho.Web.Composition;
@@ -30,7 +31,8 @@ public class CaixaDeSaidaDevTests(PostgresFixture postgres, CaixaDeSaidaDevTests
         {
             if (_factory is null)
             {
-                var factory = new HelinhoWebFactory(postgres);
+                // A base pública é o que o tratador de e-mail usa para montar o link; sem ela o trabalho fica suspenso.
+                var factory = new HelinhoWebFactory(postgres, configure: s => s.PostConfigure<EmailOptions>(o => o.PublicBaseUrl = EmailCapturado.BaseUrl));
                 await factory.EnsureDatabaseAsync();
                 _factory = factory;
             }
@@ -82,6 +84,9 @@ public class CaixaDeSaidaDevTests(PostgresFixture postgres, CaixaDeSaidaDevTests
                 ["__RequestVerificationToken"] = token,
             }), Ct);
         }
+
+        // A página só enfileira (ADR-0003 §11.1): quem envia é o tratador, numa passada do processador da fila.
+        Assert.Equal(1, await EmailCapturado.ProcessarFilaAsync(factory.Services, Ct));
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {

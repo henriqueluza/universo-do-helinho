@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.RegularExpressions;
-using Helinho.Application.Abstractions;
 using Helinho.Application.Administradores;
+using Helinho.Application.Email;
 using Helinho.Domain;
 using Helinho.Domain.Entities;
 using Helinho.Infrastructure.Persistence;
@@ -23,38 +23,21 @@ public class EmailRepetidoTests(PostgresFixture postgres, EmailRepetidoTests.Hos
     private const string Invalido = "Usuário ou senha inválidos.";
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private sealed class RecordingEmail : IEmailSender
-    {
-        public List<EmailMessage> Sent { get; } = [];
-
-        public Task<EmailSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken)
-        {
-            lock (Sent) Sent.Add(message);
-            return Task.FromResult(new EmailSendResult(EmailSendStatus.Sent));
-        }
-    }
-
     /// <summary>Um host para a classe inteira (#215); cada teste cria as próprias contas, com e-mail próprio.</summary>
     public sealed class Host : IAsyncDisposable
     {
-        private readonly RecordingEmail _email = new();
         private HelinhoWebFactory? _factory;
 
         internal async Task<HelinhoWebFactory> GetAsync(PostgresFixture postgres)
         {
             if (_factory is null)
             {
-                var factory = new HelinhoWebFactory(postgres, configure: s => s.AddSingleton<IEmailSender>(_email));
+                var factory = new HelinhoWebFactory(postgres);
                 await factory.EnsureDatabaseAsync();
                 _factory = factory;
             }
 
             return _factory;
-        }
-
-        internal bool EnviouPara(string email)
-        {
-            lock (_email.Sent) return _email.Sent.Exists(m => string.Equals(m.Recipient, email, StringComparison.OrdinalIgnoreCase));
         }
 
         public ValueTask DisposeAsync() => _factory?.DisposeAsync() ?? ValueTask.CompletedTask;
@@ -80,6 +63,16 @@ public class EmailRepetidoTests(PostgresFixture postgres, EmailRepetidoTests.Hos
         var usuario = await CriarContaAsync(email);
         await CriarContaAsync(email.ToUpperInvariant());
         return (email, usuario);
+    }
+
+    /// <summary>Há pedido de redefinição na fila para alguma conta com este e-mail? Quem envia é a fila (ADR-0003 §11.1).</summary>
+    private async Task<bool> EnfileirouParaAsync(string email)
+    {
+        await using var scope = (await shared.GetAsync(postgres)).Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var normalizado = email.ToUpperInvariant();
+        return await db.QueueJobs.AnyAsync(
+            j => j.Type == EmailJobTypes.PasswordReset && db.Users.Any(u => u.Id == j.SubjectId && u.NormalizedEmail == normalizado), Ct);
     }
 
     private async Task<Guid> CriarUnidadeAsync()
@@ -148,9 +141,9 @@ public class EmailRepetidoTests(PostgresFixture postgres, EmailRepetidoTests.Hos
         Assert.Equal(inexistente.StatusCode, repetido.StatusCode);
         Assert.Contains("Se o e-mail estiver cadastrado", await TextoAsync(repetido));
         Assert.Contains("Se o e-mail estiver cadastrado", await TextoAsync(inexistente));
-        Assert.False(shared.EnviouPara(email));
+        Assert.False(await EnfileirouParaAsync(email));
         Assert.Equal(HttpStatusCode.OK, comConta.StatusCode);
-        Assert.True(shared.EnviouPara(unico)); // a conta de e-mail único continua recebendo
+        Assert.True(await EnfileirouParaAsync(unico)); // a conta de e-mail único continua recebendo
     }
 
     [Theory]
