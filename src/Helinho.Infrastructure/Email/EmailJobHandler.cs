@@ -1,6 +1,7 @@
 using Helinho.Application.Abstractions;
 using Helinho.Application.Email;
 using Helinho.Application.Identidade;
+using Helinho.Application.LiveEvents;
 using Helinho.Domain;
 
 namespace Helinho.Infrastructure.Email;
@@ -8,12 +9,13 @@ namespace Helinho.Infrastructure.Email;
 /// <summary>
 /// Tratador dos e-mails de acesso (ADR-0003 §5.3 e §11). A fila traz só o tipo e o id: aqui o destinatário é resolvido,
 /// as condições do fluxo são conferidas de novo, o token nasce, o modelo é renderizado e a resposta do provedor vira
-/// resultado da fila (§4.2). Não grava nada e não loga: destinatário, token e link não saem daqui.
+/// resultado da fila (§4.2). Não salva e não loga: destinatário, token e link não saem daqui. A única mudança que deixa
+/// no contexto é apagar o endereço anterior do responsável quando o aviso de troca termina (§9).
 /// <paramref name="renderer"/> é nulo quando não há base pública (<c>App:PublicBaseUrl</c>) para montar os links.
 /// </summary>
 public sealed class EmailJobHandler(
     EmailLane lane, EmailDailyLimit dailyLimit, IEmailSubjects subjects, EmailTemplateRenderer? renderer, IEmailSender sender, IClock clock)
-    : IJobHandler
+    : IJobHandler, IAbandonedJobHandler
 {
     public const string BaseUrlMissing = "base_url_missing";
     public const string SubjectMissing = "subject_missing";
@@ -22,9 +24,6 @@ public sealed class EmailJobHandler(
     public const string NotEligible = "not_eligible";
     public const string NotApproved = "not_approved";
     public const string TemplateMissing = "template_missing";
-
-    // QueueJobs.ExternalId é varchar(200): um id maior quebraria a gravação final e o e-mail sairia de novo.
-    private const int MaxExternalIdLength = 200;
 
     /// <summary>§6.3: erro de conta no provedor pausa o laço por 15 minutos, sem gastar tentativa.</summary>
     public static readonly TimeSpan AccountPause = TimeSpan.FromMinutes(15);
@@ -53,13 +52,34 @@ public sealed class EmailJobHandler(
             return new JobResult.Suspend(EmailDailyLimit.Code, pause);
         }
 
+        var result = await SendAsync(job, renderer, cancellationToken);
+        if (result is JobResult.Succeeded or JobResult.Fail)
+        {
+            // §9: resultado final. Em nova tentativa ou suspensão o aviso ainda vai sair, e o endereço fica.
+            await ForgetPreviousGuardianEmailAsync(job, cancellationToken);
+        }
+
+        return result;
+    }
+
+    /// <summary>§6.7: a fila encerrou o trabalho (<c>expired</c> ou <c>max_attempts</c>); o aviso não sai mais.</summary>
+    public Task OnAbandonedAsync(JobContext job, string reason, CancellationToken cancellationToken) =>
+        ForgetPreviousGuardianEmailAsync(job, cancellationToken);
+
+    private Task ForgetPreviousGuardianEmailAsync(JobContext job, CancellationToken cancellationToken) =>
+        job is { Type: EmailJobTypes.GuardianEmailChanged, SubjectId: { } studentId }
+            ? subjects.StagePreviousGuardianEmailRemovalAsync(studentId, cancellationToken)
+            : Task.CompletedTask;
+
+    private async Task<JobResult> SendAsync(JobContext job, EmailTemplateRenderer renderer, CancellationToken cancellationToken)
+    {
         var subject = job.SubjectId is { } id ? await FindAsync(job.Type, id, cancellationToken) : null;
         if (subject is null)
         {
             return new JobResult.Fail(SubjectMissing);
         }
 
-        var draft = Draft(job.Type, subject);
+        var draft = Draft(job, subject);
         var refusal = draft.Refusal
             ?? (string.IsNullOrWhiteSpace(draft.Recipient) ? RecipientMissing : null)
             ?? (EmailAddress.IsValid(draft.Recipient) ? null : RecipientInvalid)
@@ -93,7 +113,7 @@ public sealed class EmailJobHandler(
     };
 
     /// <summary>Destinatário, provedor do token e modelo de cada tipo, com as condições conferidas de novo na hora de enviar (§5.3).</summary>
-    private static Outgoing Draft(string type, EmailSubject subject) => (type, subject.Student) switch
+    private static Outgoing Draft(JobContext job, EmailSubject subject) => (job.Type, subject.Student) switch
     {
         // O convite de 72 horas só vale para conta sem senha (§10.1); o modelo cita a unidade que a pessoa vai administrar.
         (EmailJobTypes.AdminInvite, _) => subject is { IsPanelAccount: true, HasPassword: false, UnitName: { } unit }
@@ -111,12 +131,14 @@ public sealed class EmailJobHandler(
         (EmailJobTypes.PasswordChanged, { } student) => new(student.GuardianEmail, Model: _ => new PasswordChangedEmail(student.FirstName)),
         (EmailJobTypes.PasswordChanged, null) => new(subject.Email, Model: _ => new PasswordChangedEmail(subject.Name)),
 
-        // §11.4: sem aprovação não envia; o link segue o estado da conta agora (sem senha, 72 horas; com senha, 1 hora).
+        // §11.4: sem aprovação não envia; o link e o texto seguem o estado da conta agora (sem senha, primeiro acesso
+        // e 72 horas; com senha, troca de senha e 1 hora).
         (EmailJobTypes.StudentAccess, { Approved: false }) => new(Refusal: NotApproved),
         (EmailJobTypes.StudentAccess, { } student) => StudentAccess(subject, student),
 
-        // Encaixe da Issue 11 do plano: o quinto modelo entra aqui, como Model. Sem ele, o tipo falha com template_missing.
-        (EmailJobTypes.GuardianEmailChanged, { } student) => new(student.PreviousGuardianEmail),
+        // §9 e §11.4: o aviso vai ao endereço anterior, sem link. O trabalho nasce na gravação da troca: a data é a dele.
+        (EmailJobTypes.GuardianEmailChanged, { } student) => new(student.PreviousGuardianEmail,
+            Model: _ => new GuardianEmailChangedEmail(student.FirstName, DateOnly.FromDateTime(BrasiliaTime.ToLocal(job.CreatedAt)))),
 
         _ => new(Refusal: SubjectMissing),
     };
@@ -127,13 +149,14 @@ public sealed class EmailJobHandler(
             ? (LinkDeAcesso.ProvedorRedefinicao, LinkDeAcesso.ValidadeRedefinicao)
             : (LinkDeAcesso.ProvedorConvite, LinkDeAcesso.ValidadeConvite);
         return new(student.GuardianEmail, provider,
-            token => new StudentAccessEmail(student.FirstName, student.Enrollment, subject.UserId, token, validity));
+            token => new StudentAccessEmail(student.FirstName, student.Enrollment, subject.UserId, token, validity, subject.HasPassword));
     }
 
     /// <summary>Tabela do §4.2: o que o provedor respondeu vira o que a fila faz com o trabalho.</summary>
     private JobResult Translate(EmailSendResult sent) => sent.Status switch
     {
-        EmailSendStatus.Sent => new JobResult.Succeeded(sent.MessageId is { Length: <= MaxExternalIdLength } messageId ? messageId : null),
+        // §12: o id é guardado como o webhook o procura (sem < >, até o tamanho da coluna), pelo mesmo normalizador.
+        EmailSendStatus.Sent => new JobResult.Succeeded(EmailFeedback.NormalizeMessageId(sent.MessageId)),
         EmailSendStatus.PermanentFailure => new JobResult.Fail(Code(sent.ErrorCode, "send_rejected")),
         EmailSendStatus.ProviderSuspended => new JobResult.Suspend(Code(sent.ErrorCode, "provider_suspended"), AccountPause),
         _ => new JobResult.Retry(Code(sent.ErrorCode, "send_failed"), sent.RetryAfter is { } wait ? clock.UtcNow + wait : null),

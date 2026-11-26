@@ -32,6 +32,9 @@ public class EmailJobHandlerTests
     {
         public List<(Guid UserId, string Provider)> Tokens { get; } = [];
 
+        /// <summary>Alunos cujo endereço anterior o tratador mandou apagar (§9).</summary>
+        public List<Guid> Cleared { get; } = [];
+
         public Task<EmailSubject?> FindByUserAsync(Guid userId, CancellationToken cancellationToken) =>
             Task.FromResult(known.FirstOrDefault(s => s.UserId == userId));
 
@@ -42,6 +45,12 @@ public class EmailJobHandlerTests
         {
             Tokens.Add((userId, provider));
             return Task.FromResult(RawToken);
+        }
+
+        public Task StagePreviousGuardianEmailRemovalAsync(Guid studentId, CancellationToken cancellationToken)
+        {
+            Cleared.Add(studentId);
+            return Task.CompletedTask;
         }
     }
 
@@ -93,8 +102,8 @@ public class EmailJobHandlerTests
         return (await Handler(type, subjects, sender).HandleAsync(Job(type, subjectId), Ct), subjects, sender);
     }
 
-    private static JobContext Job(string type, Guid? subjectId) =>
-        new(JobId, type, subjectId, JsonDocument.Parse("""{"v":1}""").RootElement, 1, Now, Now.AddHours(24));
+    private static JobContext Job(string type, Guid? subjectId, DateTimeOffset? createdAt = null) =>
+        new(JobId, type, subjectId, JsonDocument.Parse("""{"v":1}""").RootElement, 1, createdAt ?? Now, (createdAt ?? Now).AddHours(24));
 
     /// <summary>O token como a página de definir senha o lê do link (§10.3).</summary>
     private static string? TokenIn(string body) => LinkDeAcesso.LerToken(Regex.Match(body, "token=([A-Za-z0-9_-]+)").Groups[1].Value);
@@ -183,15 +192,16 @@ public class EmailJobHandlerTests
     }
 
     [Theory]
-    [InlineData(false, LinkDeAcesso.ProvedorConvite, "72 horas")]
-    [InlineData(true, LinkDeAcesso.ProvedorRedefinicao, "1 hora")]
-    public async Task Acesso_do_aluno_vai_para_o_responsavel_e_o_link_segue_o_estado_da_conta(bool hasPassword, string provider, string validity)
+    [InlineData(false, LinkDeAcesso.ProvedorConvite, "72 horas", "Acesso ao jogo Universo do Helinho")]
+    [InlineData(true, LinkDeAcesso.ProvedorRedefinicao, "1 hora", "Troca de senha do jogo Universo do Helinho")]
+    public async Task Acesso_do_aluno_vai_para_o_responsavel_e_o_link_e_o_texto_seguem_o_estado_da_conta(bool hasPassword, string provider, string validity, string title)
     {
         var (result, subjects, sender) = await RunAsync(EmailJobTypes.StudentAccess, StudentId, known: Student with { HasPassword = hasPassword });
 
         var message = Assert.Single(sender.Sent);
         Assert.IsType<JobResult.Succeeded>(result);
-        Assert.Equal(GuardianEmail, message.Recipient);
+        Assert.Equal((GuardianEmail, title), (message.Recipient, message.Subject));
+        Assert.Equal(hasPassword, message.TextBody.Contains("Esta é uma troca de senha.", StringComparison.Ordinal));
         Assert.Equal([(StudentUserId, provider)], subjects.Tokens);
         Assert.Equal(RawToken, TokenIn(message.TextBody));
         Assert.Contains($"usuario={StudentUserId:D}&", message.TextBody);
@@ -231,7 +241,6 @@ public class EmailJobHandlerTests
     [InlineData(EmailJobTypes.PasswordChanged, "aluno-sem-endereco", "recipient_missing")]
     [InlineData(EmailJobTypes.GuardianEmailChanged, "aluno-sem-endereco", "recipient_missing")]
     [InlineData(EmailJobTypes.PasswordReset, "conta-com-endereco-invalido", "recipient_invalid")]
-    [InlineData(EmailJobTypes.GuardianEmailChanged, "aluno", "template_missing")] // o quinto modelo é da Issue 11 do plano
     public async Task Condicao_que_nao_vale_mais_falha_com_codigo_fechado_sem_gerar_token_nem_enviar(string type, string scenario, string code)
     {
         Guid? id = scenario switch { "sem-id" => null, "conta-apagada" => Guid.NewGuid(), var s when s.StartsWith("aluno", StringComparison.Ordinal) => StudentId, "conta-do-aluno" => StudentUserId, _ => AdminId };
@@ -300,11 +309,73 @@ public class EmailJobHandlerTests
         Assert.Empty(sender.Sent);
     }
 
-    [Fact]
-    public async Task Id_do_provedor_maior_que_a_coluna_nao_e_guardado()
+    [Theory]
+    [InlineData("<id-sintetico@relay.example.org>", "id-sintetico@relay.example.org")] // como o webhook procura (§12)
+    [InlineData(" id-sintetico@relay.example.org ", "id-sintetico@relay.example.org")]
+    [InlineData("<>", null)]
+    [InlineData("201x", null)] // maior que a coluna: não é guardado, e a gravação final não quebra
+    public async Task Id_do_provedor_e_guardado_como_o_webhook_o_procura_e_nunca_maior_que_a_coluna(string providerId, string? stored)
     {
-        var (result, _, _) = await RunAsync(EmailJobTypes.PasswordReset, AdminId, new(EmailSendStatus.Sent, new string('x', 201)), Admin);
+        var id = providerId == "201x" ? new string('x', 201) : providerId;
 
-        Assert.Null(Assert.IsType<JobResult.Succeeded>(result).ExternalId);
+        var (result, _, _) = await RunAsync(EmailJobTypes.PasswordReset, AdminId, new(EmailSendStatus.Sent, id), Admin);
+
+        Assert.Equal(stored, Assert.IsType<JobResult.Succeeded>(result).ExternalId);
+        Assert.Equal(stored, EmailFeedback.NormalizeMessageId(id));
+    }
+
+    [Fact]
+    public async Task Aviso_de_troca_vai_ao_endereco_anterior_com_a_data_de_Brasilia_sem_link_e_apaga_o_endereco()
+    {
+        var (subjects, sender) = (new Subjects(Student), new Sender(new(EmailSendStatus.Sent, "id-sintetico@example.org")));
+        var trocaEm = new DateTimeOffset(2026, 11, 23, 2, 30, 0, TimeSpan.Zero); // 22/11 às 23h30 em Brasília
+
+        var result = await Handler(EmailJobTypes.GuardianEmailChanged, subjects, sender)
+            .HandleAsync(Job(EmailJobTypes.GuardianEmailChanged, StudentId, trocaEm), Ct);
+
+        var message = Assert.Single(sender.Sent);
+        Assert.IsType<JobResult.Succeeded>(result);
+        Assert.Equal(("anterior@example.org", EmailJobTypes.GuardianEmailChanged), (message.Recipient, message.Tag));
+        Assert.All([message.TextBody, message.HtmlBody], body => Assert.All(["Ana", "22/11/2026"], essential => Assert.Contains(essential, body)));
+        Assert.DoesNotContain(GuardianEmail, message.TextBody + message.HtmlBody); // o endereço novo não vai no aviso
+        Assert.DoesNotContain("token=", message.TextBody + message.HtmlBody);
+        Assert.Empty(subjects.Tokens);
+        Assert.Equal([StudentId], subjects.Cleared);
+    }
+
+    [Theory]
+    [InlineData(EmailJobTypes.GuardianEmailChanged, "enviado", true)]
+    [InlineData(EmailJobTypes.GuardianEmailChanged, "recusado", true)] // falha permanente: o aviso não sai mais
+    [InlineData(EmailJobTypes.GuardianEmailChanged, "sem-endereco", true)]
+    [InlineData(EmailJobTypes.GuardianEmailChanged, "abandonado", true)] // expired ou max_attempts (§6.7)
+    [InlineData(EmailJobTypes.GuardianEmailChanged, "tentar-de-novo", false)]
+    [InlineData(EmailJobTypes.GuardianEmailChanged, "suspenso", false)]
+    [InlineData(EmailJobTypes.StudentAccess, "enviado", false)] // só o aviso de troca usa o endereço anterior
+    [InlineData(EmailJobTypes.StudentAccess, "abandonado", false)]
+    public async Task Endereco_anterior_do_responsavel_e_apagado_so_quando_o_aviso_de_troca_termina(string type, string scenario, bool cleared)
+    {
+        var student = scenario == "sem-endereco" ? Student with { Student = Ana with { PreviousGuardianEmail = null } } : Student;
+        var status = scenario switch
+        {
+            "recusado" => EmailSendStatus.PermanentFailure,
+            "tentar-de-novo" => EmailSendStatus.TransientFailure,
+            "suspenso" => EmailSendStatus.ProviderSuspended,
+            _ => EmailSendStatus.Sent,
+        };
+        var (subjects, sender) = (new Subjects(student), new Sender(new(status)));
+        var (handler, job) = (Handler(type, subjects, sender), Job(type, StudentId));
+
+        if (scenario == "abandonado")
+        {
+            await handler.OnAbandonedAsync(job, "expired", Ct);
+        }
+        else
+        {
+            var result = await handler.HandleAsync(job, Ct);
+            Assert.Equal(scenario == "sem-endereco", (result as JobResult.Fail)?.ErrorCode == "recipient_missing");
+        }
+
+        Assert.Equal(cleared ? [StudentId] : [], subjects.Cleared);
+        Assert.Equal(scenario is "sem-endereco" or "abandonado" ? 0 : 1, sender.Sent.Count);
     }
 }

@@ -7,10 +7,10 @@ using Microsoft.EntityFrameworkCore;
 namespace Helinho.Infrastructure.Email;
 
 /// <summary>
-/// Leitura do tratador de e-mail sobre o Identity e o banco. Só consulta, sem rastrear, e traz só as colunas que o
-/// e-mail usa: nada daqui entra na gravação final do trabalho (ADR-0003 §6.6).
+/// Leitura do tratador de e-mail sobre o Identity e o banco. As consultas não rastreiam e trazem só as colunas que o
+/// e-mail usa; a única mudança que entra na gravação final do trabalho (ADR-0003 §6.6) é a do <paramref name="cleaner"/>.
 /// </summary>
-public sealed class EmailSubjects(AppDbContext db, UserManager<AppUser> users) : IEmailSubjects
+public sealed class EmailSubjects(AppDbContext db, UserManager<AppUser> users, PreviousGuardianEmailCleaner cleaner) : IEmailSubjects
 {
     public async Task<EmailSubject?> FindByUserAsync(Guid userId, CancellationToken cancellationToken) =>
         await SubjectAsync(userId, await StudentAsync(Students().Where(s => s.UserId == userId), cancellationToken), cancellationToken);
@@ -26,6 +26,9 @@ public sealed class EmailSubjects(AppDbContext db, UserManager<AppUser> users) :
         var user = await db.Users.AsNoTracking().SingleAsync(u => u.Id == userId, cancellationToken);
         return await users.GenerateUserTokenAsync(user, provider, LinkDeAcesso.Finalidade);
     }
+
+    public Task StagePreviousGuardianEmailRemovalAsync(Guid studentId, CancellationToken cancellationToken) =>
+        cleaner.StageAsync(studentId, cancellationToken);
 
     // ignora-filtro: o trabalhador da fila não tem usuário de painel; a busca é só pelo id que veio no trabalho (SubjectId).
     private IQueryable<Domain.Entities.Student> Students() => db.Students.IgnoreQueryFilters().AsNoTracking();
