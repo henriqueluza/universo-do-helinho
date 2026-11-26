@@ -39,6 +39,13 @@ public sealed class SuggestSingleDraft(
     /// <summary>Por quanto tempo o pedido avulso ainda dá origem IA à questão salva ("recente", §9.3).</summary>
     public static readonly TimeSpan JobValidity = TimeSpan.FromHours(2);
 
+    /// <summary>O prazo de um "Sugerir": o menor entre <c>Ai:TimeoutSeconds</c> e <see cref="MaxWait"/> (ADR-0004 §13).</summary>
+    public static TimeSpan WaitFor(int timeoutSeconds)
+    {
+        var wait = TimeSpan.FromSeconds(timeoutSeconds);
+        return wait < MaxWait ? wait : MaxWait;
+    }
+
     /// <exception cref="DomainException">Tipo ou faixa indefinidos.</exception>
     public async Task<SuggestSingleDraftResult> HandleAsync(QuizType quizType, AgeBand ageBand, CancellationToken cancellationToken)
     {
@@ -64,9 +71,8 @@ public sealed class SuggestSingleDraft(
         db.AiGenerationJobs.Add(job);
         await db.SaveChangesAsync(cancellationToken);
 
-        var wait = TimeSpan.FromSeconds(settings.TimeoutSeconds);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(wait < MaxWait ? wait : MaxWait);
+        deadline.CancelAfter(WaitFor(settings.TimeoutSeconds));
         SuggestSingleDraftResult result;
         try
         {
