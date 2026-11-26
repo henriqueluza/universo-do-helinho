@@ -18,7 +18,7 @@ Todos os exemplos usam `paineladm.example.org`. Troque pelo domínio real **só 
 
 ## Ordem em relação ao primeiro deploy
 
-**Caminho A (recomendado): depois do Passo 6 do runbook principal.** Faça o primeiro `apply` e o primeiro deploy sem domínio, exatamente como o runbook descreve (`Plan: 7 to add`, 13 variáveis), confira `/health/ready` no endereço `*.up.railway.app` e só então siga os passos abaixo. Motivo: preencher o domínio acrescenta `App__PublicBaseUrl` às variáveis do web, e mudar as variáveis **reimplanta** o serviço (README do Terraform, L4). Com um deploy anterior no ar, essa reimplantação é um deploy comum.
+**Caminho A (recomendado): depois do Passo 6 do runbook principal.** Faça o primeiro `apply` e o primeiro deploy sem domínio, exatamente como o runbook descreve (`Plan: 7 to add`, 17 variáveis), confira `/health/ready` no endereço `*.up.railway.app` e só então siga os passos abaixo. Motivo: preencher o domínio acrescenta `App__PublicBaseUrl` às variáveis do web, e mudar as variáveis **reimplanta** o serviço (README do Terraform, L4). Com um deploy anterior no ar, essa reimplantação é um deploy comum.
 
 **Caminho B: junto com o primeiro `apply`.** Preencha o domínio no 4.1 do runbook principal. Mudam três conferências do 5.3 de lá: o resumo é `Plan: 8 to add` (entra `railway_custom_domain.web[0]`); são **14** nomes de variável (entra `App__PublicBaseUrl`); e o `grep -c -e railway_tcp_proxy -e railway_custom_domain` deixa de imprimir `0`. O domínio próprio só responde depois do primeiro deploy (Passo 6 de lá). Ganha-se tempo de propagação do DNS; perde-se a correspondência exata com o runbook principal.
 

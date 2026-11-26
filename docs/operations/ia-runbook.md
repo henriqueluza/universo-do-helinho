@@ -158,7 +158,7 @@ O motivo é o mesmo para causas diferentes e o log só traz o `request-id`. Perc
 
 ### 4.4 O que olhar no log
 
-Logs do deploy do `helinho-web` na Railway (aba **Deployments** → **Deploy Logs**; ou **Observability**, como no [runbook da Railway](railway-runbook.md)). O adaptador escreve **uma linha por geração** e uma por repetição. Os textos abaixo são os da branch `issue-250-ia-registro-anthropic`, ainda fora da `main`; **confira contra o código mesclado**:
+Logs do deploy do `helinho-web` na Railway (aba **Deployments** → **Deploy Logs**; ou **Observability**, como no [runbook da Railway](railway-runbook.md)). O adaptador escreve **uma linha por geração** e uma por repetição. Os textos abaixo vêm do adaptador (Issue #250, PR #302, já na `main`); **confira contra o código**: se divergirem, vale o código.
 
 | Linha (texto da aplicação) | Nível | Quer dizer |
 |---|---|---|
