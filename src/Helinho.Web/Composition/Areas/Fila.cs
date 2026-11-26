@@ -70,7 +70,7 @@ public sealed partial class JobWorker(
 
     public override void Dispose()
     {
-        _abort.Dispose();
+        _abort.Cancel(); // como o BackgroundService, só cancela: o host de teste chama StopAsync de novo depois do descarte
         base.Dispose();
     }
 
