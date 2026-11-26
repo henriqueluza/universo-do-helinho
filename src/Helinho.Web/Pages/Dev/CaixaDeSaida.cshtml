@@ -1,0 +1,43 @@
+@page
+@using Helinho.Infrastructure.Fakes
+@model Helinho.Web.Pages.Dev.CaixaDeSaidaModel
+@{
+    ViewData["Title"] = "Caixa de saída";
+    var numero = 0;
+}
+<div class="page-head">
+    <div><p class="sub">Só em desenvolvimento. Nenhum e-mail sai da aplicação: os últimos @DevEmailOutbox.Capacity ficam na memória e somem quando ela reinicia.</p></div>
+</div>
+@if (Model.Emails.Count == 0)
+{
+    <section class="panel panel-pad" aria-label="E-mails">
+        <div class="empty">
+            <img src="~/img/cara-helinho.webp" alt="" width="117" height="120" />
+            <b>Nenhum e-mail por aqui.</b>
+            <p>Peça uma recuperação de senha na tela de entrada e volte.</p>
+        </div>
+    </section>
+}
+else
+{
+    <div class="stack">
+        @foreach (var email in Model.Emails)
+        {
+            numero++;
+            var tituloId = "email-" + numero;
+            <article class="panel panel-pad outbox" aria-labelledby="@tituloId">
+                <div class="panel-head">
+                    <div>
+                        <h2 id="@tituloId">@email.Message.Subject</h2>
+                        <p>Para <b>@email.Message.Recipient</b>, em <time datetime="@email.SentAt.ToString("O")">@CaixaDeSaidaModel.LocalTime(email.SentAt)</time></p>
+                    </div>
+                </div>
+                <h3 class="sub-label">Texto</h3>
+                <pre class="outbox-text">@email.Message.TextBody</pre>
+                <h3 class="sub-label">HTML</h3>
+                @* sandbox vazio: sem script, sem formulário, sem mesma origem. O Razor codifica o srcdoc. *@
+                <iframe class="outbox-frame" sandbox="" srcdoc="@email.Message.HtmlBody" title="Corpo em HTML do e-mail @numero" loading="lazy"></iframe>
+            </article>
+        }
+    </div>
+}
