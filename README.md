@@ -72,6 +72,8 @@ O padrão é `Email__Provider=Fake`: nenhum e-mail sai e o log registra só o fa
 
 Qualquer outro valor em `Email__Provider` também derruba a subida. Em `Development` o provedor é sempre `Fake`, mesmo com `Email__Provider=Brevo` no ambiente; a aplicação avisa no log que ignorou a configuração. Decisões no ADR-0003 (`docs/architecture/ADR-0003-emails-brevo.md`).
 
+**Caixa de saída de desenvolvimento.** Em `Development`, entre como master e abra `/Dev/CaixaDeSaida`: a página lista os últimos 20 e-mails que o envio `Fake` recebeu (destinatário, assunto, hora, texto e HTML), para abrir um link de convite ou de redefinição sem a Brevo. As mensagens ficam só na memória e somem quando a aplicação reinicia. Fora de `Development` a rota não existe (404) e o `Fake` não guarda nada.
+
 ## Atrás do proxy (Railway): HTTPS, HSTS e IP do cliente
 
 A Railway termina o TLS e entrega a requisição em HTTP ao contêiner. Fora de `Development` (`ASPNETCORE_ENVIRONMENT` diferente de `Development`) a aplicação sempre:
@@ -120,7 +122,7 @@ A homologação roda na Railway e é descrita pelo Terraform de `infra/railway/`
 - O que está no ar, URLs e usuários sintéticos de teste (sem senha): [`docs/operations/ambientes.md`](docs/operations/ambientes.md)
 - Decisão de hospedagem e custos: `docs/architecture/ADR-0002-hospedagem-railway.md` e `docs/operations/custos.md`
 
-Publicar uma versão: merge na `main` e, no painel da Railway, serviço `helinho-web` → `Cmd+K` → **Deploy Latest Commit**. Push na `main` não publica sozinho. Produção está desligada.
+Publicar uma versão: merge na `main`. Em homologação o auto-deploy está ligado (decisão D3, 22/11/2026): a Railway publica sozinha, **sem esperar build nem testes** (risco aceito só para homologação; ver o [runbook](docs/operations/railway-runbook.md#81-o-que-dispara-um-deploy-e-como-conferir)). Produção está desligada.
 
 ## Como testar
 

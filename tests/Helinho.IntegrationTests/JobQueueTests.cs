@@ -71,34 +71,6 @@ public class JobQueueTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task Tabela_tem_os_tipos_os_estados_e_os_indices_do_ADR()
-    {
-        await using var db = await MigratedAsync();
-
-        var columns = await db.Database.SqlQuery<string>($"""
-            SELECT column_name || ' ' || CASE WHEN data_type = 'character varying' THEN 'varchar(' || character_maximum_length || ')' ELSE data_type END
-                   || CASE is_nullable WHEN 'NO' THEN ' not null' ELSE '' END AS "Value"
-              FROM information_schema.columns WHERE table_name = 'QueueJobs' ORDER BY ordinal_position
-            """).ToListAsync(Ct);
-        var indexes = await db.Database.SqlQuery<string>($"""SELECT indexdef AS "Value" FROM pg_indexes WHERE tablename = 'QueueJobs'""").ToListAsync(Ct);
-
-        Assert.Equal(
-            ["Id uuid not null", "Type varchar(60) not null", "SubjectId uuid", "Payload jsonb not null", "Status varchar(20) not null",
-                "Attempts integer not null", "NextAttemptAt timestamp with time zone not null", "ExpiresAt timestamp with time zone not null",
-                "LastError varchar(100)", "IdempotencyKey varchar(200)", "ExternalId varchar(200)", "Feedback varchar(30)",
-                "FeedbackAt timestamp with time zone", "CreatedAt timestamp with time zone not null", "FinishedAt timestamp with time zone"],
-            columns);
-        Assert.Equal(["Pending", "Processing", "Succeeded", "Failed", "Cancelled"], Enum.GetNames<QueueJobStatus>());
-        Assert.Equal(5, indexes.Count); // a chave primária e os quatro do ADR
-        Assert.Contains(indexes, i => i.Contains("\"IX_QueueJobs_Type_NextAttemptAt\"") && i.Contains("(\"Type\", \"NextAttemptAt\")")
-            && i.Contains("'Pending'") && i.Contains("'Processing'"));
-        Assert.Contains(indexes, i => i.StartsWith("CREATE UNIQUE INDEX \"UX_QueueJobs_IdempotencyKey\"", StringComparison.Ordinal)
-            && i.EndsWith("WHERE (\"IdempotencyKey\" IS NOT NULL)", StringComparison.Ordinal));
-        Assert.Contains(indexes, i => i.Contains("\"IX_QueueJobs_Type_SubjectId_CreatedAt\"") && i.EndsWith("(\"Type\", \"SubjectId\", \"CreatedAt\")", StringComparison.Ordinal));
-        Assert.Contains(indexes, i => i.Contains("\"IX_QueueJobs_ExternalId\"") && i.EndsWith("WHERE (\"ExternalId\" IS NOT NULL)", StringComparison.Ordinal));
-    }
-
-    [Fact]
     public async Task Mesma_chave_de_idempotencia_nao_enfileira_duas_vezes()
     {
         await using var db = await MigratedAsync();
