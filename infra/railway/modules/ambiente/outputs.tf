@@ -13,6 +13,7 @@ output "resumo" {
     variaveis_web       = local.nomes_web
     url_base_app        = local.url_base_app
     provedor_email      = var.variaveis_web.Email__Provider
+    provedor_ia         = var.variaveis_web.Ai__Provider
   }
 }
 
