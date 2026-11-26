@@ -68,9 +68,9 @@ public class AiSuggestSingleDraftTests(PostgresFixture postgres)
 
     private SuggestSingleDraft UseCase(
         AppDbContext db, IQuestionDraftGenerator generator, Guid? userId, string? role = RoleNames.Admin, string provider = AiOptions.Fake,
-        int perAdmin = 60, int timeoutSeconds = 90) =>
+        int perAdmin = 60, int timeoutSeconds = 90, int global = 300) =>
         new(db, generator, _clock, new TestUser(userId, role),
-            Options.Create(new AiOptions { Provider = provider, DailyQuotaPerAdmin = perAdmin, TimeoutSeconds = timeoutSeconds }));
+            Options.Create(new AiOptions { Provider = provider, DailyQuotaPerAdmin = perAdmin, DailyGlobalLimit = global, TimeoutSeconds = timeoutSeconds }));
 
     private static QuestionDraft Draft(string statement) => new(statement, FourOptions, 1, "Explicação sintética.");
 
@@ -112,11 +112,14 @@ public class AiSuggestSingleDraftTests(PostgresFixture postgres)
         _clock.UtcNow = T0.AddMinutes(1);
         var second = await UseCase(db, generator, Ana, perAdmin: 2).HandleAsync(QuizType.Cultural, AgeBand.Age6To7, Ct);
         var third = await UseCase(db, stub, Ana, perAdmin: 2).HandleAsync(QuizType.Cultural, AgeBand.Age6To7, Ct);
+        var overGlobal = await UseCase(db, stub, Bia, global: 2).HandleAsync(QuizType.Cultural, AgeBand.Age6To7, Ct); // o teto de todos conta os avulsos da Ana
 
         Assert.Equal(
             [SuggestSingleDraftStatus.Disabled, SuggestSingleDraftStatus.Forbidden, SuggestSingleDraftStatus.Suggested, SuggestSingleDraftStatus.Suggested, SuggestSingleDraftStatus.QuotaExceeded],
             new[] { off, student, first, second, third }.Select(r => r.Status));
         Assert.Equal(new AiQuotaExceeded(Global: false, Limit: 2, Remaining: 0, AvailableAt: T0.AddHours(24)), third.Quota);
+        Assert.Equal(SuggestSingleDraftStatus.QuotaExceeded, overGlobal.Status);
+        Assert.Equal(new AiQuotaExceeded(Global: true, Limit: 2, Remaining: 0, AvailableAt: T0.AddHours(24)), overGlobal.Quota);
         Assert.Empty(stub.Requests);
         Assert.Equal(2, await db.AiGenerationJobs.CountAsync(Ct)); // o recusado por cota não cria pedido
     }
@@ -129,7 +132,7 @@ public class AiSuggestSingleDraftTests(PostgresFixture postgres)
     {
         await using var db = await MigratedAsync();
 
-        var result = await UseCase(db, new StubGenerator(failure: failure), Ana, perAdmin: 1, timeoutSeconds: 1).HandleAsync(QuizType.Cultural, AgeBand.Age6To7, Ct);
+        var result = await UseCase(db, new StubGenerator(failure: failure), Ana, perAdmin: 1, timeoutSeconds: failure is null ? 1 : 90).HandleAsync(QuizType.Cultural, AgeBand.Age6To7, Ct);
         var next = await UseCase(db, new StubGenerator(Draft("Qual é a próxima sugestão sintética?")), Ana, perAdmin: 1).HandleAsync(QuizType.Cultural, AgeBand.Age6To7, Ct);
 
         await using var read = NewContext();
@@ -138,6 +141,9 @@ public class AiSuggestSingleDraftTests(PostgresFixture postgres)
         Assert.Equal((AiJobStatus.Failed, code), (job.Status, job.FailureReason));
         Assert.Equal(SuggestSingleDraftStatus.QuotaExceeded, next.Status);
         Assert.Equal(TimeSpan.FromSeconds(20), SuggestSingleDraft.MaxWait);
+        Assert.Equal( // o prazo é o menor entre Ai:TimeoutSeconds e 20 s
+            (TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(20)),
+            (SuggestSingleDraft.WaitFor(5), SuggestSingleDraft.WaitFor(20), SuggestSingleDraft.WaitFor(90)));
     }
 
     [Theory]
@@ -162,6 +168,8 @@ public class AiSuggestSingleDraftTests(PostgresFixture postgres)
         await using var db = await MigratedAsync();
         var suggested = await UseCase(db, new StubGenerator(Draft("Qual é a sugestão avulsa sintética?")), Ana).HandleAsync(QuizType.Cultural, AgeBand.Age6To7, Ct);
         var failed = await UseCase(db, new StubGenerator(failure: QuestionDraftFailure.Refused), Ana).HandleAsync(QuizType.Cultural, AgeBand.Age6To7, Ct);
+        var rejected = await UseCase(db, new StubGenerator(Draft("Qual é o <b>rascunho</b> sintético recusado?")), Ana).HandleAsync(QuizType.Cultural, AgeBand.Age6To7, Ct);
+        Assert.Equal(SuggestSingleDraftStatus.Rejected, rejected.Status); // concluído, mas sem sugestão válida
         var batch = new AiGenerationJob(AiJobKind.Batch, QuizType.Cultural, AgeBand.Age6To7, 1, null, Ana, T0);
         batch.Succeed(new AiJobUsage("Fake", "fake-v1", "gerar-questoes.v1", 1, 1, TimeSpan.Zero), new AiJobCounts(1, 1, 0, 0), T0);
         db.AiGenerationJobs.Add(batch);
@@ -176,6 +184,7 @@ public class AiSuggestSingleDraftTests(PostgresFixture postgres)
         QuestionOrigin[] team =
         [
             (await SaveAsync(null)).Origin, (await SaveAsync(Guid.NewGuid())).Origin, (await SaveAsync(failed.JobId)).Origin,
+            (await SaveAsync(rejected.JobId)).Origin,
             (await SaveAsync(batch.Id)).Origin, (await SaveAsync(suggested.JobId, Bia)).Origin, (await SaveAsync(suggested.JobId, role: RoleNames.Student)).Origin,
         ];
         _clock.UtcNow = T0.AddHours(2).AddSeconds(1); // o pedido deixou de ser recente
@@ -188,7 +197,7 @@ public class AiSuggestSingleDraftTests(PostgresFixture postgres)
             (QuestionOrigin.Ai, QuestionOrigin.Ai, suggested.JobId, "gerar-questoes.v1", T0, QuestionStatus.Draft),
             (fromAi.Origin, question.Origin, question.AiJobId, question.PromptVersion, question.GeneratedAt.GetValueOrDefault(), question.Status));
         Assert.All([.. team, late.Origin], origin => Assert.Equal(QuestionOrigin.Team, origin));
-        Assert.Equal(8, await db.Questions.CountAsync(Ct));
-        Assert.Equal(7, await db.Questions.CountAsync(q => q.AiJobId == null && q.PromptVersion == null && q.GeneratedAt == null, Ct));
+        Assert.Equal(9, await db.Questions.CountAsync(Ct));
+        Assert.Equal(8, await db.Questions.CountAsync(q => q.AiJobId == null && q.PromptVersion == null && q.GeneratedAt == null, Ct));
     }
 }
