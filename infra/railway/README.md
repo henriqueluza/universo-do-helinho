@@ -82,7 +82,7 @@ A senha do banco não é variável: o Terraform gera.
 | `Brevo__SenderEmail`, `Brevo__SenderName`, `App__PublicBaseUrl`, `Ai__Model` | não enviadas enquanto vazias | `variaveis_web` |
 | `Brevo__ApiKey`, `Ai__ApiKey` | não enviadas enquanto vazias | `brevo_api_key`, `ai_api_key` |
 
-`variaveis_web` é um objeto fechado: só aceita as chaves declaradas em `variables.tf`. Variável nova entra por PR. De propósito, **não** são definidas `ASPNETCORE_FORWARDEDHEADERS_ENABLED` nem `AllowedHosts` (o healthcheck da Railway chega com `Host: healthcheck.railway.app`).
+`variaveis_web` é um objeto fechado: só as chaves declaradas em `variables.tf` chegam à Railway. Chave fora da lista não dá erro: o Terraform a descarta em silêncio, inclusive um nome com erro de digitação, então confira no `plan` os nomes enviados. Variável nova entra por PR. De propósito, **não** são definidas `ASPNETCORE_FORWARDEDHEADERS_ENABLED` nem `AllowedHosts` (o healthcheck da Railway chega com `Host: healthcheck.railway.app`).
 
 O provider marca todo valor de variável como sensível: o `plan` mostra os nomes e esconde os valores, inclusive os que não são segredo.
 
@@ -111,11 +111,13 @@ Nenhuma saída carrega segredo. A senha do banco se lê no painel (variável `PG
 
 O provider não tem atributo para ligar ou desligar o auto-deploy. Com `auto_deploy = false` (padrão), o serviço web recebe o watch pattern `/.auto-deploy-desligado`, que nenhum arquivo do repositório casa: a Railway ignora os pushes e a publicação é manual, pelo painel (`Cmd+K` → **Deploy Latest Commit**). Não crie arquivo com esse nome na raiz do repositório.
 
-Com `auto_deploy = true` a lista fica vazia e todo push em `main` implanta. Ative também **Wait for CI** nas configurações do serviço, que o provider não alcança. É assim que a homologação roda: o Henrique liga `auto_deploy = true` no `terraform.tfvars` (ADR-0002 §7.5, decisão D3); o padrão da variável continua `false`.
+Com `auto_deploy = true` a lista fica vazia e todo push em `main` implanta. Ative também **Wait for CI** nas configurações do serviço, que o provider não alcança. Hoje ele não espera build nem testes, porque o `validate.yml` só roda em PR; quem segura um commit ruim é a proteção da `main` (ADR-0002 §7.5, Issue #225). É assim que a homologação roda: o Henrique liga `auto_deploy = true` no `terraform.tfvars` (ADR-0002 §7.5, decisão D3); o padrão da variável continua `false`.
 
 ## Produção
 
 `producao` existe no código e nasce desligada: o padrão de `ambientes` só tem `homologacao`. Acrescentar a chave `producao` cria um segundo projeto Railway (`helinho-producao`) com o mesmo módulo. Antes disso o ADR-0002 §5.2 exige ADR próprio para dado real, resposta sobre região e fornecedores, teto de gasto e estado do Terraform separado por ambiente. O seed é recusado em produção.
+
+`auto_deploy` é uma variável única do root, repassada a todos os ambientes. O `true` que a homologação usa não pode valer para a produção: ela precisa de `terraform.tfvars` próprio, sem `auto_deploy = true`, ou a variável passa a ser por ambiente antes de a produção ser ligada (ADR-0002 §7.5 e §12, D1, item 6).
 
 ## Limitações do provider comunitário e contornos
 
