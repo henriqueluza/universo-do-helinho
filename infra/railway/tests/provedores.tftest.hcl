@@ -89,6 +89,31 @@ run "recusa_modelo_com_apelido_latest" {
   expect_failures = [var.variaveis_web]
 }
 
+# Um caso só para as duas brechas do `endswith`: maiúscula e "latest" fora do fim.
+run "recusa_apelido_latest_em_maiuscula_e_no_meio" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "Anthropic", Ai__Model = "modelo-sintetico-Latest-1" }
+    ai_api_key    = "chave-sintetica"
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "ia_vazia_vale_o_padrao_do_ambiente" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__Provider = "" }
+  }
+
+  assert {
+    condition     = output.ambientes["homologacao"].provedor_ia == "Fake"
+    error_message = "Ai__Provider vazio vale o mesmo que omitido: Fake em homologacao (ADR-0004 D9)."
+  }
+}
+
 run "recusa_provedor_de_ia_desconhecido" {
   command = plan
 
@@ -238,6 +263,39 @@ run "recusa_prazo_de_ia_fora_da_faixa" {
 
   variables {
     variaveis_web = { Ai__TimeoutSeconds = "301" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "recusa_prazo_de_ia_abaixo_da_faixa" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__TimeoutSeconds = "4" }
+  }
+
+  expect_failures = [var.variaveis_web]
+}
+
+run "aceita_prazo_de_ia_no_minimo" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__TimeoutSeconds = "5" }
+  }
+
+  assert {
+    condition     = contains(output.ambientes["homologacao"].variaveis_web, "Ai__TimeoutSeconds")
+    error_message = "5 é o menor prazo aceito e precisa ser enviado."
+  }
+}
+
+run "recusa_cota_de_ia_acima_da_faixa" {
+  command = plan
+
+  variables {
+    variaveis_web = { Ai__DailyQuotaPerAdmin = "10001" }
   }
 
   expect_failures = [var.variaveis_web]

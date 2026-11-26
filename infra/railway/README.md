@@ -128,7 +128,7 @@ O `plan` falha, antes de falar com a Railway, quando:
 - `Brevo__SenderEmail` não é um e-mail, `Brevo__SenderName` passa de 70 caracteres ou `App__PublicBaseUrl` não é `https://<host>` (tem `http://`, caminho, barra final, query, usuário ou maiúscula), mesmo com `Fake`;
 - `brevo_webhook_secret` está preenchido com menos de 32 caracteres;
 - `Ai__Provider` não é `Off`, `Fake` nem `Anthropic`;
-- `Ai__Provider` é `Anthropic` e falta `ai_api_key` ou `Ai__Model`, ou o modelo termina em `latest`;
+- `Ai__Provider` é `Anthropic` e falta `ai_api_key` ou `Ai__Model`, ou o modelo contém `latest` (em qualquer caixa e posição);
 - `Email__DailyLimit`, `Ai__TimeoutSeconds`, `Ai__DailyQuotaPerAdmin` ou `Ai__DailyGlobalLimit` não é inteiro ou está fora da faixa;
 - uma chave ou segredo tem espaço, quebra de linha ou caractere fora do ASCII visível (erro comum ao colar);
 - `postgres_imagem` não é `postgres:17` ou `postgres:17.<minor>`.

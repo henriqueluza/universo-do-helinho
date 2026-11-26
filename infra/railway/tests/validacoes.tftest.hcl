@@ -35,6 +35,23 @@ run "padrao_cria_so_homologacao" {
     ])
     error_message = "Variável vazia não pode ser enviada, e as obrigatórias não podem faltar."
   }
+  # O conjunto acima só confere os nomes; os valores padrão são critério da Issue #229 (ADR-0003 D7 e ADR-0004 D6).
+  assert {
+    condition     = var.variaveis_web.Email__DailyLimit == "300"
+    error_message = "O padrão de Email__DailyLimit é 300 (ADR-0003 D7)."
+  }
+  assert {
+    condition     = var.variaveis_web.Ai__TimeoutSeconds == "90"
+    error_message = "O padrão de Ai__TimeoutSeconds é 90 (ADR-0004 D6)."
+  }
+  assert {
+    condition     = var.variaveis_web.Ai__DailyQuotaPerAdmin == "60"
+    error_message = "O padrão de Ai__DailyQuotaPerAdmin é 60 (ADR-0004 D6)."
+  }
+  assert {
+    condition     = var.variaveis_web.Ai__DailyGlobalLimit == "300"
+    error_message = "O padrão de Ai__DailyGlobalLimit é 300 (ADR-0004 D6)."
+  }
   assert {
     condition     = output.dns_dominio_proprio == { homologacao = [] }
     error_message = "Sem dominio_proprio não pode existir railway_custom_domain nem registro DNS a cadastrar."

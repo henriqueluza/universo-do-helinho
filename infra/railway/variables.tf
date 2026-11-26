@@ -150,7 +150,7 @@ variable "variaveis_web" {
   }
   validation {
     condition = var.variaveis_web.Ai__Provider != "Anthropic" || (
-    can(regex("^[A-Za-z0-9][A-Za-z0-9._-]*$", var.variaveis_web.Ai__Model)) && !endswith(var.variaveis_web.Ai__Model, "latest"))
+    can(regex("^[A-Za-z0-9][A-Za-z0-9._-]*$", var.variaveis_web.Ai__Model)) && !can(regex("latest", lower(var.variaveis_web.Ai__Model))))
     error_message = "Ai__Provider = \"Anthropic\" exige Ai__Model com o identificador exato do modelo, sem apelido \"latest\"."
   }
   # Faixa [mínimo, máximo] de cada inteiro. O `regex` só casa inteiro sem sinal; o que não casa cai no `false` do `try`.
