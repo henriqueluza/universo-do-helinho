@@ -67,6 +67,8 @@ Tudo tem padrão, menos `seed_password`. Valores sem segredo vão em `terraform.
 
 A senha do banco não é variável: o Terraform gera.
 
+Não mude `regiao` com o banco já criado sem backup: a mudança é aplicada no lugar, reimplanta o `Postgres`, e o efeito sobre o volume não foi verificado.
+
 ### Variáveis que o serviço web recebe
 
 | Variável na Railway | Valor | Origem |
@@ -117,7 +119,7 @@ Com `auto_deploy = true` a lista fica vazia e todo push em `main` implanta. Ativ
 
 `producao` existe no código e nasce desligada: o padrão de `ambientes` só tem `homologacao`. Acrescentar a chave `producao` cria um segundo projeto Railway (`helinho-producao`) com o mesmo módulo. Antes disso o ADR-0002 §5.2 exige ADR próprio para dado real, resposta sobre região e fornecedores, teto de gasto e estado do Terraform separado por ambiente. O seed é recusado em produção.
 
-`auto_deploy` é uma variável única do root, repassada a todos os ambientes. O `true` que a homologação usa não pode valer para a produção: ela precisa de `terraform.tfvars` próprio, sem `auto_deploy = true`, ou a variável passa a ser por ambiente antes de a produção ser ligada (ADR-0002 §7.5 e §12, D1, item 6).
+`auto_deploy` é uma variável única do root, e o `true` que a homologação usa não vale para a produção: em `producao` o auto-deploy fica sempre desligado, qualquer que seja o valor da variável (`main.tf`), e a publicação é manual. Ligar auto-deploy em produção exige ADR e mudança de código (ADR-0002 §7.5 e §12, D1, item 6).
 
 ## Limitações do provider comunitário e contornos
 
@@ -151,3 +153,5 @@ PR `chore` próprio, sem recurso junto: mude a versão em `versions.tf` (e em `m
 terraform -chdir=infra/railway providers lock \
   -platform=linux_amd64 -platform=darwin_arm64 -platform=darwin_amd64
 ```
+
+O lockfile só cobre essas três plataformas. Num contêiner Linux em Mac com Apple Silicon (`linux_arm64`) o `init -lockfile=readonly` falha: rode o contêiner com `--platform linux/amd64`.

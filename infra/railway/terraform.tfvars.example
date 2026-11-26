@@ -17,7 +17,7 @@
 
 # repositorio     = "dono/repositorio"
 # branch          = "main"
-# auto_deploy     = false # true: todo push na branch implanta; ative também "Wait for CI" no painel
+# auto_deploy     = false # true: todo push na branch implanta (menos em producao); ative "Wait for CI" no painel
 # regiao          = "us-east4-eqdc4a"
 # serverless      = false
 # postgres_imagem = "postgres:17.12"

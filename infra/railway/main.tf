@@ -14,7 +14,7 @@ module "ambiente" {
   subdominio             = coalesce(each.value.subdominio, "helinho-${each.key}")
   repositorio            = var.repositorio
   branch                 = var.branch
-  auto_deploy            = var.auto_deploy
+  auto_deploy            = var.auto_deploy && each.key != "producao" # produção só publica à mão (ADR-0002 §7.5)
   regiao                 = var.regiao
   serverless             = var.serverless
   postgres_imagem        = var.postgres_imagem
