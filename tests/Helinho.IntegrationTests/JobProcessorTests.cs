@@ -440,4 +440,20 @@ public sealed class JobProcessorTests : IAsyncLifetime
         Assert.Contains(_log.Lines, l => l.Text.EndsWith("exceção InvalidOperationException.", StringComparison.Ordinal)); // o tipo, nunca a mensagem
         Assert.DoesNotContain(_log.Lines, l => l.Text.Contains("sintética", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public async Task Limpeza_apaga_em_lotes_so_o_que_terminou_ha_mais_tempo_que_a_retencao()
+    {
+        var ids = await EnqueueAsync(Request(), Request(), Request(), Request(), Request(), Request());
+        (string Status, int DaysAgo)[] rows = [("Succeeded", 31), ("Failed", 31), ("Cancelled", 31), ("Succeeded", 29), ("Pending", 31), ("Processing", 31)];
+        foreach (var (id, (status, daysAgo)) in ids.Zip(rows))
+        {
+            await SqlAsync($"""UPDATE "QueueJobs" SET "Status" = {status}, "FinishedAt" = {Now.AddDays(-daysAgo)} WHERE "Id" = {id}""");
+        }
+
+        var deleted = await _services.GetRequiredService<IJobProcessor>().PurgeFinishedAsync(TimeSpan.FromDays(30), batchSize: 2, Ct);
+
+        Assert.Equal(3, deleted); // dois lotes: 2 e 1
+        Assert.Equal(ids[3..].Order(), (await RowsAsync()).Keys.Order()); // o recente, o pendente e o em processamento ficam
+    }
 }
