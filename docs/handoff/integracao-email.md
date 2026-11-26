@@ -25,7 +25,7 @@ A fila e os fluxos de e-mail foram feitos em seis pilhas paralelas, juntados e p
 | 17 | `entrega2-17-acesso-aluno-3` | Parte de #267 | 317 |
 | 18 | `entrega2-18-acesso-aluno-4` | Parte de #267 | 368 |
 | 19 | `entrega2-19-acesso-aluno-5` | Closes #267 | 52 |
-| 20 | `entrega2-20-costura` | Closes #291 | 374 |
+| 20 | `entrega2-20-costura` | Closes #291 | 388 |
 | 21 | `entrega2-21-email-troca-senha-aluno` | Closes #292 | 71 |
 | 22 | `entrega2-22-ponta-a-ponta-aluno` | Parte de #293 | 247 |
 | 23 | `entrega2-23-portao-184` | portão: PR #276 (#184), sem PR próprio | — |
