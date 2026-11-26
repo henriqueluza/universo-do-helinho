@@ -49,6 +49,25 @@ public class ArchitectureRules
         Assert.False(Types.InAssembly(typeof(AppDbContext).Assembly).ShouldNot().HaveDependencyOnAny(sdk).GetResult().IsSuccessful);
     }
 
+    /// <summary>
+    /// ADR-0004 (segurança de LLM): nada do texto gerado, do prompt ou do assunto digitado vai para log. Os casos de uso
+    /// de IA nem têm como registrar: nenhum tipo de <c>Helinho.Application.Ai</c> depende de <c>ILogger</c>.
+    /// </summary>
+    [Fact]
+    public void Casos_de_uso_de_IA_nao_tem_como_escrever_em_log()
+    {
+        const string logging = "Microsoft.Extensions.Logging";
+
+        var result = Types.InAssembly(Application).That().ResideInNamespace("Helinho.Application.Ai")
+            .ShouldNot().HaveDependencyOn(logging).GetResult();
+
+        Assert.True(result.IsSuccessful, Describe(result));
+
+        // Controle: a regra enxerga o ILogger onde ele de fato é usado, e o namespace de IA não está vazio.
+        Assert.False(Types.InAssembly(typeof(AppDbContext).Assembly).ShouldNot().HaveDependencyOn(logging).GetResult().IsSuccessful);
+        Assert.NotEmpty(Types.InAssembly(Application).That().ResideInNamespace("Helinho.Application.Ai").GetTypes());
+    }
+
     [Fact]
     public void Web_nao_usa_DbContext_concreto_nem_Npgsql()
     {

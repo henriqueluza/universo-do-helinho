@@ -199,6 +199,8 @@ public class AiProviderTests(PostgresFixture postgres)
         using var scope = fake.Services.CreateScope();
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<RequestAiDrafts>()); // Issue #258: o caso de uso está na composição
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<GetAiDraftJob>()); // Issue #275
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<ReviewAiDrafts>()); // Issue #260
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<SuggestSingleDraft>()); // Issue #261
         Assert.Contains(scope.ServiceProvider.GetServices<IJobHandler>(), handler => handler is ProcessAiDraftJob); // Issue #259: a raia da IA
     }
 }
