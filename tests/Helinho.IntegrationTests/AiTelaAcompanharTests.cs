@@ -95,7 +95,7 @@ public partial class AiTelaAcompanharTests(PostgresFixture postgres)
     public async Task Pedido_pronto_sem_sugestoes_validas_mostra_o_estado_vazio_com_os_contadores()
     {
         await using var factory = await NewFactoryAsync();
-        using var client = factory.CreateClientAs(RoleNames.Admin);
+        using var client = factory.CreateClientAs(RoleNames.Master); // critério: Master também acessa
         var id = await SeedJobAsync(factory, j => Succeed(j, 0));
 
         var html = WebUtility.HtmlDecode(await client.GetStringAsync($"/Questoes/Ia/{id}", Ct));

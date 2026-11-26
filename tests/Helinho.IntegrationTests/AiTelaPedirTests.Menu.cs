@@ -16,11 +16,13 @@ public partial class AiTelaPedirTests
 
         using var index = await client.GetAsync("/Questoes/Ia", Ct);
         using var pedido = await client.GetAsync($"/Questoes/Ia/{Guid.NewGuid()}", Ct);
+        using var editar = await client.GetAsync($"/Questoes/Ia/{Guid.NewGuid()}/editar/{Guid.NewGuid()}", Ct);
         using var post = await client.PostAsync("/Questoes/Ia", new FormUrlEncodedContent([]), Ct);
         var menu = await client.GetStringAsync("/Questoes", Ct);
 
         Assert.Equal(HttpStatusCode.NotFound, index.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, pedido.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, editar.StatusCode);
         Assert.NotEqual(HttpStatusCode.OK, post.StatusCode);
         Assert.DoesNotContain("Rascunhos de IA", menu, StringComparison.Ordinal);
         Assert.DoesNotContain("/Questoes/Ia", menu, StringComparison.Ordinal);
