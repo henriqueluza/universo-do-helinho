@@ -19,6 +19,11 @@ public sealed partial class JobProcessor(IServiceScopeFactory scopes, TimeProvid
         JobResult.Suspend? suspended = null;
         foreach (var job in jobs)
         {
+            if (stopping.IsCancellationRequested)
+            {
+                break; // §6.4: o resto do lote fica em Processing e reaparece pelo prazo de posse
+            }
+
             // Depois de um suspender, o resto do lote é devolvido do mesmo jeito, sem chamar o provedor de novo.
             var result = await ProcessItemAsync(job, lane.Policy, suspended, abort);
             suspended ??= result;
@@ -58,9 +63,17 @@ public sealed partial class JobProcessor(IServiceScopeFactory scopes, TimeProvid
         var transition = JobTransition.WhenCaptured(job.Attempts, job.ExpiresAt, policy, time.GetUtcNow());
         if (transition is null)
         {
-            result ??= await handler.HandleAsync(context, abort);
+            result ??= await GuardAsync(db, job, policy, async token => await handler.HandleAsync(context, token), abort)
+                ?? new JobResult.Retry(JobTransition.HandlerException);
             var jitter = ((Random.Shared.NextDouble() * 2) - 1) * JobTransition.Jitter;
             transition = JobTransition.After(result, job.Attempts, job.ExpiresAt, policy, time.GetUtcNow(), jitter);
+        }
+
+        if (transition is { Abandoned: true, Error: { } reason } && handler is IAbandonedJobHandler hook)
+        {
+            // §6.7: o que o gancho deixar no contexto é gravado junto com o Failed; se ele lançar, o Failed é gravado igual.
+            // O gancho tem tempo máximo próprio: o do tratador pode ter acabado de se esgotar (última tentativa que estourou).
+            await GuardAsync(db, job, policy, async token => { await hook.OnAbandonedAsync(context, reason, token); return null; }, abort);
         }
 
         var outcome = transition switch
@@ -85,13 +98,35 @@ public sealed partial class JobProcessor(IServiceScopeFactory scopes, TimeProvid
         catch (Exception exception) when (!abort.IsCancellationRequested)
         {
             outcome = "write_failed";
-            Threw(job.Id, job.Type, context.Attempts, exception.GetType().Name); // só o tipo: a mensagem pode trazer SQL ou dado
+            Threw(job.Id, job.Type, context.Attempts, exception.GetType().Name);
         }
 
         var level = outcome switch { "succeeded" or "retry" => LogLevel.Information, "suspended" => LogLevel.Error, _ => LogLevel.Warning };
         var elapsedMs = (long)time.GetElapsedTime(started).TotalMilliseconds;
         Finished(level, job.Id, job.Type, context.Attempts, outcome, transition.Error ?? "-", elapsedMs);
         return result as JobResult.Suspend;
+    }
+
+    /// <summary>
+    /// Chamada do tratador ou do gancho com token próprio, cancelado em <see cref="JobPolicy.ItemTimeout"/> contado a partir dela
+    /// ou no fim da janela de parada (<paramref name="abort"/>). Exceção: nada do que ele deixou no contexto é salvo, e só o tipo
+    /// dela vai para o log.
+    /// </summary>
+    private async Task<JobResult?> GuardAsync(
+        AppDbContext db, QueueJob job, JobPolicy policy, Func<CancellationToken, Task<JobResult?>> call, CancellationToken abort)
+    {
+        using var timeout = new CancellationTokenSource(policy.ItemTimeout, time);
+        using var item = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, abort);
+        try
+        {
+            return await call(item.Token);
+        }
+        catch (Exception exception) when (!abort.IsCancellationRequested)
+        {
+            db.ChangeTracker.Clear();
+            Threw(job.Id, job.Type, job.Attempts, exception.GetType().Name);
+            return null;
+        }
     }
 
     [LoggerMessage(Message = "Fila: trabalho {JobId} ({JobType}), tentativa {Attempt}: {Outcome}, código {Code}, {ElapsedMs} ms.")]
