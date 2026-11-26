@@ -136,8 +136,8 @@ public partial class QuestoesSugerirIaTests(PostgresFixture postgres, QuestoesSu
         Assert.Contains("formaction=\"/Questoes/Editar?handler=Sugerir\"", page, StringComparison.Ordinal);
         Assert.Contains("id=\"ia-resultado\"", page, StringComparison.Ordinal);
         Assert.DoesNotContain("autofocus", page, StringComparison.Ordinal); // sem pedido, o foco fica onde estava
-        Assert.True(page.IndexOf("type=\"submit\" class=\"visually-hidden\"", StringComparison.Ordinal) < page.IndexOf("class=\"ai-help\"", StringComparison.Ordinal),
-            "O botão padrão do Enter (Salvar) tem de vir antes do Sugerir.");
+        var enter = page.IndexOf("<button type=\"submit\" class=\"visually-hidden\" tabindex=\"-1\" aria-hidden=\"true\">Salvar</button>", StringComparison.Ordinal);
+        Assert.InRange(enter, 0, page.IndexOf("class=\"ai-help\"", StringComparison.Ordinal) - 1); // o botão padrão do Enter (Salvar) existe e vem antes do Sugerir
         Assert.DoesNotMatch("<script(?![^>]*\\bsrc=)", page);
         Assert.DoesNotContain("onchange", page, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotMatch("style=\"(?!--)", page); // só variável CSS do servidor, como nas outras telas
@@ -168,6 +168,7 @@ public partial class QuestoesSugerirIaTests(PostgresFixture postgres, QuestoesSu
         Assert.Contains("ai-filled", html, StringComparison.Ordinal);
         Assert.Matches("name=\"AiJobId\" value=\"[0-9a-f-]{36}\"", html);
         Assert.Contains("class=\"theme-pick\"", html, StringComparison.Ordinal); // a prévia e o resto da tela seguem inteiros
+        Assert.Contains("data-empty=\"Sua pergunta aparece aqui\">Qual é a pergunta sugerida para o teste de preenchimento?</p>", html, StringComparison.Ordinal); // a prévia recebe o enunciado
         Assert.Equal(before, await CountQuestionsAsync(factory)); // "Sugerir" nunca salva
     }
 

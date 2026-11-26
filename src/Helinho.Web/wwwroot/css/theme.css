@@ -344,7 +344,7 @@
   .ai-help .btn[aria-busy="true"] { pointer-events: none; opacity: .75; }
   .ai-help small { display: block; font-weight: 600; }
   .ai-result { display: grid; gap: var(--sp-2); justify-items: start; }
-  .ai-result:focus-visible { outline: 3px solid var(--select-line); outline-offset: 3px; border-radius: var(--r-md); }
+  .ai-result:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: var(--r-md); }
   .ai-result .note { justify-self: stretch; }
   .ai-result .note .btn { margin-top: var(--sp-2); }
   @media (max-width: 767.98px) {

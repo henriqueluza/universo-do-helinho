@@ -70,7 +70,7 @@ public partial class AiTelaRevisarTests(PostgresFixture postgres)
     public async Task Editar_abre_preenchido_sem_gravar_e_codifica_o_texto_da_IA()
     {
         await using var factory = await NewFactoryAsync();
-        using var client = factory.CreateClientAs(RoleNames.Admin);
+        using var client = factory.CreateClientAs(RoleNames.Master); // critério: Master também acessa
         var (job, ids) = await SeedAsync(factory);
 
         var raw = await client.GetStringAsync($"/Questoes/Ia/{job}/editar/{ids[0]}", Ct);

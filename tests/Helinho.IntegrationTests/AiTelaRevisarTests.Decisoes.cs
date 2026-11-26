@@ -119,6 +119,8 @@ public partial class AiTelaRevisarTests
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal($"/Questoes/Ia/{job}", response.Headers.Location!.OriginalString);
+        var html = WebUtility.HtmlDecode(await client.GetStringAsync(response.Headers.Location, Ct));
+        Assert.Contains("Esta sugestão já foi revisada.", html, StringComparison.Ordinal);
     }
 
     /// <summary>Issue #299: o id da sugestão vem do formulário; só vale dentro do pedido da URL.</summary>
