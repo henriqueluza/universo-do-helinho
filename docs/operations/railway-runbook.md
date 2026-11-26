@@ -1,26 +1,35 @@
 # Runbook — homologação na Railway com Terraform
 
-**Para quem:** Henrique, sozinho, na própria máquina (macOS). **Escrito em:** 18/11/2026. **Revisto em:** 19/11/2026, depois da leitura "no papel" (Issue #117).
-**Descreve:** o Terraform de `infra/railway/` (PRs #110, #113 e #116, que chegam à `main` pelo PR #100), o ADR-0002 (`docs/architecture/ADR-0002-hospedagem-railway.md`, PR #101) e o `Dockerfile` da raiz.
+**Para quem:** Henrique, sozinho, na própria máquina (macOS). **Escrito em:** 18/11/2026. **Revisto em:** 19/11/2026, depois da leitura "no papel" (Issue #117), e em 22/11/2026 para a decisão D3 (Issue #226).
+**Descreve:** o Terraform de `infra/railway/` (esqueleto no PR #100; recursos no PR #322, da Issue #107; testes no PR #323; domínio próprio no PR #330; todos já na `main`), o ADR-0002 (`docs/architecture/ADR-0002-hospedagem-railway.md`, PR #101) e o `Dockerfile` da raiz.
 
 > **Nada deste runbook foi executado.** Nenhum agente rodou `plan`, `apply`, criou conta, token ou recurso. Os passos de painel foram conferidos na documentação da Railway em 18 e 19/11/2026 (seção [Fontes](#fontes); as marcas `[F1]`, `[F2]`… apontam para ela). Onde a documentação não dá o nome do botão, o texto diz "o nome pode variar". Onde um comportamento não pôde ser confirmado, o passo traz **Confira:** com o que fazer em cada caso; o índice desses pontos está em [Fatos não confirmados](#fatos-não-confirmados-e-onde-cada-um-é-tratado).
 
 Só dados sintéticos em homologação. Produção não é ligada por este runbook.
 
+## Decisões do Henrique em 22/11/2026 que este runbook segue
+
+- **D1 do ADR-0002: só homologação por enquanto.** Depois de subir tudo, o ambiente fica parado para o desenvolvedor Unity testar com estabilidade. Produção é etapa posterior ([`ambientes.md`](ambientes.md#o-que-falta-para-ligar-a-produção)).
+- **D3: auto-deploy ligado em homologação** (`auto_deploy = true` no `terraform.tfvars`). Cada merge na `main` publica sozinho. O padrão da variável no Terraform continua `false`; quem liga é o `terraform.tfvars`.
+- **Risco aceito para homologação:** com auto-deploy, a opção **Wait for CI** da Railway **não espera build nem testes**, porque o workflow `validate` só roda em `pull_request`; no push para a `main` só roda o `security`. O Henrique aceitou isso em homologação (dado sintético) em 22/11/2026 ([registro na Issue #225](https://github.com/henriqueluza/universo-do-helinho/issues/225#issuecomment-7089221462); ADR-0002, D3). A Issue #225 (rodar o `validate` também no commit que chega à `main`) continua aberta e é **pré-requisito de produção**. O que segura um commit ruim hoje é a proteção da `main` (PR, `validate`, `semgrep`, `gitleaks` e `pr-size` antes do merge). Detalhes: [Wait for CI](#58-ligar-wait-for-ci).
+- **D4 aceita:** as chaves do Data Protection ficam numa tabela do PostgreSQL, com o pacote oficial (PR #120, já na `main`). O painel não desloga a cada deploy.
+- **Senha do seed:** valor genérico, só para testes, definido por ele em `TF_VAR_seed_password` na máquina dele. Nunca em arquivo versionado. A Issue #115 (senha separada para alunos) fica de lado.
+- **Domínio próprio do painel:** entra depois, pela variável `dominio_proprio` (já na `main`, PR #330; passo a passo em `docs/operations/railway-dominio.md`). Os exemplos usam `paineladm.example.org`. O domínio real nunca entra no repositório.
+
 ## O caminho feliz em 10 linhas
 
 1. **Igor:** entrar no workspace da contratante na Railway como Admin e saber o plano (Hobby ou Pro) e o teto de gasto. → [Passo 1](#passo-1--o-que-pedir-ao-igor)
-2. **Repositório e ferramentas:** PRs #100 (Terraform), #101 (ADR) e #104 (`/health/ready`) mergeados na `main`; o do Data Protection (Issue #103) só se a decisão D4 for a opção A; Terraform 1.16 ou 1.17 e `tflint` 0.66+. → [Passo 2](#passo-2--ferramentas-e-token-da-railway)
+2. **Repositório e ferramentas:** PRs #100 (Terraform), #101 (ADR), #104 (`/health/ready`) e #120 (Data Protection, D4 aceita) já estão na `main`: só confira; Terraform 1.16 ou 1.17 e `tflint` 0.66+. → [Passo 2](#passo-2--ferramentas-e-token-da-railway)
 3. **Token:** criar um token de **workspace** em `railway.com/account/tokens` e guardar no gerenciador de senhas. → [2.5](#25-criar-o-token-de-workspace)
 4. **GitHub App:** instalar a app da Railway na conta do GitHub com acesso a `universo-do-helinho`. → [Passo 3](#passo-3--github-app-da-railway-no-repositório)
-5. **Entradas:** copiar `terraform.tfvars.example` para `terraform.tfvars`; `read -rs` de `RAILWAY_TOKEN` e `TF_VAR_seed_password` em um terminal só do Terraform. → [Passo 4](#passo-4--terraformtfvars-e-variáveis-de-ambiente)
-6. **Terraform:** `init` → `plan -out` (esperado: `Plan: 7 to add`, nenhum domínio nem TCP proxy no banco, nenhum segredo na tela) → `apply`. → [Passo 5](#passo-5--init-plan-e-apply)
+5. **Entradas:** copiar `terraform.tfvars.example` para `terraform.tfvars` e descomentar `auto_deploy = true`; `read -rs` de `RAILWAY_TOKEN` e `TF_VAR_seed_password` em um terminal só do Terraform. → [Passo 4](#passo-4--terraformtfvars-e-variáveis-de-ambiente)
+6. **Terraform:** `init` → `plan -out` (esperado: `Plan: 7 to add`, nenhum domínio nem TCP proxy no banco, nenhum segredo na tela) → conferir a proteção da `main` → `apply`. → [Passo 5](#passo-5--init-plan-e-apply)
 7. **Estado:** backup cifrado de `infra/railway/terraform.tfstate` logo depois do `apply`. → [5.7](#57-backup-cifrado-do-estado)
-8. **Primeiro deploy:** no painel, serviço `helinho-web` → `Cmd+K` → **Deploy Latest Commit**; o pre-deploy `migrate` roda e o deploy fica ativo. → [Passo 6](#passo-6--primeiro-deploy-e-conferências)
+8. **Wait for CI e primeiro deploy:** logo depois do `apply`, ligar **Wait for CI** no painel ([5.8](#58-ligar-wait-for-ci)). Com `auto_deploy = true` a Railway já publica sozinha; confira que o pre-deploy `migrate` rodou e o deploy ficou ativo (se não houver deploy, `Cmd+K` → **Deploy Latest Commit**). → [Passo 6](#passo-6--primeiro-deploy-e-conferências)
 9. **Conferir:** `/health/ready` responde 200, login no painel com `master@helinho.example`, `POST /api/login` com a matrícula `2026001`. → [6.4](#64-healthready)
 10. **Registrar:** preencher `docs/operations/ambientes.md` e passar a URL da API (já com `/api`) e a credencial sintética ao desenvolvedor Unity. → [Passo 7](#passo-7--url-para-o-desenvolvedor-unity-e-registro-do-ambiente)
 
-Operação do dia a dia (publicar, rollback, backup, restore, rotação, destruição): [Passo 8](#passo-8--operação). O que fica para depois: [Passo 9](#passo-9--o-que-fica-para-depois).
+Operação do dia a dia (publicar, rollback, backup, restore, rotação, destruição): [Passo 8](#passo-8--operação). Estabilidade para o teste do jogo: [Deixar a homologação parada](#deixar-a-homologação-parada-para-o-teste-do-jogo). O que fica para depois: [Passo 9](#passo-9--o-que-fica-para-depois).
 
 ## Variável → onde pegar → onde colocar
 
@@ -29,7 +38,8 @@ Operação do dia a dia (publicar, rollback, backup, restore, rotação, destrui
 | `RAILWAY_TOKEN` | Você cria: `railway.com/account/tokens`, com o workspace da contratante selecionado ([2.5](#25-criar-o-token-de-workspace)) | Gerenciador de senhas. No uso: `read -rs` no terminal do Terraform. Nunca em arquivo, `tfvars`, CI ou chat | sim |
 | `TF_VAR_seed_password` | Você gera no gerenciador de senhas: mínimo de 16 caracteres (exigido pelo Terraform), recomendado 20 ou mais, com minúscula, maiúscula, dígito e símbolo | Gerenciador de senhas. No uso: `read -rs` no terminal do Terraform. O Terraform a grava na Railway como `HELINHO_SEED_PASSWORD` | sim |
 | `workspace_id` | Só se o token enxergar mais de um workspace, o que acontece com token de conta. Vem de `railway whoami --json`, no terminal da CLI ([5.5](#55-se-o-apply-falhar-no-meio)) | `infra/railway/terraform.tfvars` | não |
-| `ambientes`, `repositorio`, `branch`, `auto_deploy`, `regiao`, `serverless`, `postgres_imagem`, `variaveis_web` | Os padrões de `terraform.tfvars.example` já servem. Exceção provável: o subdomínio padrão `helinho-homologacao` é único em toda a Railway e pode estar ocupado; aí defina `ambientes.homologacao.subdominio` | `infra/railway/terraform.tfvars`, só se for mudar | não |
+| `auto_deploy` | Decisão D3 do Henrique (22/11/2026): `true` em homologação | `infra/railway/terraform.tfvars`: descomente `auto_deploy = true` ([4.1](#41-criar-o-terraformtfvars)) | não |
+| `ambientes`, `repositorio`, `branch`, `regiao`, `serverless`, `postgres_imagem`, `variaveis_web` | Os padrões de `terraform.tfvars.example` já servem. Exceção provável: o subdomínio padrão `helinho-homologacao` é único em toda a Railway e pode estar ocupado; aí defina `ambientes.homologacao.subdominio` | `infra/railway/terraform.tfvars`, só se for mudar | não |
 | `TF_VAR_brevo_api_key` | Painel da Brevo, na Sprint 3 | Não defina agora | sim |
 | `TF_VAR_ai_api_key` | Painel do provedor de IA, na Sprint 4 | Não defina agora | sim |
 | Senha do banco | O Terraform gera (`random_password`); você nunca digita | Fica em texto no estado do Terraform e na Railway (variável `PGPASSWORD` do serviço `Postgres`) | sim |
@@ -71,14 +81,14 @@ O Igor é o contato da contratante para a conta da Railway (C19). Mande as pergu
 
 ### 2.1 Conferir que a `main` tem tudo
 
-**Pré-requisitos do primeiro `apply`, mergeados na `main`:**
+**Pré-requisitos do primeiro `apply`, todos já mergeados na `main` (conferido em 25/11/2026):**
 
-| PR | O que traz | Obrigatório? | Sem ele |
-|---|---|---|---|
-| #100 | O Terraform de `infra/railway/` (os PRs #110, #113 e #116 já foram mergeados dentro da branch dele) | sim | Não há o que aplicar |
-| #101 | ADR-0002 e `docs/operations/custos.md` | sim | As decisões D1 a D3 não estão aceitas |
-| #104 | A rota `/health/ready` | sim | O healthcheck do serviço aponta para ela: **o primeiro deploy falha no healthcheck** |
-| O da Issue #103 | Chaves do Data Protection no PostgreSQL (pacote e migração) | **só se a decisão D4 do ADR-0002 for a opção A** | Cada deploy derruba as sessões do painel |
+| PR | O que traz | Sem ele |
+|---|---|---|
+| #100, #322, #323, #330 | O Terraform de `infra/railway/`: esqueleto e workflow `infra.yml`, recursos (projeto, serviços, banco, variáveis), testes das validações e domínio próprio | Não há o que aplicar |
+| #101 | ADR-0002 e `docs/operations/custos.md` | As decisões D1 a D5 não estão registradas |
+| #104 | A rota `/health/ready` | O healthcheck do serviço aponta para ela: **o primeiro deploy falha no healthcheck** |
+| #120 | Chaves do Data Protection no PostgreSQL (pacote e migração), decisão D4 aceita | Cada deploy derruba as sessões do painel |
 
 Já estão na `main`: #102 (`migrate`), #105 (`Dockerfile`) e #106 (proxy).
 
@@ -104,28 +114,19 @@ grep -c '"/health/ready"' src/Helinho.Web/Composition/HealthEndpoint.cs
 
 **Se der errado:** imprime `0` ou falta arquivo → algum PR ainda não foi mergeado. **Pare aqui.** Sem a rota `/health/ready` (PR #104) o healthcheck da Railway nunca recebe 2xx e todo deploy falha depois de 120 segundos.
 
-**Data Protection: depende da decisão D4** (ADR-0002 §9 e §12), que é sua e pode ainda estar aberta. O PR da Issue #103 implementa a opção A e pode ser fechado sem merge se você escolher outra.
-
-| Decisão D4 | O que fazer aqui |
-|---|---|
-| **A** (tabela no PostgreSQL com o pacote oficial) | Espere o PR da Issue #103 entrar e confira com o `grep` abaixo |
-| **B** ou **C** (repositório próprio, ou volume no web) | A persistência chega por outro PR. O `grep` abaixo imprime `0` para sempre e não quer dizer nada; confira pelo PR da opção escolhida |
-| **D** (não persistir) | Siga. Cada deploy derruba as sessões do painel (todo mundo entra de novo), e isso passa a ser o comportamento esperado |
-| Ainda aberta | Você pode subir a homologação sem esperar: o sistema funciona, só desloga o painel a cada deploy. Registre em `docs/operations/ambientes.md`, na linha "Sessões do painel" |
-
-Só para a opção A:
+**Data Protection (D4 aceita pelo Henrique em 22/11/2026):** tabela no PostgreSQL com o pacote oficial, PR #120, já na `main`. Confira com o `grep` abaixo; as sessões do painel persistem entre deploys.
 
 ```sh
 grep -c 'DataProtection.EntityFrameworkCore' Directory.Packages.props
 ```
 
-**✔ Confira:** imprime `1` (o PR da Issue #103 entrou).
+**✔ Confira:** imprime `1`.
 
-**Se der errado:** imprime `0` com a D4 na opção A → o PR ainda não foi mergeado. Espere por ele, ou siga sabendo que cada deploy desloga o painel até ele entrar (a migração nova dele roda sozinha no pre-deploy do deploy seguinte).
+**Se der errado:** imprime `0` → a `main` local está desatualizada; refaça o `git pull --ff-only`.
 
 ### 2.2 Terraform na versão fixada
 
-`infra/railway/versions.tf` aceita `>= 1.16.0, < 1.18.0`. O workflow `infra` do CI, quando existir, usará a 1.17.2, que era a estável em 18/11/2026 [F19]; em 19/11/2026 ele ainda não estava na branch do PR #100.
+`infra/railway/versions.tf` aceita `>= 1.16.0, < 1.18.0`. O workflow `infra.yml` do CI (PR #100) usa a 1.17.2, que era a estável em 18/11/2026 [F19].
 
 ```sh
 terraform version
@@ -228,12 +229,22 @@ git check-ignore -v infra/railway/terraform.tfvars
 
 **Se der errado:** o `git check-ignore` não imprime nada → o `.gitignore` do PR #110 não está na sua `main`. Pare e volte ao [2.1](#21-conferir-que-a-main-tem-tudo).
 
-**Não precisa editar nada:** todas as linhas do exemplo estão comentadas e mostram os padrões (só `homologacao`, com seed ligado; `auto_deploy = false`; região `us-east4-eqdc4a`; `postgres:17.12`). Edite só se:
+**Uma edição é obrigatória.** Todas as linhas do exemplo vêm comentadas e mostram os padrões (só `homologacao`, com seed ligado; `auto_deploy = false`; região `us-east4-eqdc4a`; `postgres:17.12`). Pela decisão D3 do Henrique (22/11/2026), em homologação o auto-deploy fica **ligado**: abra o arquivo e descomente a linha, trocando o valor:
+
+```hcl
+auto_deploy = true
+```
+
+O padrão da variável no Terraform continua `false` (é o previsto para produção); quem liga é o seu `terraform.tfvars`, que o git ignora. Edite o resto só se:
 
 | Situação | O que descomentar |
 |---|---|
 | O token enxerga mais de um workspace (o erro aparece no `apply`) | `workspace_id = "<id do workspace>"` |
 | O subdomínio `helinho-homologacao` já existe na Railway (o erro aparece no `apply`) | `ambientes = { homologacao = { seed_enabled = true, subdominio = "<outro-nome>" } }` |
+
+**Confira:** `grep -n '^auto_deploy' infra/railway/terraform.tfvars` imprime `auto_deploy = true`. Sem essa linha o `plan` do [5.3](#53-plan) mostra o watch pattern de "deploy desligado" e a homologação nasce em publicação manual.
+
+**Domínio próprio:** não preencha agora. Ele entra depois, pelo `dominio_proprio` dentro de `ambientes` (exemplo `paineladm.example.org`, sem `https://` e sem barra), pelo passo a passo de `docs/operations/railway-dominio.md`, **depois** do primeiro deploy.
 
 **Segredo não entra nesse arquivo.** Não acrescente `producao` em `ambientes` ([Passo 9](#passo-9--o-que-fica-para-depois)).
 
@@ -324,9 +335,9 @@ terraform -chdir=infra/railway plan -out="$HOME/.helinho-infra/homologacao.tfpla
 1. A última linha do resumo é **`Plan: 7 to add, 0 to change, 0 to destroy.`**
 2. Os sete recursos são, todos sob `module.ambiente["homologacao"]`: `railway_project.this`, `random_password.postgres`, `railway_service.postgres`, `railway_variable_collection.postgres`, `railway_service.web`, `railway_service_domain.web`, `railway_variable_collection.web`.
 3. **Não existe** `railway_tcp_proxy`, e o **único** `railway_service_domain` é o `.web`. O banco não tem endereço público.
-4. Em `railway_service.web`: `source_repo = "henriqueluza/universo-do-helinho"`, `source_repo_branch = "main"`, `watch_patterns = ["/.auto-deploy-desligado"]`, `predeploy_command = "tini -- dotnet Helinho.Web.dll migrate"`, `predeploy_timeout = 300`, `healthcheck_path = "/health/ready"`, `healthcheck_timeout = 120`.
+4. Em `railway_service.web`: `source_repo = "henriqueluza/universo-do-helinho"`, `source_repo_branch = "main"`, `watch_patterns = []` (com `auto_deploy = true`; se aparecer `["/.auto-deploy-desligado"]`, o `terraform.tfvars` está sem a linha do [4.1](#41-criar-o-terraformtfvars)), `predeploy_command = "tini -- dotnet Helinho.Web.dll migrate"`, `predeploy_timeout = 300`, `healthcheck_path = "/health/ready"`, `healthcheck_timeout = 120`.
 5. Em `railway_service.postgres`: `source_image = "postgres:17.12"` e o volume `postgres-dados` em `/var/lib/postgresql/data`.
-6. `railway_variable_collection.web` e, em `Changes to Outputs`, a saída `ambientes` (`variaveis_web`) listam **13 nomes**: `ASPNETCORE_ENVIRONMENT`, `PORT`, `Proxy__TrustForwardedHeaders`, `ConnectionStrings__Default`, `Seed__Enabled`, `HELINHO_SEED_PASSWORD`, os cinco `Api__Auth__*`, `Email__Provider` e `Ai__Provider`. Nenhuma variável de Brevo ou de IA além dessas (as vazias não são enviadas; ADR-0002 §16, item 6: não se sabe se a API da Railway aceita valor vazio).
+6. `railway_variable_collection.web` e, em `Changes to Outputs`, a saída `ambientes` (`variaveis_web`) listam **17 nomes**: `ASPNETCORE_ENVIRONMENT`, `PORT`, `Proxy__TrustForwardedHeaders`, `ConnectionStrings__Default`, `Seed__Enabled`, `HELINHO_SEED_PASSWORD`, os cinco `Api__Auth__*`, `Email__Provider`, `Email__DailyLimit`, `Ai__Provider`, `Ai__TimeoutSeconds`, `Ai__DailyQuotaPerAdmin` e `Ai__DailyGlobalLimit`. Nenhuma variável de Brevo ou de IA além dessas (as vazias não são enviadas; ADR-0002 §16, item 6: não se sabe se a API da Railway aceita valor vazio). Conferido na `main` de 25/11/2026, já com as variáveis de e-mail e de IA da Issue #229 (PRs #333 e #344) e com o `dominio_proprio` ainda vazio (com ele, `App__PublicBaseUrl` é a 18ª).
 7. **Nenhum segredo na tela:** todos os valores de variável aparecem como `(sensitive value)`, inclusive os que não são segredo.
 
 Duas conferências por comando, que não imprimem o segredo:
@@ -353,6 +364,18 @@ O primeiro `plan`, sem estado, provavelmente não fala com a Railway: um token e
 
 ### 5.4 `apply`
 
+**Antes do `apply`, confira a proteção da `main`.** Com `auto_deploy = true`, o próprio `apply` pode publicar, e a proteção da `main` é a única barreira antes de cada deploy; o ADR-0002 §7.5 deixa a você conferi-la antes do primeiro `apply`. O ruleset `protect-main` deve exigir PR e os checks `validate`, `semgrep`, `gitleaks` e `pr-size` antes do merge. Veja em `gh api repos/henriqueluza/universo-do-helinho/rulesets` ou em **Settings → Rules** do repositório.
+
+**✔ Confira:** o ruleset está ativo na `main`, exige PR e lista os quatro checks.
+
+**Se der errado:** o ruleset não exige os checks, ou a `main` aceita push direto → **não rode o `apply`** com `auto_deploy = true`. Avise o Henrique.
+
+**Três avisos sobre o estado do Terraform, antes do primeiro `apply`** (decisão D2, aceita em 22/11/2026; o backend remoto fica para antes de produção, Issue #317):
+
+- **O estado é local e guarda segredos em texto:** a senha do banco, a senha do seed e, quando houver, as chaves da Brevo e da IA. Quem lê `infra/railway/terraform.tfstate`, ou o `terraform.tfstate.backup` que o Terraform deixa ao lado dele, lê tudo isso. Nenhum dos dois vai para o git. O plano salvo (`~/.helinho-infra/*.tfplan`) também guarda os segredos e é apagado depois do `apply`.
+- **Ele fica dentro da pasta de onde você roda o Terraform** (`infra/railway/`, do clone onde você roda), e não em outro lugar.
+- **`git worktree remove` e `git clean -x` nessa pasta apagam o estado sem avisar** (o arquivo é ignorado pelo git, e o `-x` remove os ignorados). Sem o estado o Terraform não conhece o que criou e tentará criar tudo de novo. Rode o `apply` num clone fixo, nunca numa worktree descartável, e faça o backup cifrado do [5.7](#57-backup-cifrado-do-estado) logo depois.
+
 Abra o painel da Railway em outra janela para acompanhar. O `apply` cria, nesta ordem: projeto → senha → serviço `Postgres` → variáveis do `Postgres` (reimplanta) → serviço `helinho-web` → domínio e variáveis do web (reimplanta).
 
 ```sh
@@ -374,7 +397,8 @@ rm "$HOME/.helinho-infra/homologacao.tfplan"
 | `Postgres` com um deploy **vermelho** e, logo depois, um **verde** | Sim. A imagem é conectada antes de as variáveis existirem; o primeiro deploy falha por falta de `POSTGRES_PASSWORD` e o segundo, disparado pelas variáveis, sobe | Nada |
 | `Postgres` só com deploy vermelho depois de o `apply` terminar | Não | Abra os logs do deploy. Se a mensagem for de `POSTGRES_PASSWORD` ausente, confira a aba **Variables** (devem ser 9 variáveis) e faça **Redeploy** no menu de três pontos do deploy [F6] |
 | `helinho-web` com um deploy que falhou no pre-deploy, sem connection string | Possível (ADR-0002 §16, item 1): conectar o repositório pode disparar um deploy antes de as variáveis existirem | Nada; siga para o [Passo 6](#passo-6--primeiro-deploy-e-conferências) |
-| `helinho-web` sem nenhum deploy, ou com deploy marcado como ignorado (**Show Skipped** [F5]) | Possível: o watch pattern segurou o deploy inicial | Nada; o primeiro deploy é manual, no [Passo 6](#passo-6--primeiro-deploy-e-conferências) |
+| `helinho-web` sem nenhum deploy | Possível, mesmo com auto-deploy ligado: o gatilho só vale para o próximo push | Nada agora; o primeiro deploy é feito no [Passo 6](#passo-6--primeiro-deploy-e-conferências) |
+| `helinho-web` com deploy marcado como ignorado (**Show Skipped** [F5]) | Não esperado com `auto_deploy = true` (o watch pattern fica vazio) | Confira o `terraform.tfvars` ([4.1](#41-criar-o-terraformtfvars)) e o `plan` |
 | `helinho-web` já com deploy **verde** | Possível: a criação das variáveis reimplanta o serviço | Pule para o [6.3](#63-conferir-o-pre-deploy-migrate) |
 
 ### 5.5 Se o `apply` falhar no meio
@@ -432,7 +456,7 @@ railway whoami --json | jq -r '.workspaces[] | "\(.id)  \(.name)"'
 Regras para repetir:
 
 - **Sempre** faça um `plan -out` novo; o arquivo de plano antigo não serve mais.
-- O `plan` novo deve mostrar só o que **faltou** criar. Se ele quiser **destruir**, **substituir** ou **alterar** `railway_project` ou `railway_service.postgres`, pare ([8.1](#81-publicar-uma-versão-nova) explica por quê).
+- O `plan` novo deve mostrar só o que **faltou** criar. Se ele quiser **destruir**, **substituir** ou **alterar** `railway_project` ou `railway_service.postgres`, pare ([8.1](#81-o-que-dispara-um-deploy-e-como-conferir) explica por quê).
 - Faça o backup do estado ([5.7](#57-backup-cifrado-do-estado)) mesmo depois de um `apply` parcial.
 - Na segunda falha igual, não tente uma terceira vez do mesmo jeito: guarde a mensagem de erro (sem segredo) e abra uma Issue.
 
@@ -447,7 +471,7 @@ terraform -chdir=infra/railway output
 No painel, projeto `helinho-homologacao`, ambiente `homologacao`:
 
 - **`Postgres`:** nas configurações de rede do serviço **não há** domínio público nem TCP proxy; o volume `postgres-dados` está montado em `/var/lib/postgresql/data`; a aba **Variables** tem 9 variáveis.
-- **`helinho-web`:** origem `henriqueluza/universo-do-helinho`, branch `main`; watch path `/.auto-deploy-desligado`; pre-deploy command `tini -- dotnet Helinho.Web.dll migrate`; healthcheck `/health/ready`; aba **Variables** com 13 variáveis.
+- **`helinho-web`:** origem `henriqueluza/universo-do-helinho`, branch `main`; **sem** watch path (com `auto_deploy = true`; um watch path `/.auto-deploy-desligado` quer dizer auto-deploy desligado); pre-deploy command `tini -- dotnet Helinho.Web.dll migrate`; healthcheck `/health/ready`; aba **Variables** com 17 variáveis.
 
 **Se der errado:** o `Postgres` tem domínio público ou TCP proxy → alguém clicou no painel. Remova na hora e rode `terraform plan`; o banco só pode existir na rede privada.
 
@@ -477,20 +501,37 @@ Copie o arquivo `.age` para **fora da máquina** ([8.9](#89-onde-fica-o-estado-d
 
 **Se der errado:** `age: command not found` → `brew install age`. Alternativa com `gpg`, se preferir: `gpg --symmetric --cipher-algo AES256 -o <destino>.gpg infra/railway/terraform.tfstate`.
 
+### 5.8 Ligar Wait for CI
+
+Faça **logo depois do primeiro `apply`** (ADR-0002 §7.5). O provider não alcança esse botão: é clique no painel.
+
+1. Painel → projeto `helinho-homologacao` → serviço `helinho-web` → **Settings**, na parte de origem e auto-deploy → ligue **Wait for CI** [F5]. **Confira:** o lugar exato e o nome do botão podem variar; se não achar, procure na documentação [F5] antes de improvisar.
+2. Confira de novo a proteção da `main` no GitHub, a mesma do [5.4](#54-apply) (quem confirma é uma pessoa, o ADR-0002 §7.5 deixa isso a você): o ruleset `protect-main` deve exigir PR e os checks `validate`, `semgrep`, `gitleaks` e `pr-size` antes do merge. Em `gh api repos/henriqueluza/universo-do-helinho/rulesets` ou em **Settings → Rules** do repositório.
+
+> **Aviso, risco aceito só para homologação.** Ligar **Wait for CI não faz a Railway esperar build nem testes** do commit publicado. O workflow `validate` (format, build e testes) só roda em `pull_request`; no push para a `main` roda apenas o `security` (gitleaks e semgrep). Um merge com o `validate` verde no PR publica sozinho, sem nenhuma verificação nova. **Confira (ADR-0002 §16, item 10):** não se sabe como a Railway se comporta com Wait for CI quando o único workflow do push é o `security`: pode publicar na hora, esperar só ele ou segurar o deploy.
+>
+> O Henrique aceitou esse risco em 22/11/2026, para homologação com dado sintético. A Issue #225 (rodar o `validate` também no commit que chega à `main`) é **pré-requisito de produção**.
+
+**✔ Confira:** o botão fica ligado, e o ruleset da `main` lista os quatro checks.
+
+**Se der errado:** o ruleset não exige os checks, ou a `main` aceita push direto → **não deixe o auto-deploy ligado**: é a única barreira. Desligue-o ([Deixar a homologação parada](#deixar-a-homologação-parada-para-o-teste-do-jogo)) e avise o Henrique.
+
 ---
 
 ## Passo 6 — Primeiro deploy e conferências
 
-Com `auto_deploy = false`, push na `main` não publica. Quem publica é você, pelo painel.
+Com `auto_deploy = true` (decisão D3, 22/11/2026), **todo push na `main` publica sozinho**. O primeiro deploy pode ter saído sozinho do `apply`; o [6.1](#61-ver-em-que-estado-o-helinho-web-ficou) mostra como saber.
+
+> **Aviso:** o Wait for CI **não espera build nem testes** (veja o [5.8](#58-ligar-wait-for-ci)). Cada merge na `main` vira deploy em homologação sem ninguém acompanhar. Se um commit quebrado for publicado, faça o rollback do [8.2](#82-rollback-para-o-deploy-anterior) (Rollback ou Redeploy do deploy anterior, pelo painel da Railway).
 
 ### 6.1 Ver em que estado o `helinho-web` ficou
 
 Painel → projeto `helinho-homologacao` → serviço `helinho-web` → aba **Deployments**.
 
 - Deploy **verde** (ativo) → pule para o [6.3](#63-conferir-o-pre-deploy-migrate).
-- Deploy que falhou, nenhum deploy, ou deploy ignorado → siga para o 6.2.
+- Deploy que falhou, ou nenhum deploy → siga para o 6.2.
 
-### 6.2 Publicar: Deploy Latest Commit
+### 6.2 Se não há deploy bom: Deploy Latest Commit
 
 1. Com o serviço `helinho-web` aberto, aperte `Cmd+K`.
 2. Escolha **Deploy Latest Commit**. A Railway implanta o último commit da branch conectada, `main` [F5][F6].
@@ -498,14 +539,7 @@ Painel → projeto `helinho-homologacao` → serviço `helinho-web` → aba **De
 
 **✔ Confira:** o deploy termina **verde** e é o deploy ativo do serviço.
 
-**Confira (ADR-0002 §16, item 2): o Deploy Latest Commit respeita o watch pattern?** A documentação indica esse comando como saída quando os watch paths seguram um deploy [F5], mas não afirma que ele os ignora.
-
-- Se o comando criar um deploy normal → está certo, siga.
-- Se o deploy aparecer como **ignorado** (use **Show Skipped** [F5]) → o contorno do `auto_deploy = false` não funciona. **Plano B:**
-  1. No `terraform.tfvars`, defina `auto_deploy = true`; rode `plan` (esperado: 1 mudança, em `railway_service.web`, tirando o watch pattern) e `apply`. Esse `apply` já reimplanta o web.
-  2. **Logo em seguida**, nas configurações do serviço `helinho-web`, na parte de origem e auto-deploy, clique em **Disable** para desligar o deploy automático [F5] (o lugar exato do botão pode variar).
-  3. Repita o **Deploy Latest Commit**.
-  4. Registre a troca em `docs/operations/ambientes.md` e abra uma Issue: o botão Disable é estado só de painel, que o Terraform não enxerga.
+Este é o caminho usado no primeiro deploy, quando o deploy automático não aconteceu e para publicar de novo depois de um restore ou de uma rotação de senha ([8.5](#85-restore-do-banco), [8.7](#87-rotação-das-senhas)). O dia a dia é o [8.1](#81-o-que-dispara-um-deploy-e-como-conferir). Com `auto_deploy = false` a publicação é sempre manual por este comando (e o ADR-0002 §16, item 2, deixa em aberto se ele respeita o watch pattern: se o deploy aparecer como **ignorado** em **Show Skipped** [F5], o plano B é o botão **Disable** do auto-deploy nas configurações do serviço, que é estado só de painel e deve ser registrado em `ambientes.md`).
 
 **Se der errado:**
 
@@ -553,7 +587,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' "$BASE/health/ready"
 | Resposta | Causa provável | O que fazer |
 |---|---|---|
 | `503`, corpo `{"status":"unavailable"}` | A aplicação está no ar e não alcança o banco | Veja o deploy do `Postgres`; depois, **Redeploy** do web |
-| `404` | O commit publicado não tem a rota (PR #104) | Mergeie o PR e repita o [6.2](#62-publicar-deploy-latest-commit) |
+| `404` | O commit publicado não tem a rota (PR #104) | Mergeie o PR (o merge publica sozinho) e repita a conferência |
 | `502` ou página "Application failed to respond" | Não há deploy ativo, ou a aplicação não escuta em 8080 | Volte ao [6.1](#61-ver-em-que-estado-o-helinho-web-ficou) |
 | `307` em laço (`curl: (47) Maximum redirects`) em outras rotas | `Proxy__TrustForwardedHeaders` não chegou ao serviço | Confira a aba **Variables** e o `terraform plan` |
 
@@ -639,13 +673,16 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/login" -H 'Content-
 - `429` na outra rede → todos os clientes dividem o mesmo balde (a aplicação está vendo o IP do proxy, não o do cliente). Dez tentativas de qualquer pessoa bloqueiam o login de todo mundo por um minuto. Abra uma Issue com a label `security:sensitive`; homologação pode continuar.
 - Você demorou mais de um minuto para trocar de rede → a janela zerou e o `401` não prova nada. Repita o laço e a troca.
 
-### 6.8 No próximo push na `main`: o deploy foi ignorado?
+### 6.8 No primeiro merge na `main`: o deploy saiu sozinho?
 
 Só dá para conferir depois do próximo merge na `main` (ADR-0002 §7.5 e §16, item 1).
 
-**✔ Confira:** na aba **Deployments** do `helinho-web`, com **Show Skipped** ligado [F5], o push aparece como **ignorado**, e o deploy ativo continua sendo o anterior.
+1. Mergeie um PR qualquer, já revisado.
+2. Painel → `helinho-web` → aba **Deployments**: um deploy novo deve aparecer sozinho, com o título do commit.
 
-**Se der errado:** o push publicou sozinho → o watch pattern não segurou. Clique em **Disable** no auto-deploy do serviço [F5], registre em `ambientes.md` e abra uma Issue.
+**✔ Confira:** o deploy novo passa por build, pre-deploy e healthcheck e fica ativo; repita o [6.4](#64-healthready).
+
+**Se der errado:** o push não gerou deploy → confira, em **Show Skipped** [F5], se ele foi marcado como ignorado. Se foi, o watch pattern ainda é o de "desligado": reveja o `auto_deploy = true` ([4.1](#41-criar-o-terraformtfvars)) e rode `terraform plan`. Se nem aparece como ignorado, confira a GitHub App ([Passo 3](#passo-3--github-app-da-railway-no-repositório)) e o botão **Wait for CI** ([5.8](#58-ligar-wait-for-ci)) e abra uma Issue.
 
 ---
 
@@ -661,7 +698,7 @@ terraform -chdir=infra/railway output -json url_api | jq -r .homologacao
 
 ### 7.2 Preencher `docs/operations/ambientes.md`
 
-Abra o arquivo e preencha os campos marcados com `<a preencher>`: URL do painel, URL da API, data do `apply`, plano da conta e, se usou, o plano B do [6.2](#62-publicar-deploy-latest-commit). **Não escreva senha, token nem id de workspace** nesse arquivo. Commit em PR `docs` próprio.
+Abra o arquivo e preencha os campos marcados com `<a preencher>`: URL do painel, URL da API, data do `apply`, plano da conta e o estado do auto-deploy (ligado, ou o plano B do botão **Disable**, se foi usado). **Não escreva senha, token nem id de workspace** nesse arquivo. Commit em PR `docs` próprio.
 
 **✔ Confira:** `git diff docs/operations/ambientes.md` mostra só URL, datas e texto; nenhuma senha.
 
@@ -679,13 +716,27 @@ Abra o arquivo e preencha os campos marcados com `<a preencher>`: URL do painel,
 
 ## Passo 8 — Operação
 
-### 8.1 Publicar uma versão nova
+### 8.1 O que dispara um deploy e como conferir
 
-1. Mergeie o PR na `main` (revisado e com CI verde).
-2. Painel → `helinho-web` → `Cmd+K` → **Deploy Latest Commit** [F5].
-3. Repita as conferências [6.3](#63-conferir-o-pre-deploy-migrate) e [6.4](#64-healthready).
+Com `auto_deploy = true` (D3, decisão do Henrique em 22/11/2026), a publicação é automática. Disparam um deploy do `helinho-web`:
 
-Quatro coisas para lembrar:
+- **Merge (push) na `main`.** Qualquer commit, inclusive só de documentação: o watch pattern está vazio, então nada é filtrado.
+- **`terraform apply` com mudança** no serviço ou nas variáveis dele (veja o primeiro item abaixo).
+- **Ação manual no painel:** **Deploy Latest Commit** ou **Redeploy** [F6].
+
+O que acontece em cada deploy: build da imagem (`Dockerfile` da raiz) → **pre-deploy `migrate`** (aplica as migrações pendentes e, com `Seed__Enabled=true`, roda o seed sintético, em contêiner separado e sem volume [F7]) → healthcheck em `/health/ready` → deploy ativo. Se o `migrate` sair com código diferente de zero ou o healthcheck falhar, o deploy não prossegue e **a versão anterior continua no ar** [F7]. Por isso toda migração precisa ser compatível com a versão anterior (expand/contract): ela já rodou quando o healthcheck falha, e o rollback não a desfaz.
+
+> **Aviso:** o Wait for CI **não espera build nem testes** (Issue #225 aberta; [5.8](#58-ligar-wait-for-ci)). O Henrique aceitou isso em homologação em 22/11/2026. A única barreira antes do deploy é a proteção da `main`.
+
+Como ver o resultado, depois de cada merge:
+
+1. Painel → `helinho-web` → aba **Deployments**: o deploy novo aparece sozinho. Acompanhe até **verde** (ativo) ou falha.
+2. Repita as conferências [6.3](#63-conferir-o-pre-deploy-migrate) e [6.4](#64-healthready).
+3. Se ficou **vermelho**, a versão anterior segue ativa; corrija por PR. Se ficou verde mas **quebrado** (por exemplo `/health/ready` ok e o painel com erro), faça o rollback do [8.2](#82-rollback-para-o-deploy-anterior).
+
+Como desligar o auto-deploy: [Deixar a homologação parada](#deixar-a-homologação-parada-para-o-teste-do-jogo). O caminho de **publicação manual** (**Deploy Latest Commit**, `Cmd+K`) é o usado com `auto_deploy = false`, o padrão da variável e o previsto para produção.
+
+Quatro coisas para lembrar sobre o `terraform apply`:
 
 - **Todo `terraform apply` com mudança é um deploy** do serviço alterado: o provider reimplanta quando muda o serviço ou as variáveis dele. O do `Postgres` tem indisponibilidade curta, porque serviço com volume não troca de versão sem parar [F12]. Rode `apply` em horário combinado.
 - Mudou algo no painel à mão? O Terraform não sabe. Rode `terraform plan` e traga a mudança para o código, ou desfaça no painel.
@@ -693,6 +744,8 @@ Quatro coisas para lembrar:
 - **O `prevent_destroy` não protege o volume.** No provider 0.6.3, remover (ou trocar) o bloco `volume` do serviço `Postgres` aparece no `plan` como **alteração no lugar** (`~ update in-place`), não como destruição, e **apaga o volume com os dados**. Por isso, em todo `plan`, confira que `railway_service.postgres` **não aparece como alterado**. Se a alteração for intencional (trocar `postgres_imagem`, por exemplo), faça antes um `pg_dump` ([8.4](#84-pg_dump-para-fora-da-plataforma)) e um backup de volume ([8.3](#83-backup-de-volume-da-railway)), e leia linha por linha o que muda dentro de `volume`: se o bloco `volume` aparecer no diff, **não aplique**.
 
 ### 8.2 Rollback para o deploy anterior
+
+**Quando usar:** um commit quebrado foi publicado (o auto-deploy publica sem testar, [5.8](#58-ligar-wait-for-ci)). O passo mais rápido é **redeploy do deploy anterior pelo painel da Railway**, abaixo. Depois, corrija por PR (reverter o commit é um PR comum); o merge desse PR publica de novo. **Confira:** a documentação não diz se o Rollback pausa o auto-deploy; o próximo merge publica de qualquer forma, então não mergeie nada enquanto o rollback valer.
 
 1. Painel → `helinho-web` → aba **Deployments**.
 2. No deploy anterior que estava bom, clique nos **três pontos** no fim da linha → **Rollback** → confirme [F6].
@@ -706,7 +759,7 @@ O que o rollback faz e não faz:
 - Só existe enquanto a imagem está guardada: **72 horas no Hobby, 120 no Pro** depois de o deploy ser removido [F17]. Passado o prazo a opção **Rollback** some [F6]; resta **Redeploy**, no mesmo menu, que reconstrói a partir do código [F6].
 - Como as variáveis voltam ao valor antigo, o Terraform pode ver diferença: rode `terraform plan` depois e decida se reaplica.
 
-**Se der errado:** a versão antiga não sobe por causa do esquema novo → o caminho é para a frente: corrija por PR e publique ([8.1](#81-publicar-uma-versão-nova)). Se os dados estiverem estragados, restaure o banco ([8.5](#85-restore-do-banco)).
+**Se der errado:** a versão antiga não sobe por causa do esquema novo → o caminho é para a frente: corrija por PR e publique (o merge dispara o deploy, [8.1](#81-o-que-dispara-um-deploy-e-como-conferir)). Se os dados estiverem estragados, restaure o banco ([8.5](#85-restore-do-banco)).
 
 ### 8.3 Backup de volume da Railway
 
@@ -729,7 +782,7 @@ Limites, todos da documentação [F11]:
 
 ### 8.4 `pg_dump` para fora da plataforma
 
-É o backup que sobrevive à perda do projeto e à perda do volume. **Faça um antes de qualquer `apply` cujo plano toque o serviço `Postgres`** ([8.1](#81-publicar-uma-versão-nova)), antes de rotação de senha e antes de destruir. O banco não tem domínio público nem TCP proxy, então a conexão passa por um **túnel SSH** até o contêiner do `Postgres`.
+É o backup que sobrevive à perda do projeto e à perda do volume. **Faça um antes de qualquer `apply` cujo plano toque o serviço `Postgres`** ([8.1](#81-o-que-dispara-um-deploy-e-como-conferir)), antes de rotação de senha e antes de destruir. O banco não tem domínio público nem TCP proxy, então a conexão passa por um **túnel SSH** até o contêiner do `Postgres`.
 
 **Caminho escolhido:** `ssh` nativo com redirecionamento de porta, que a documentação da Railway descreve [F13]. A conexão é aberta de dentro do contêiner, e o redirecionamento só alcança o próprio contêiner e a rede privada do projeto [F13].
 
@@ -920,7 +973,7 @@ Dois caminhos. Antes de qualquer um, faça um backup de volume do estado atual (
 
 **✔ Confira:** o `Postgres` volta com deploy verde; faça **Redeploy** do `helinho-web` e repita [6.4](#64-healthready) e [6.5](#65-login-no-painel).
 
-**Confira (não confirmado): o Terraform depois do restore.** O volume novo recebe como nome a data do backup, e o código declara o volume `postgres-dados` [F11]. Rode `terraform plan` **sem aplicar**. Se ele mostrar **qualquer** mudança em `railway_service.postgres`, inclusive só o nome do volume, **não aplique**: alteração no bloco `volume` pode apagar o volume restaurado ([8.1](#81-publicar-uma-versão-nova)). Guarde a saída e abra uma Issue para alinhar o código ao que está na Railway.
+**Confira (não confirmado): o Terraform depois do restore.** O volume novo recebe como nome a data do backup, e o código declara o volume `postgres-dados` [F11]. Rode `terraform plan` **sem aplicar**. Se ele mostrar **qualquer** mudança em `railway_service.postgres`, inclusive só o nome do volume, **não aplique**: alteração no bloco `volume` pode apagar o volume restaurado ([8.1](#81-o-que-dispara-um-deploy-e-como-conferir)). Guarde a saída e abra uma Issue para alinhar o código ao que está na Railway.
 
 #### B. `pg_restore` de um dump (qualquer banco vazio ou o próprio)
 
@@ -1050,7 +1103,7 @@ terraform -chdir=infra/railway plan -replace='module.ambiente["homologacao"].ran
 
 Destruir apaga o banco e o volume. Antes: `pg_dump` ([8.4](#84-pg_dump-para-fora-da-plataforma)) se algum dado importar, e backup do estado ([5.7](#57-backup-cifrado-do-estado)).
 
-O banco também pode ser apagado **sem** você pedir uma destruição: uma alteração no bloco `volume` do serviço `Postgres` apaga o volume, e o `prevent_destroy` não impede ([8.1](#81-publicar-uma-versão-nova)).
+O banco também pode ser apagado **sem** você pedir uma destruição: uma alteração no bloco `volume` do serviço `Postgres` apaga o volume, e o `prevent_destroy` não impede ([8.1](#81-o-que-dispara-um-deploy-e-como-conferir)).
 
 **Só quer parar de gastar por umas semanas?** Não destrua: remova o deploy dos dois serviços (três pontos do deploy → **Remove** [F6]). Sem deploy ativo, só o volume é cobrado (`docs/operations/custos.md`). Para voltar, publique de novo.
 
@@ -1254,20 +1307,53 @@ Quando houver produção, segundo operador ou `apply` em CI, o estado vai para b
 
 ---
 
+## Deixar a homologação parada para o teste do jogo
+
+Decisão do Henrique em 22/11/2026: depois de subir tudo, a homologação fica parada para o desenvolvedor Unity testar com estabilidade. Com o auto-deploy ligado, "parada" depende de quem mergeia.
+
+**O que não mexer enquanto o jogo é testado:**
+
+- **Não mergeie na `main`** sem avisar o desenvolvedor Unity: cada merge publica e reinicia o `helinho-web` (e o pre-deploy pode rodar migração).
+- **Não rode o `apply` do Terraform com mudança** (é um deploy; o do `Postgres` tem indisponibilidade curta).
+- **Não zere o banco, não troque a senha do seed** ([8.7](#87-rotação-das-senhas)) **nem destrua o ambiente** ([8.8](#88-destruir-o-ambiente)): o desenvolvedor perde o progresso e a credencial.
+- **Não mude nada pelo painel** (variáveis, rede, domínios): o Terraform não vê e o próximo `apply` desfaz.
+- O domínio próprio do painel entra **depois** (`dominio_proprio`, exemplo `paineladm.example.org`); preencher reimplanta o serviço.
+
+**Congelar de vez (estabilidade total):** desligue o auto-deploy. Com ele desligado, merges não publicam e a publicação passa a ser manual ([6.2](#62-se-não-há-deploy-bom-deploy-latest-commit)).
+
+1. No `infra/railway/terraform.tfvars`, troque para `auto_deploy = false` (ou comente a linha: o padrão é `false`).
+2. Exporte os segredos no terminal do Terraform ([4.3](#43-exportar-os-segredos-sem-deixá-los-no-histórico)) e rode o `plan`:
+
+```sh
+terraform -chdir=infra/railway plan -out="$HOME/.helinho-infra/homologacao.tfplan"
+```
+
+**✔ Confira:** `Plan: 0 to add, 1 to change, 0 to destroy.`, a mudança em `railway_service.web` e só o `watch_patterns` indo de `[]` para `["/.auto-deploy-desligado"]`. Qualquer outra mudança, ou alteração no `Postgres`: **não aplique**.
+
+3. Aplique o plano, como no [5.4](#54-apply), e apague o arquivo do plano (`rm "$HOME/.helinho-infra/homologacao.tfplan"`).
+
+Esse `apply` é uma mudança no serviço e, pela regra do [8.1](#81-o-que-dispara-um-deploy-e-como-conferir), reimplanta o web uma vez: faça-o em horário combinado. Depois, faça um backup do estado ([5.7](#57-backup-cifrado-do-estado)).
+
+**Confira (ADR-0002 §16, item 1):** o contorno do watch pattern nunca foi validado em ambiente real. No primeiro merge depois do congelamento, a aba **Deployments**, com **Show Skipped** ligado [F5], deve mostrar o push como **ignorado**, e o deploy ativo continua o mesmo. Se publicou sozinho, use o plano B: botão **Disable** do auto-deploy nas configurações do serviço [F5] (o lugar exato pode variar), e registre em `ambientes.md`.
+
+Para voltar ao auto-deploy: `auto_deploy = true`, `plan` (esperado: 1 mudança, `watch_patterns` de volta para `[]`) e o mesmo `apply`. Se usou o **Disable** do painel, religue-o também no painel.
+
+---
+
 ## Passo 9 — O que fica para depois
 
 Nada disto é feito agora. Cada item tem dono e condição.
 
 | Item | Por que fica para depois | Como será feito |
 |---|---|---|
-| **Domínio próprio e DNS** | A contratante não definiu (C15) | `railway_custom_domain` no Terraform, em Issue própria; os registros DNS de verificação saem como output. HSTS com `includeSubDomains` e `preload` só então |
-| **Ambiente de produção** | Exige ADR próprio para dado real, resposta sobre região e fornecedores (C14, Issue #39), teto de gasto (C04), estado separado e `Seed__Enabled=false` (ADR-0002 §5.2) | Acrescentar `producao` em `ambientes` cria um **segundo projeto** (`helinho-producao`). **Não acrescente agora.** **Confira (ADR-0002 §16, item 5):** nunca crie um segundo ambiente **dentro** do projeto de homologação, nem pelo painel: o provider só lê serviço e volume do ambiente padrão, e o comportamento com dois ambientes não foi testado |
-| **Brevo (Sprint 3)** | E-mail real ainda não existe; `Email__Provider = "Fake"` | `TF_VAR_brevo_api_key` + `variaveis_web` (`Email__Provider`, `Brevo__SenderEmail`, `Brevo__SenderName`, `App__PublicBaseUrl`); runbook próprio. A chave passa a ficar em texto no estado |
-| **IA (Sprint 4)** | `Ai__Provider = "Fake"` | `TF_VAR_ai_api_key` + `Ai__Provider`, `Ai__Model`; runbook próprio. A chave passa a ficar em texto no estado |
+| **Domínio próprio e DNS** | O domínio de produção é decisão da contratante (C15, pendência M5, ainda sem resposta no repositório). O Henrique decidiu em 22/11/2026 que o domínio entra depois do primeiro deploy | Variável `dominio_proprio` dentro de `ambientes` (já na `main`, PR #330), exemplo `paineladm.example.org`; os registros DNS saem em `terraform output dns_dominio_proprio`; passo a passo em `docs/operations/railway-dominio.md`. HSTS com `includeSubDomains` e `preload` só então |
+| **Ambiente de produção** | Decisão D1 do Henrique (22/11/2026): só homologação por enquanto. Pré-requisitos de produção: Issue #225 (`validate` no commit que chega à `main`), Issue #222 (primeiro master sem o seed) e `auto_deploy` por ambiente (ADR-0002 §7.5). Lista em [`ambientes.md`](ambientes.md#o-que-falta-para-ligar-a-produção). Exige também ADR próprio para dado real, resposta sobre região e fornecedores (C14, Issue #39), teto de gasto (C04), estado separado e `Seed__Enabled=false` (ADR-0002 §5.2) | Acrescentar `producao` em `ambientes` cria um **segundo projeto** (`helinho-producao`). **Não acrescente agora.** **Confira (ADR-0002 §16, item 5):** nunca crie um segundo ambiente **dentro** do projeto de homologação, nem pelo painel: o provider só lê serviço e volume do ambiente padrão, e o comportamento com dois ambientes não foi testado |
+| **Brevo (Sprint 3)** | `Email__Provider = "Fake"`: o adaptador da Brevo já está na `main`, mas o envio real espera a conta, a chave e a medição do link; as variáveis de e-mail do Terraform já estão na `main` (Issue #229, PR #333) | `TF_VAR_brevo_api_key` + `variaveis_web` (`Email__Provider`, `Brevo__SenderEmail`, `Brevo__SenderName`, `App__PublicBaseUrl`); runbook próprio. A chave passa a ficar em texto no estado |
+| **IA (Sprint 4)** | `Ai__Provider = "Fake"`: o adaptador da Anthropic já está na `main`, mas falta a chave e o aval da contratante; as variáveis de IA do Terraform já estão na `main` (Issues #229 e #182, PR #344) | `TF_VAR_ai_api_key` + `Ai__Provider`, `Ai__Model`; runbook próprio. A chave passa a ficar em texto no estado |
 | **`railway connect` para o banco** | O ADR-0002 §11 descarta o comando neste desenho: ele exige `DATABASE_URL` no serviço `Postgres`, que o Terraform não define, e imprime a senha ([8.4](#84-pg_dump-para-fora-da-plataforma)) | Só com ADR e Issue em `infra/`, se um dia fizer falta |
-| **Senha própria para o aluno de teste** | Hoje todos os usuários do seed têm a mesma senha; é risco aberto registrado no ADR-0002 §10.4 | Issue própria, no código do seed |
-| **Chaves do Data Protection** | Depende da decisão D4 ([2.1](#21-conferir-que-a-main-tem-tudo)) | Opção A: PR da Issue #103 |
-| **Deploy contínuo** (`auto_deploy = true`) | Decisão D3: manual por enquanto | Trocar a variável e ativar **Wait for CI** nas configurações do serviço, que o provider não alcança [F5] |
+| **Senha própria para o aluno de teste** | Hoje todos os usuários do seed têm a mesma senha (genérica, só para testes, definida pelo Henrique em `TF_VAR_seed_password`); risco aberto no ADR-0002 §10.4. A Issue #115 fica de lado | Issue #115, no código do seed |
+| ~~Chaves do Data Protection~~ | Feito: D4 aceita em 22/11/2026, PR #120 na `main` ([2.1](#21-conferir-que-a-main-tem-tudo)) | Nada a fazer |
+| **Wait for CI que espera build e testes** | D3 foi escolhida (auto-deploy ligado em homologação), mas o Wait for CI não espera build nem testes: o `validate` só roda em `pull_request` | Issue #225 (editar workflow exige autorização do Henrique). Pré-requisito de produção; aceito sem ela em homologação |
 | **Estado remoto com lock** | Um operador, um ambiente | ADR próprio, junto com produção |
 
 **Cliques só de painel** (o provider 0.6.3 não configura; faça quando a homologação estiver estável e registre em `ambientes.md`):
@@ -1284,10 +1370,10 @@ Nada disto é feito agora. Cada item tem dono e condição.
 
 | # | Fato não confirmado | Origem | Passo |
 |---|---|---|---|
-| 1 | Conectar o repositório no primeiro `apply` dispara um deploy? Ele respeita o watch pattern? | ADR §16.1; handoff 107, surpresa 2 | [5.4](#54-apply), [6.1](#61-ver-em-que-estado-o-helinho-web-ficou), [6.8](#68-no-próximo-push-na-main-o-deploy-foi-ignorado) |
-| 2 | "Deploy Latest Commit" ignora o watch pattern? | ADR §16.2; handoff 107, surpresa 8 | [6.2](#62-publicar-deploy-latest-commit) |
+| 1 | Conectar o repositório no primeiro `apply` dispara um deploy? Ele respeita o watch pattern? | ADR §16.1; handoff 107, surpresa 2 | [5.4](#54-apply), [6.1](#61-ver-em-que-estado-o-helinho-web-ficou), [6.8](#68-no-primeiro-merge-na-main-o-deploy-saiu-sozinho) |
+| 2 | "Deploy Latest Commit" ignora o watch pattern? | ADR §16.2; handoff 107, surpresa 8 | [6.2](#62-se-não-há-deploy-bom-deploy-latest-commit) |
 | 3 | O pre-deploy substitui o `ENTRYPOINT` da imagem e roda em forma exec? | ADR §16.3 | [6.3](#63-conferir-o-pre-deploy-migrate) |
-| 4 | O healthcheck traz `X-Forwarded-Proto`? | ADR §16.4 | [6.2](#62-publicar-deploy-latest-commit) |
+| 4 | O healthcheck traz `X-Forwarded-Proto`? | ADR §16.4 | [6.2](#62-se-não-há-deploy-bom-deploy-latest-commit) |
 | 5 | Comportamento do provider com um segundo ambiente no mesmo projeto | ADR §16.5 | [Passo 9](#passo-9--o-que-fica-para-depois) |
 | 6 | A API da Railway aceita variável com valor vazio? | ADR §16.6 | [5.3](#53-plan), item 6 |
 | 7 | Plano da conta da contratante e o que mais roda no workspace | ADR §16.7 | [Passo 1](#passo-1--o-que-pedir-ao-igor) |
@@ -1298,7 +1384,7 @@ Nada disto é feito agora. Cada item tem dono e condição.
 | 12 | Leitura das regiões sem manifesto (`serviceManifest is not found`) | handoff 107, surpresa 4 | [5.5](#55-se-o-apply-falhar-no-meio) |
 | 13 | Serviço órfão quando a criação falha no meio | handoff 107, surpresa 5 | [5.5](#55-se-o-apply-falhar-no-meio) |
 | 14 | Subdomínio ocupado | handoff 107, surpresa 6 | [5.5](#55-se-o-apply-falhar-no-meio) |
-| 15 | Todo `apply` com mudança é um deploy | handoff 107, surpresa 7 | [8.1](#81-publicar-uma-versão-nova) |
+| 15 | Todo `apply` com mudança é um deploy | handoff 107, surpresa 7 | [8.1](#81-o-que-dispara-um-deploy-e-como-conferir) |
 | 16 | Trocar `seed_password` regrava a senha dos usuários? | handoff 107, surpresa 9 | [8.7](#87-rotação-das-senhas): conferido no código, **não regrava** |
 | 17 | A borda sobrescreve `X-Real-IP`; o limite de taxa separa os clientes por IP; cookie `Secure` e HSTS em ambiente real | ADR §8; handoff 97 | [6.7](#67-conferir-o-comportamento-atrás-do-proxy) |
 | 18 | Token de workspace consegue conectar repositório privado de conta pessoal? | este runbook | [Passo 3](#passo-3--github-app-da-railway-no-repositório), [5.5](#55-se-o-apply-falhar-no-meio) |
@@ -1307,10 +1393,12 @@ Nada disto é feito agora. Cada item tem dono e condição.
 | 21 | Nome do volume depois de restaurar um backup, visto pelo Terraform | este runbook | [8.5](#85-restore-do-banco) |
 | 22 | Janela de 48 h do volume quando o projeto inteiro é apagado | este runbook | [8.8](#88-destruir-o-ambiente) |
 | 23 | Qual papel pode criar token de workspace | este runbook | [2.5](#25-criar-o-token-de-workspace). O id do workspace deixou de ser dúvida: `railway whoami --json` ([5.5](#55-se-o-apply-falhar-no-meio)) |
-| 24 | Alterar o bloco `volume` do `Postgres` apaga o volume no lugar, sem o `prevent_destroy` impedir | `infra/railway/README.md` (lido no código do provider; nunca executado) | [8.1](#81-publicar-uma-versão-nova), [8.5](#85-restore-do-banco), [8.8](#88-destruir-o-ambiente) |
+| 24 | Alterar o bloco `volume` do `Postgres` apaga o volume no lugar, sem o `prevent_destroy` impedir | `infra/railway/README.md` (lido no código do provider; nunca executado) | [8.1](#81-o-que-dispara-um-deploy-e-como-conferir), [8.5](#85-restore-do-banco), [8.8](#88-destruir-o-ambiente) |
 | 25 | A aba **Backups** existe no plano Hobby? | este runbook | [8.3](#83-backup-de-volume-da-railway) |
 | 26 | A Railway reimplanta o web quando muda uma variável do `Postgres` que ele referencia? | este runbook | [8.7](#87-rotação-das-senhas) |
 | 27 | Rótulo do botão que apaga um serviço na seção de perigo do projeto; `terraform import` do projeto | este runbook | [5.5](#55-se-o-apply-falhar-no-meio) |
+| 28 | Wait for CI com o único workflow do push sendo o `security`: publica na hora, espera só ele ou segura o deploy? | ADR §16.10 | [5.8](#58-ligar-wait-for-ci) |
+| 29 | Local e nome exatos do botão **Wait for CI**; se o Rollback pausa o auto-deploy | este runbook | [5.8](#58-ligar-wait-for-ci), [8.2](#82-rollback-para-o-deploy-anterior) |
 
 Quando um desses pontos for resolvido na prática, troque o "Confira:" pelo fato, em PR `docs`.
 

@@ -351,7 +351,7 @@ Registradas em 22/11/2026, pelo Henrique.
 |---|---|
 | D1 Topologia | **aceita na opção A**: só `homologacao` |
 | D2 Estado do Terraform | **aceita**: local, fora do git, com backup cifrado (exceção à regra da casa) |
-| D3 Deploy contínuo | **opção B**, não a recomendada: `auto_deploy = true` em homologação, com Wait for CI |
+| D3 Deploy contínuo | **opção B**, não a recomendada: `auto_deploy = true` em homologação, com Wait for CI; o limite do Wait for CI (7.5) foi aceito só para homologação, e a #225 é pré-requisito de produção |
 | D4 Data Protection | **aceita**: tabela no PostgreSQL com o pacote oficial (PR #120) |
 | D5 `railway.toml` e IaC nativo | **aceita**: manter o Terraform; `railway.toml` não é criado |
 
@@ -401,7 +401,7 @@ Opções e riscos na seção 10.3. **Aceita: local, fora do git, com backup cifr
 
 O padrão da variável no Terraform (PR #100) continua `false`; o Henrique liga com `auto_deploy = true` no `terraform.tfvars`.
 
-**Risco aberto, ainda não aceito por ninguém:** a escolha da opção B foi registrada com o Wait for CI como proteção, e essa proteção não cobre build e testes enquanto a Issue #225 não for feita. Até lá, o que segura um commit ruim é a proteção da `main` (7.5). Cabe ao Henrique aceitar esse risco para a homologação (dado sintético) ou autorizar a #225 antes do primeiro `apply`.
+**Risco aceito pelo Henrique em 22/11/2026, só para homologação** ([comentário na Issue #225](https://github.com/henriqueluza/universo-do-helinho/issues/225#issuecomment-7089221462)): a escolha da opção B foi registrada com o Wait for CI como proteção, e essa proteção não cobre build e testes enquanto a Issue #225 não for feita. O Henrique aceitou publicar em homologação (dado sintético) sem a Railway esperar build e testes; até a #225, o que segura um commit ruim é a proteção da `main` (7.5), conferida por uma pessoa antes do primeiro `apply`. A #225 passa a ser **pré-requisito de produção**. O runbook da Railway segue esta escolha desde a Issue #226.
 
 ### D4. Data Protection (aceita)
 
@@ -483,8 +483,8 @@ As Issues #40 (pipeline de staging) e #41 (workflow de produção) foram escrita
 | #99 Terraform | provider `= 0.6.3` + `hashicorp/random`; build e deploy no `railway_service`; mapa `ambientes`; `watch_patterns` para `auto_deploy`; `$${{` nas referências; variáveis vazias não enviadas |
 | `railway.toml` | **cancelada** |
 | Nova: Data Protection | pacote + migração (D4; PR #120) |
-| Runbook | conflito de nome `RAILWAY_TOKEN` com a CLI; agenda de backup, alerta de gasto e Wait for CI são cliques no painel; com `auto_deploy = false`, conferência do deploy ignorado. O runbook em `main` ainda descreve a publicação manual: a atualização para a D3 escolhida é a Issue #226 |
-| Nova: #225 `validate` no commit que chega à `main` | sem ela, o Wait for CI não espera build nem testes (7.5); editar workflow exige autorização |
+| Runbook | conflito de nome `RAILWAY_TOKEN` com a CLI; agenda de backup, alerta de gasto e Wait for CI são cliques no painel; com `auto_deploy = false`, conferência do deploy ignorado. O runbook segue a D3 escolhida (publicação automática em homologação) desde a Issue #226; o caminho manual fica descrito para `auto_deploy = false` |
+| Nova: #225 `validate` no commit que chega à `main` | sem ela, o Wait for CI não espera build nem testes (7.5); aceito só para homologação (D3), pré-requisito de produção; editar workflow exige autorização |
 
 ## 16. O que não foi possível confirmar em fonte
 
@@ -511,6 +511,6 @@ As Issues #40 (pipeline de staging) e #41 (workflow de produção) foram escrita
 - Dependência de um provider comunitário 0.x em uma plataforma que agora investe no próprio IaC.
 - O banco de homologação é operado por nós, não pelo template da Railway.
 - Estado local com segredos em uma única máquina, protegido por disciplina de backup.
-- Com `auto_deploy = true`, toda migração mergeada roda sozinha em homologação. O Wait for CI depende de um clique no painel, fora do Terraform, e hoje não espera build nem testes (7.5; Issue #225): o controle efetivo é a proteção da `main`.
+- Com `auto_deploy = true`, toda migração mergeada roda sozinha em homologação. O Wait for CI depende de um clique no painel, fora do Terraform, e hoje não espera build nem testes (7.5; Issue #225): o controle efetivo é a proteção da `main`. Risco aceito pelo Henrique só para homologação (D3); em produção a #225 é pré-requisito.
 - `auto_deploy = false` (padrão da variável, e o previsto para produção) usa um contorno ainda não validado em ambiente real.
 - Dados hospedados nos Estados Unidos: aceitável para dado sintético, pendente de decisão para dado real.

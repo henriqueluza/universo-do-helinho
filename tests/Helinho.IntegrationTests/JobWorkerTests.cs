@@ -157,6 +157,16 @@ public sealed class JobWorkerTests
     }
 
     [Fact]
+    public async Task Parada_depois_do_descarte_nao_lanca()
+    {
+        using var worker = Worker(Off); // o host de teste é parado por dois caminhos, e o descarte pode vir entre um e outro
+        await worker.StartAsync(Ct);
+        worker.Dispose();
+
+        Assert.Null(await Record.ExceptionAsync(() => worker.StopAsync(Ct)));
+    }
+
+    [Fact]
     public async Task Limpeza_roda_na_subida_e_uma_vez_por_dia_com_a_retencao_configurada()
     {
         using var worker = Worker(new FilaOptions { RetentionDays = 7 });
